@@ -121,7 +121,6 @@ export default function Home() {
   const handleFileOpen = useCallback(async (path: string, content?: string) => {
     setEditorFile(path)
     if (content !== undefined) {
-      // Content provided directly (e.g., new file template)
       setEditorContent(content)
     } else {
       const result = await readFile(path)
@@ -161,7 +160,7 @@ export default function Home() {
           </div>
           <Separator orientation="vertical" className="h-5 bg-[#21262d]" />
           <div className="flex items-center gap-1.5">
-            {connected ? (
+            {mounted && connected ? (
               <motion.div
                 className="flex items-center gap-1.5"
                 initial={{ scale: 0.8 }}
@@ -178,7 +177,9 @@ export default function Home() {
                 <span className="relative flex h-2 w-2">
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
                 </span>
-                <span className="text-[10px] text-red-400 font-medium">Disconnected</span>
+                <span className="text-[10px] text-red-400 font-medium">
+                  {mounted ? 'Disconnected' : 'Connecting...'}
+                </span>
               </div>
             )}
           </div>
@@ -310,7 +311,7 @@ export default function Home() {
                     checkTools={checkTools}
                     onInstall={installTool}
                     sendCommandToTerminal={sendCommandToTerminal}
-                    loading={!connected}
+                    loading={!mounted || !connected}
                   />
                 </TabsContent>
 
@@ -352,7 +353,7 @@ export default function Home() {
                 <div className="flex items-center h-9 border-b border-[#21262d] bg-[#161b22]/60 shrink-0 overflow-x-auto">
                   <ScrollArea className="flex-1">
                     <div className="flex items-center h-9">
-                      {sessions.map((session, i) => (
+                      {sessions.map((session) => (
                         <motion.button
                           key={session.sessionId}
                           className={`flex items-center gap-1.5 px-3 h-full text-xs border-r border-[#21262d] transition-colors shrink-0 ${
@@ -396,7 +397,7 @@ export default function Home() {
                 </div>
 
                 {/* Terminal Content */}
-                <div className="flex-1 bg-[#0d1117] overflow-hidden">
+                <div className="flex-1 bg-[#0d1117] overflow-hidden relative">
                   {sessions.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
                       <motion.div
@@ -405,7 +406,9 @@ export default function Home() {
                         animate={{ opacity: 1, y: 0 }}
                       >
                         <Terminal className="h-12 w-12 mx-auto text-[#21262d] mb-3" />
-                        <p className="text-sm text-[#484f58] mb-3">No terminal sessions</p>
+                        <p className="text-sm text-[#484f58] mb-3">
+                          {mounted && connected ? 'No terminal sessions' : 'Connecting to terminal service...'}
+                        </p>
                         <Button
                           variant="outline"
                           size="sm"
@@ -476,13 +479,13 @@ export default function Home() {
           <span>{sessions.length} terminal{sessions.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="flex items-center gap-3">
-          {connected && latency > 0 && (
+          {mounted && connected && latency > 0 && (
             <span className={`${latency > 200 ? 'text-yellow-400' : 'text-green-400'}`}>
               {latency}ms
             </span>
           )}
           <div className="flex items-center gap-1">
-            {connected ? (
+            {mounted && connected ? (
               <Wifi className="h-2.5 w-2.5 text-green-500" />
             ) : (
               <WifiOff className="h-2.5 w-2.5 text-red-500" />

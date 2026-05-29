@@ -24,28 +24,16 @@ export interface TerminalSessionInfo {
 // Global output handlers per session
 const outputHandlers = new Map<string, Set<(data: string) => void>>()
 
+// Buffer for output that arrives before a handler is registered
+const outputBuffer = new Map<string, string[]>()
+
 /**
- * Determine the best URL for connecting to the terminal service.
- * Strategy:
- * 1. Try direct connection to port 3003 on the same host (works if port is exposed)
- * 2. Fall back to Caddy proxy with XTransformPort query param
+ * Connect to the terminal service through the Caddy proxy.
+ * IMPORTANT: Must use relative path with XTransformPort query parameter
+ * per the environment's gateway requirements. Never use direct
+ * http://hostname:port connections.
  */
-function getTerminalServiceUrls(): { primary: string; fallback: string } {
-  if (typeof window === 'undefined') {
-    return { primary: '', fallback: '' }
-  }
-
-  const protocol = window.location.protocol
-  const hostname = window.location.hostname
-
-  // Primary: direct connection to terminal service on port 3003
-  const primary = `${protocol}//${hostname}:3003`
-
-  // Fallback: through Caddy proxy with XTransformPort
-  const fallback = `${protocol}//${window.location.host}`
-
-  return { primary, fallback }
-}
+const TERMINAL_SERVICE_PORT = 3003
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null)
@@ -55,99 +43,90 @@ export function useSocket() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [latency, setLatency] = useState(0)
   const latencyIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const activeSessionIdRef = useRef<string | null>(null)
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId
+  }, [activeSessionId])
 
   useEffect(() => {
-    const { primary, fallback } = getTerminalServiceUrls()
+    console.log('[useSocket] Connecting to terminal service via Caddy proxy...')
 
-    // Try direct connection first, then fallback to Caddy proxy
-    let socket: Socket
-    const tryConnect = (url: string, query?: Record<string, string>): Socket => {
-      const s = io(url, {
-        transports: ['websocket', 'polling'],
-        forceNew: true,
-        reconnection: true,
-        reconnectionAttempts: 15,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        timeout: 10000,
-        query: query || {},
-      })
-      return s
-    }
-
-    // Try primary (direct) connection first
-    socket = tryConnect(primary)
-
-    // If primary fails after timeout, try fallback (Caddy proxy)
-    let fallbackAttempted = false
-    const fallbackTimer = setTimeout(() => {
-      if (!socket.connected && !fallbackAttempted) {
-        console.log('[useSocket] Primary connection failed, trying Caddy proxy fallback...')
-        fallbackAttempted = true
-        socket.disconnect()
-        socket = tryConnect(fallback, { XTransformPort: '3003' })
-        socketRef.current = socket
-        setupSocketHandlers(socket)
-      }
-    }, 5000)
+    // Use the Caddy proxy with XTransformPort - this is the ONLY supported way
+    // per the environment's gateway requirements
+    const socket = io('/', {
+      transports: ['websocket', 'polling'],
+      forceNew: true,
+      reconnection: true,
+      reconnectionAttempts: 20,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000,
+      query: {
+        XTransformPort: String(TERMINAL_SERVICE_PORT),
+      },
+    })
 
     socketRef.current = socket
 
-    const setupSocketHandlers = (s: Socket) => {
-      s.on('connect', () => {
-        console.log('[useSocket] Connected to terminal service, socket id:', s.id)
-        setConnected(true)
-        clearTimeout(fallbackTimer)
-        s.emit('tools:check')
-      })
+    socket.on('connect', () => {
+      console.log('[useSocket] Connected to terminal service, socket id:', socket.id)
+      setConnected(true)
+      // Check tools on connect
+      socket.emit('tools:check')
+    })
 
-      s.on('disconnect', (reason) => {
-        console.log('[useSocket] Disconnected from terminal service, reason:', reason)
-        setConnected(false)
-      })
+    socket.on('disconnect', (reason) => {
+      console.log('[useSocket] Disconnected, reason:', reason)
+      setConnected(false)
+    })
 
-      s.on('connect_error', (err) => {
-        console.warn('[useSocket] Connection error:', err.message)
-        setConnected(false)
-      })
+    socket.on('connect_error', (err) => {
+      console.warn('[useSocket] Connection error:', err.message)
+      setConnected(false)
+    })
 
-      // Single global output handler that dispatches to all registered handlers
-      s.on('terminal:output', (data: { sessionId: string; data: string }) => {
-        const handlers = outputHandlers.get(data.sessionId)
-        if (handlers) {
-          handlers.forEach(handler => handler(data.data))
+    // Global output handler - dispatches to registered per-session handlers
+    socket.on('terminal:output', (data: { sessionId: string; data: string }) => {
+      const handlers = outputHandlers.get(data.sessionId)
+      if (handlers && handlers.size > 0) {
+        handlers.forEach(handler => handler(data.data))
+      } else {
+        // Buffer output for sessions that don't have a handler yet
+        if (!outputBuffer.has(data.sessionId)) {
+          outputBuffer.set(data.sessionId, [])
         }
-      })
-
-      s.on('tools:status', (toolsStatus: ToolInfo[]) => {
-        console.log('[useSocket] Received tools status:', toolsStatus.length, 'tools')
-        setTools(toolsStatus)
-      })
-
-      // Latency measurement
-      if (latencyIntervalRef.current) {
-        clearInterval(latencyIntervalRef.current)
+        outputBuffer.get(data.sessionId)!.push(data.data)
       }
-      latencyIntervalRef.current = setInterval(() => {
-        if (s.connected) {
-          const start = Date.now()
-          s.emit('ping', () => {
-            setLatency(Date.now() - start)
-          })
-        }
-      }, 5000)
-    }
+    })
 
-    setupSocketHandlers(socket)
+    socket.on('tools:status', (toolsStatus: ToolInfo[]) => {
+      console.log('[useSocket] Received tools status:', toolsStatus.length, 'tools')
+      setTools(toolsStatus)
+    })
+
+    // Latency measurement
+    if (latencyIntervalRef.current) {
+      clearInterval(latencyIntervalRef.current)
+    }
+    latencyIntervalRef.current = setInterval(() => {
+      if (socket.connected) {
+        const start = Date.now()
+        socket.emit('ping', () => {
+          setLatency(Date.now() - start)
+        })
+      }
+    }, 5000)
 
     return () => {
-      clearTimeout(fallbackTimer)
       if (latencyIntervalRef.current) {
         clearInterval(latencyIntervalRef.current)
       }
       socket.disconnect()
       socketRef.current = null
       outputHandlers.clear()
+      outputBuffer.clear()
     }
   }, [])
 
@@ -189,6 +168,7 @@ export function useSocket() {
 
     // Clean up output handlers for this session
     outputHandlers.delete(sessionId)
+    outputBuffer.delete(sessionId)
 
     socket.emit('terminal:destroy', { sessionId })
 
@@ -220,11 +200,22 @@ export function useSocket() {
   }, [])
 
   // Register an output handler for a session - returns unsubscribe function
+  // Also flushes any buffered output for that session
   const onOutput = useCallback((sessionId: string, handler: (data: string) => void) => {
     if (!outputHandlers.has(sessionId)) {
       outputHandlers.set(sessionId, new Set())
     }
     outputHandlers.get(sessionId)!.add(handler)
+
+    // Flush any buffered output for this session
+    const buffered = outputBuffer.get(sessionId)
+    if (buffered && buffered.length > 0) {
+      // Use setTimeout to avoid calling handler during render
+      setTimeout(() => {
+        buffered.forEach(data => handler(data))
+        outputBuffer.delete(sessionId)
+      }, 0)
+    }
 
     return () => {
       const handlers = outputHandlers.get(sessionId)
@@ -341,10 +332,11 @@ export function useSocket() {
   }, [])
 
   const sendCommandToTerminal = useCallback((command: string) => {
-    if (activeSessionId) {
-      sendInput(activeSessionId, command + '\n')
+    const sid = activeSessionIdRef.current
+    if (sid) {
+      sendInput(sid, command + '\n')
     }
-  }, [activeSessionId, sendInput])
+  }, [sendInput])
 
   return {
     socket: socketRef,

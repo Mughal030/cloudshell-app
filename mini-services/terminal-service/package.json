@@ -4,7 +4,7 @@
   "description": "Terminal backend mini-service with PTY support via WebSocket",
   "type": "module",
   "scripts": {
-    "dev": "node --experimental-strip-types index.ts"
+    "dev": "bun --hot index.ts"
   },
   "dependencies": {
     "socket.io": "^4.8.1",

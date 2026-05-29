@@ -21,7 +21,7 @@ process.on('unhandledRejection', (reason) => {
 const PORT = parseInt(process.env.PORT || '3000', 10)
 const TERMINAL_PORT = 3003
 const WORKSPACE_DIR = '/home/z/my-project/workspace'
-const SHELL = '/bin/bash'
+const SHELL = process.env.SHELL || '/bin/bash'
 const dev = process.env.NODE_ENV !== 'production'
 
 // ─── Ensure workspace directories exist ──────────────────────────
@@ -159,6 +159,8 @@ interface TerminalSession {
   id: string
   pty: any
   socketId: string
+  cols: number
+  rows: number
 }
 
 const sessions = new Map<string, TerminalSession>()
@@ -178,6 +180,55 @@ function cleanupSocketSessions(socketId: string) {
   }
 }
 
+function createPtySession(sessionId: string, socketId: string, cols: number, rows: number, socket: any) {
+  console.log(`[Terminal] Creating PTY session ${sessionId} (${cols}x${rows})`)
+
+  const pty = spawn(SHELL, [], {
+    name: 'xterm-256color',
+    cols,
+    rows,
+    cwd: WORKSPACE_DIR,
+    env: {
+      ...process.env,
+      TERM: 'xterm-256color',
+      PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin:/home/z/.bun/bin',
+      HOME: '/home/z',
+      USER: 'z',
+      LANG: 'en_US.UTF-8',
+      EDITOR: 'vim',
+    },
+  })
+
+  const session: TerminalSession = { id: sessionId, pty, socketId, cols, rows }
+  sessions.set(sessionId, session)
+  socketSessions.get(socketId)?.add(sessionId)
+
+  // PTY data output -> send to client
+  pty.onData((data: string) => {
+    socket.emit('terminal:output', { sessionId, data })
+  })
+
+  // PTY exit - auto restart
+  pty.onExit(({ exitCode }: { exitCode: number }) => {
+    console.log(`[Terminal] PTY exited for session ${sessionId} with code ${exitCode}`)
+    socket.emit('terminal:output', {
+      sessionId,
+      data: `\r\n\x1b[33m[Process exited with code ${exitCode}. Starting new shell...]\x1b[0m\r\n`,
+    })
+
+    sessions.delete(sessionId)
+    socketSessions.get(socketId)?.delete(sessionId)
+
+    // Auto-create a new shell
+    try {
+      createPtySession(sessionId, socketId, cols, rows, socket)
+      console.log(`[Terminal] Restarted PTY for session ${sessionId}`)
+    } catch (restartErr) {
+      console.error(`[Terminal] Failed to restart PTY:`, restartErr)
+    }
+  })
+}
+
 // ─── Start Next.js ───────────────────────────────────────────────
 const app = next({ dev })
 const handle = app.getRequestHandler()
@@ -194,6 +245,7 @@ app.prepare().then(() => {
     pingInterval: 25000,
     maxHttpBufferSize: 1e6,
     connectTimeout: 10000,
+    allowEIO3: true, // Compatibility with older clients
   })
 
   // ─── Socket.io Connection Handler ────────────────────────────────
@@ -208,77 +260,7 @@ app.prepare().then(() => {
         const cols = data?.cols || 80
         const rows = data?.rows || 24
 
-        console.log(`[Terminal] Creating PTY session ${sessionId} (${cols}x${rows})`)
-
-        const pty = spawn(SHELL, [], {
-          name: 'xterm-256color',
-          cols,
-          rows,
-          cwd: WORKSPACE_DIR,
-          env: {
-            ...process.env,
-            TERM: 'xterm-256color',
-            PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin',
-            HOME: '/home/z',
-            USER: 'z',
-            LANG: 'en_US.UTF-8',
-            EDITOR: 'vim',
-          },
-        })
-
-        const session: TerminalSession = { id: sessionId, pty, socketId: socket.id }
-        sessions.set(sessionId, session)
-        socketSessions.get(socket.id)?.add(sessionId)
-
-        pty.onData((data: string) => {
-          socket.emit('terminal:output', { sessionId, data })
-        })
-
-        pty.onExit(({ exitCode }: { exitCode: number }) => {
-          console.log(`[Terminal] PTY exited for session ${sessionId} with code ${exitCode}`)
-          socket.emit('terminal:output', {
-            sessionId,
-            data: `\r\n\x1b[33m[Process exited with code ${exitCode}. Starting new shell...]\x1b[0m\r\n`,
-          })
-
-          sessions.delete(sessionId)
-          socketSessions.get(socket.id)?.delete(sessionId)
-
-          // Auto-restart shell
-          try {
-            const newPty = spawn(SHELL, [], {
-              name: 'xterm-256color',
-              cols, rows,
-              cwd: WORKSPACE_DIR,
-              env: {
-                ...process.env,
-                TERM: 'xterm-256color',
-                PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin',
-                HOME: '/home/z',
-                USER: 'z',
-                LANG: 'en_US.UTF-8',
-                EDITOR: 'vim',
-              },
-            })
-
-            const newSession: TerminalSession = { id: sessionId, pty: newPty, socketId: socket.id }
-            sessions.set(sessionId, newSession)
-            socketSessions.get(socket.id)?.add(sessionId)
-
-            newPty.onData((data: string) => {
-              socket.emit('terminal:output', { sessionId, data })
-            })
-
-            newPty.onExit(() => {
-              sessions.delete(sessionId)
-              socketSessions.get(socket.id)?.delete(sessionId)
-            })
-
-            console.log(`[Terminal] Restarted PTY for session ${sessionId}`)
-          } catch (restartErr) {
-            console.error(`[Terminal] Failed to restart PTY:`, restartErr)
-          }
-        })
+        createPtySession(sessionId, socket.id, cols, rows, socket)
 
         socket.emit('terminal:created', { sessionId })
         console.log(`[Terminal] Session created: ${sessionId}`)
@@ -296,6 +278,8 @@ app.prepare().then(() => {
         try { session.pty.write(inputData) } catch (err) {
           console.error(`[Terminal] Error writing to PTY:`, err)
         }
+      } else {
+        console.warn(`[Terminal] Received input for unknown session: ${sessionId}`)
       }
     })
 
@@ -397,6 +381,7 @@ app.prepare().then(() => {
       try {
         const toolsStatus = TOOLS.map(checkTool)
         socket.emit('tools:status', toolsStatus)
+        console.log(`[Terminal] Tools check: ${toolsStatus.filter(t => t.installed).length}/${toolsStatus.length} installed`)
       } catch (err) {
         socket.emit('tools:status', [])
       }

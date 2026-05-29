@@ -27,6 +27,7 @@ export function XtermTerminal({
   const sessionIdRef = useRef(sessionId)
   const sendInputRef = useRef(sendInput)
   const resizeTerminalRef = useRef(resizeTerminal)
+  const initDoneRef = useRef(false)
 
   // Keep refs updated without triggering re-renders or effect re-runs
   useEffect(() => {
@@ -35,11 +36,11 @@ export function XtermTerminal({
     resizeTerminalRef.current = resizeTerminal
   })
 
-  // Initialize terminal ONCE - never recreate it
+  // Initialize terminal ONCE
   useEffect(() => {
     if (!containerRef.current) return
-    // Prevent double init in React strict mode
-    if (termRef.current) return
+    if (initDoneRef.current) return
+    initDoneRef.current = true
 
     console.log('[XtermTerminal] Initializing terminal for session:', sessionId)
 
@@ -88,7 +89,7 @@ export function XtermTerminal({
     termRef.current = term
     fitAddonRef.current = fitAddon
 
-    // Handle terminal input - use refs so we don't need to recreate the listener
+    // Handle terminal input - forward keystrokes to PTY via socket
     term.onData((data: string) => {
       sendInputRef.current(sessionIdRef.current, data)
     })
@@ -110,7 +111,9 @@ export function XtermTerminal({
     }
 
     // Initial fit with delay to ensure DOM is ready
-    const fitTimer = setTimeout(() => {
+    const fitTimers: ReturnType<typeof setTimeout>[] = []
+
+    fitTimers.push(setTimeout(() => {
       try {
         fitAddon.fit()
         if (term.cols && term.rows) {
@@ -119,16 +122,29 @@ export function XtermTerminal({
       } catch {
         // ignore
       }
-    }, 200)
+    }, 100))
+
+    // Second fit attempt after a longer delay (for slow DOM)
+    fitTimers.push(setTimeout(() => {
+      try {
+        fitAddon.fit()
+        if (term.cols && term.rows) {
+          resizeTerminalRef.current(sessionIdRef.current, term.cols, term.rows)
+        }
+      } catch {
+        // ignore
+      }
+    }, 500))
 
     return () => {
-      clearTimeout(fitTimer)
+      fitTimers.forEach(t => clearTimeout(t))
       resizeObserver.disconnect()
       term.dispose()
       termRef.current = null
       fitAddonRef.current = null
+      initDoneRef.current = false
     }
-  }, []) // Empty deps - only create once!
+  }, [sessionId]) // Re-init if sessionId changes (shouldn't normally happen)
 
   // Subscribe to output for this session
   useEffect(() => {
@@ -144,17 +160,20 @@ export function XtermTerminal({
   // Handle visibility changes - refit when becoming active
   useEffect(() => {
     if (isActive && fitAddonRef.current && termRef.current) {
+      // Small delay to ensure the container is visible and has dimensions
       const timer = setTimeout(() => {
         try {
-          fitAddonRef.current?.fit()
-          if (termRef.current?.cols && termRef.current?.rows) {
-            resizeTerminalRef.current(sessionIdRef.current, termRef.current.cols, termRef.current.rows)
+          if (fitAddonRef.current && termRef.current) {
+            fitAddonRef.current.fit()
+            if (termRef.current.cols && termRef.current.rows) {
+              resizeTerminalRef.current(sessionIdRef.current, termRef.current.cols, termRef.current.rows)
+            }
+            termRef.current.focus()
           }
-          termRef.current?.focus()
         } catch {
-          // ignore
+          // ignore fit errors
         }
-      }, 100)
+      }, 50)
       return () => clearTimeout(timer)
     }
   }, [isActive])
@@ -167,8 +186,23 @@ export function XtermTerminal({
     <div
       ref={containerRef}
       onClick={handleContainerClick}
-      className={`w-full h-full ${isActive ? '' : 'hidden'}`}
-      style={{ padding: '4px' }}
+      className="w-full h-full"
+      style={{
+        padding: '4px',
+        // Use visibility instead of display:none so xterm can calculate dimensions
+        // when the terminal is inactive but still needs to be measured
+        visibility: isActive ? 'visible' : 'hidden',
+        position: isActive ? 'relative' : 'absolute',
+        // For inactive terminals, take them out of flow but keep dimensions calculable
+        ...(isActive ? {} : {
+          pointerEvents: 'none' as const,
+          height: '100%',
+          width: '100%',
+          left: 0,
+          top: 0,
+          overflow: 'hidden',
+        }),
+      }}
     />
   )
 }
