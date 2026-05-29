@@ -7,6 +7,7 @@ export interface ToolInfo {
   name: string
   installed: boolean
   version: string
+  displayName?: string
 }
 
 export interface FileInfo {
@@ -53,13 +54,13 @@ function getOrCreateSocket(): Socket {
   console.log('[useSocket] Creating new socket connection...')
 
   const socket = io('/', {
-    transports: ['websocket', 'polling'],
-    forceNew: true,
+    transports: ['websocket'],        // avoid polling fallback
     reconnection: true,
-    reconnectionAttempts: Infinity,
-    reconnectionDelay: 500,
+    reconnectionAttempts: Infinity,    // keep trying forever
+    reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
     timeout: 20000,
+    forceNew: false,                   // reuse singleton
     query: {
       XTransformPort: String(TERMINAL_SERVICE_PORT),
     },
@@ -147,11 +148,28 @@ export function useSocket() {
       }
     }
 
+    // Handle reconnection — try to restore sessions
+    const onReconnect = (attemptNumber: number) => {
+      console.log('[useSocket] Reconnected after', attemptNumber, 'attempts')
+      if (mountedRef.current) {
+        setConnected(true)
+      }
+      // Re-check tools
+      socket.emit('tools:check')
+      // Try to restore active session
+      const currentSessionId = activeSessionIdRef.current
+      if (currentSessionId) {
+        console.log('[useSocket] Requesting session restore for:', currentSessionId)
+        socket.emit('restore-session', { sessionId: currentSessionId })
+      }
+    }
+
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     socket.on('connect_error', onConnectError)
     socket.on('terminal:output', onOutput)
     socket.on('tools:status', onToolsStatus)
+    socket.on('reconnect', onReconnect)
 
     // If already connected, update state
     if (socket.connected) {
@@ -183,6 +201,7 @@ export function useSocket() {
       socket.off('connect_error', onConnectError)
       socket.off('terminal:output', onOutput)
       socket.off('tools:status', onToolsStatus)
+      socket.off('reconnect', onReconnect)
 
       if (latencyIntervalRef.current) {
         clearInterval(latencyIntervalRef.current)

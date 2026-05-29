@@ -129,10 +129,13 @@ const io = new Server(httpServer, {
     origin: '*',
     methods: ['GET', 'POST'],
   },
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  maxHttpBufferSize: 1e6, // 1MB
-  connectTimeout: 10000,
+  pingInterval: 10000,      // send ping every 10s
+  pingTimeout: 25000,       // wait 25s for pong before disconnect
+  upgradeTimeout: 10000,    // time to upgrade from polling to WS
+  maxHttpBufferSize: 1e7,   // 10MB for large pastes
+  connectTimeout: 20000,
+  transports: ['websocket'], // skip polling entirely
+  allowUpgrades: false,     // we start with WS directly
 })
 
 // ─── Session Storage ─────────────────────────────────────────────
@@ -146,11 +149,28 @@ const sessions = new Map<string, TerminalSession>()
 const socketSessions = new Map<string, Set<string>>() // socketId -> Set of sessionIds
 
 // ─── Tool definitions ────────────────────────────────────────────
+// Check for podman as docker alternative
+const HAS_DOCKER = (() => {
+  try {
+    execSync('which docker 2>/dev/null', { encoding: 'utf-8', timeout: 3000 })
+    return true
+  } catch { return false }
+})()
+
+const HAS_PODMAN = (() => {
+  try {
+    execSync('which podman 2>/dev/null', { encoding: 'utf-8', timeout: 3000 })
+    return true
+  } catch { return false }
+})()
+
+const DOCKER_CMD = HAS_PODMAN ? 'podman' : (HAS_DOCKER ? 'docker' : 'docker')
+
 const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'python3', 'pip3', 'sudo']
 
 const TOOL_INSTALL_COMMANDS: Record<string, string> = {
   git: 'sudo apt-get update && sudo apt-get install -y git',
-  docker: 'sudo apt-get update && sudo apt-get install -y docker.io && sudo systemctl start docker 2>/dev/null; echo "Docker installation complete"',
+  docker: 'echo "Installing Podman (rootless Docker alternative)..." && (command -v nix-env >/dev/null && nix-env -iA nixpkgs.podman nixpkgs.slirp4netns nixpkgs.fuse-overlayfs || (sudo apt-get update && sudo apt-get install -y podman)) && echo "alias docker=podman" >> ~/.bashrc && echo "Podman installed! Use docker or podman commands."',
   curl: 'sudo apt-get update && sudo apt-get install -y curl',
   wget: 'sudo apt-get update && sudo apt-get install -y wget',
   vim: 'sudo apt-get update && sudo apt-get install -y vim',
@@ -163,9 +183,54 @@ const TOOL_INSTALL_COMMANDS: Record<string, string> = {
 }
 
 // ─── Helper: check if a tool is installed ────────────────────────
-function checkTool(name: string): { name: string; installed: boolean; version: string } {
+function checkTool(name: string): { name: string; installed: boolean; version: string; displayName?: string } {
   try {
-    // First check if the command exists
+    // Special handling for docker - also check for podman
+    if (name === 'docker') {
+      // Check for real docker first
+      try {
+        const dockerWhich = execSync('which docker 2>/dev/null || echo "not-found"', {
+          encoding: 'utf-8',
+          timeout: 3000,
+        }).trim()
+
+        if (!dockerWhich.includes('not-found')) {
+          try {
+            const versionOutput = execSync('docker --version 2>&1', {
+              encoding: 'utf-8',
+              timeout: 5000,
+            }).trim()
+            return { name, installed: true, version: versionOutput.split('\n')[0].trim(), displayName: 'Docker' }
+          } catch {
+            return { name, installed: true, version: 'installed', displayName: 'Docker' }
+          }
+        }
+      } catch { /* docker not found */ }
+
+      // Check for podman as alternative
+      try {
+        const podmanWhich = execSync('which podman 2>/dev/null || echo "not-found"', {
+          encoding: 'utf-8',
+          timeout: 3000,
+        }).trim()
+
+        if (!podmanWhich.includes('not-found')) {
+          try {
+            const versionOutput = execSync('podman --version 2>&1', {
+              encoding: 'utf-8',
+              timeout: 5000,
+            }).trim()
+            return { name, installed: true, version: versionOutput.split('\n')[0].trim(), displayName: 'Docker (Podman)' }
+          } catch {
+            return { name, installed: true, version: 'installed', displayName: 'Docker (Podman)' }
+          }
+        }
+      } catch { /* podman not found */ }
+
+      return { name, installed: false, version: '' }
+    }
+
+    // Standard check for all other tools
     const whichOutput = execSync(`which ${name} 2>/dev/null || echo "not-found"`, {
       encoding: 'utf-8',
       timeout: 5000,
@@ -175,9 +240,8 @@ function checkTool(name: string): { name: string; installed: boolean; version: s
       return { name, installed: false, version: '' }
     }
 
-    // Get version - use different flags for different tools
+    // Get version
     let versionArg = '--version'
-    if (name === 'docker') versionArg = '--version'
 
     try {
       const versionOutput = execSync(`${name} ${versionArg} 2>&1`, {
@@ -188,7 +252,6 @@ function checkTool(name: string): { name: string; installed: boolean; version: s
       const firstLine = versionOutput.split('\n')[0]
       return { name, installed: true, version: firstLine.trim() }
     } catch {
-      // which found it but version failed - still count as installed
       return { name, installed: true, version: 'installed' }
     }
   } catch {
@@ -539,6 +602,22 @@ io.on('connection', (socket) => {
         tool,
         command: `sudo apt-get update && sudo apt-get install -y ${tool}`,
       })
+    }
+  })
+
+  // ── Session Restore (for reconnection) ──────────────────────
+  socket.on('restore-session', (data: { sessionId: string }) => {
+    const { sessionId } = data
+    const session = sessions.get(sessionId)
+    if (session) {
+      console.log(`Session ${sessionId} restored for socket ${socket.id}`)
+      // Update socket mapping for existing session
+      session.socketId = socket.id
+      socketSessions.get(socket.id)?.add(sessionId)
+      socket.emit('terminal:restored', { sessionId, success: true })
+    } else {
+      console.log(`Session ${sessionId} not found for restore, creating new terminal`)
+      socket.emit('terminal:restored', { sessionId, success: false })
     }
   })
 

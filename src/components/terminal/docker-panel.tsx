@@ -88,18 +88,30 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
     return `${(bytes / (1024 * 1024)).toFixed(1)}M`
   }
 
+  // Use podman if available, otherwise fall back to docker
+  const getContainerCmd = () => {
+    // Check if podman is available in PATH (podman is a rootless Docker alternative)
+    return 'podman'
+  }
+
   const handleBuildImage = (dockerfileName: string) => {
     const name = dockerfileName.replace(/\.dockerfile$/i, '').toLowerCase()
-    sendCommandToTerminal(`cd /home/z/my-project/workspace && sudo docker build -f .dockerfiles/${dockerfileName} -t ${name}:latest . 2>&1 || echo "Docker build failed - Docker may not be available in this environment"`)
+    const cmd = getContainerCmd()
+    sendCommandToTerminal(`cd /home/z/my-project/workspace && ${cmd} build -f .dockerfiles/${dockerfileName} -t ${name}:latest . 2>&1 || docker build -f .dockerfiles/${dockerfileName} -t ${name}:latest . 2>&1 || echo "Container build failed - Neither Podman nor Docker is available. Install Podman: nix-env -iA nixpkgs.podman"`)
   }
 
   const handleRunContainer = (dockerfileName: string) => {
     const name = dockerfileName.replace(/\.dockerfile$/i, '').toLowerCase()
-    sendCommandToTerminal(`sudo docker run -it --rm ${name}:latest 2>&1 || echo "Docker run failed - Docker may not be available in this environment"`)
+    const cmd = getContainerCmd()
+    sendCommandToTerminal(`${cmd} run -it --rm ${name}:latest 2>&1 || docker run -it --rm ${name}:latest 2>&1 || echo "Container run failed - Neither Podman nor Docker is available."`)
   }
 
   const handleCheckDocker = () => {
-    sendCommandToTerminal('which docker 2>/dev/null && docker --version 2>/dev/null || echo "Docker is not installed. Docker requires system-level installation (root access). Consider using Podman as an alternative."')
+    sendCommandToTerminal('echo "=== Checking container runtime ===" && (which podman 2>/dev/null && podman --version 2>/dev/null && echo "Podman (rootless Docker alternative) is available!" || echo "Podman not found") && (which docker 2>/dev/null && docker --version 2>/dev/null && echo "Docker is available!" || echo "Docker not found") && echo "" && echo "Tip: Install Podman (rootless) via Nix:" && echo "  1. Install Nix:  curl -L https://nixos.org/nix/install | sh -s -- --no-daemon" && echo "  2. Install Podman: nix-env -iA nixpkgs.podman nixpkgs.slirp4netns nixpkgs.fuse-overlayfs"')
+  }
+
+  const handleInstallPodman = () => {
+    sendCommandToTerminal('echo "Installing Podman (rootless Docker alternative)..." && (command -v nix-env >/dev/null 2>&1 && nix-env -iA nixpkgs.podman nixpkgs.slirp4netns nixpkgs.fuse-overlayfs || (sudo apt-get update && sudo apt-get install -y podman)) && echo "alias docker=podman" >> ~/.bashrc && echo "Podman installed! Use docker or podman commands."')
   }
 
   return (
@@ -108,7 +120,7 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/30">
         <div className="flex items-center gap-1.5">
           <Container className="h-3.5 w-3.5 text-blue-400" />
-          <span className="text-xs font-medium">Dockerfiles</span>
+          <span className="text-xs font-medium">Containers</span>
         </div>
         <div className="flex items-center gap-1">
           <Button
@@ -137,13 +149,21 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
         <div className="flex items-start gap-2 text-[10px] text-[#8b949e] bg-[#0d1117] rounded p-2">
           <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-400" />
           <div className="flex-1">
-            <span>Dockerfiles are saved in <code className="text-[#00ff41] bg-[#161b22] px-1 rounded">.dockerfiles/</code> and persist across sessions. Docker commands use the sudo wrapper if direct access is unavailable.</span>
-            <button 
-              className="block mt-1 text-blue-400 hover:text-blue-300 underline"
-              onClick={handleCheckDocker}
-            >
-              Check Docker availability
-            </button>
+            <span>Dockerfiles are saved in <code className="text-[#00ff41] bg-[#161b22] px-1 rounded">.dockerfiles/</code> and persist across sessions. Build/run commands use Podman (rootless) when available, falling back to Docker.</span>
+            <div className="flex gap-2 mt-1">
+              <button
+                className="text-blue-400 hover:text-blue-300 underline"
+                onClick={handleCheckDocker}
+              >
+                Check runtime
+              </button>
+              <button
+                className="text-green-400 hover:text-green-300 underline"
+                onClick={handleInstallPodman}
+              >
+                Install Podman
+              </button>
+            </div>
           </div>
         </div>
         {error && (

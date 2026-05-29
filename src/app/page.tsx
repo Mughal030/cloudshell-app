@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import {
   Terminal,
   Sun,
@@ -25,11 +26,16 @@ import { Separator } from '@/components/ui/separator'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSocket } from '@/hooks/use-socket'
-import { XtermTerminal } from '@/components/terminal/xterm-terminal'
 import { FileManager } from '@/components/terminal/file-manager'
 import { ToolStatus } from '@/components/terminal/tool-status'
 import { DockerPanel } from '@/components/terminal/docker-panel'
 import { CodeEditor } from '@/components/terminal/code-editor'
+
+// Dynamic import xterm.js with SSR disabled — it accesses window/DOM APIs during init
+const XtermTerminal = dynamic(
+  () => import('@/components/terminal/xterm-terminal').then(mod => ({ default: mod.XtermTerminal })),
+  { ssr: false, loading: () => <div className="w-full h-full bg-[#0d1117]" /> }
+)
 
 // Quick install categories - uses sudo wrapper which handles apt operations
 const QUICK_INSTALL = {
@@ -47,15 +53,14 @@ const QUICK_INSTALL = {
     { name: 'Rust', cmd: 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y' },
   ],
   'Containers': [
-    { name: 'Docker', cmd: 'sudo apt-get update && sudo apt-get install -y docker.io' },
+    { name: 'Podman (rootless Docker)', cmd: 'echo "Installing Podman (rootless Docker alternative)..." && (command -v nix-env >/dev/null && nix-env -iA nixpkgs.podman nixpkgs.slirp4netns nixpkgs.fuse-overlayfs || (sudo apt-get update && sudo apt-get install -y podman)) && echo "alias docker=podman" >> ~/.bashrc && echo "Podman installed! Use docker or podman commands."' },
     { name: 'Docker Compose', cmd: 'sudo apt-get update && sudo apt-get install -y docker-compose' },
-    { name: 'Podman', cmd: 'sudo apt-get update && sudo apt-get install -y podman' },
   ],
   'Network': [
     { name: 'curl', cmd: 'which curl 2>/dev/null && echo "curl already installed" || (sudo apt-get update && sudo apt-get install -y curl)' },
     { name: 'wget', cmd: 'which wget 2>/dev/null && echo "wget already installed" || (sudo apt-get update && sudo apt-get install -y wget)' },
-    { name: 'net-tools', cmd: 'sudo apt-get update && sudo apt-get install -y net-tools' },
-    { name: 'OpenSSH', cmd: 'sudo apt-get update && sudo apt-get install -y openssh-server' },
+    { name: 'net-tools', cmd: 'which netstat 2>/dev/null && echo "net-tools already installed" || (sudo apt-get update && sudo apt-get install -y net-tools)' },
+    { name: 'OpenSSH', cmd: 'which sshd 2>/dev/null && echo "openssh already installed" || (sudo apt-get update && sudo apt-get install -y openssh-server)' },
   ],
   'Databases': [
     { name: 'PostgreSQL Client', cmd: 'sudo apt-get update && sudo apt-get install -y postgresql-client' },

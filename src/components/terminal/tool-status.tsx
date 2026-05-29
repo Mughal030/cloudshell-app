@@ -62,7 +62,9 @@ export function ToolStatus({ tools, checkTools, onInstall, sendCommandToTerminal
                 <XCircle className="h-3.5 w-3.5 text-red-400/70 shrink-0" />
               )}
               <div className="flex-1 min-w-0">
-                <span className="text-xs font-medium text-[#c9d1d9]">{tool.name}</span>
+                <span className="text-xs font-medium text-[#c9d1d9]">
+                  {tool.displayName || tool.name}
+                </span>
                 {tool.installed && tool.version && (
                   <span className="text-[10px] text-[#484f58] ml-1.5 truncate">
                     {tool.version.split('\n')[0]}

@@ -168,7 +168,7 @@ const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'p
 
 const TOOL_INSTALL_COMMANDS: Record<string, string> = {
   git: 'sudo apt-get update && sudo apt-get install -y git',
-  docker: 'sudo apt-get update && sudo apt-get install -y docker.io && sudo systemctl start docker 2>/dev/null; echo "Docker installation complete"',
+  docker: 'echo "Installing Podman (rootless Docker alternative)..." && (command -v nix-env >/dev/null && nix-env -iA nixpkgs.podman nixpkgs.slirp4netns nixpkgs.fuse-overlayfs || (sudo apt-get update && sudo apt-get install -y podman)) && echo "alias docker=podman" >> ~/.bashrc && echo "Podman installed! Use docker or podman commands."',
   curl: 'sudo apt-get update && sudo apt-get install -y curl',
   wget: 'sudo apt-get update && sudo apt-get install -y wget',
   vim: 'sudo apt-get update && sudo apt-get install -y vim',
@@ -181,8 +181,36 @@ const TOOL_INSTALL_COMMANDS: Record<string, string> = {
 }
 
 // ─── Helper: check if a tool is installed ────────────────────────
-function checkTool(name: string): { name: string; installed: boolean; version: string } {
+function checkTool(name: string): { name: string; installed: boolean; version: string; displayName?: string } {
   try {
+    // Special handling for docker - also check for podman
+    if (name === 'docker') {
+      try {
+        const dockerWhich = execSync('which docker 2>/dev/null || echo "not-found"', {
+          encoding: 'utf-8', timeout: 3000,
+        }).trim()
+        if (!dockerWhich.includes('not-found')) {
+          try {
+            const v = execSync('docker --version 2>&1', { encoding: 'utf-8', timeout: 5000 }).trim()
+            return { name, installed: true, version: v.split('\n')[0].trim(), displayName: 'Docker' }
+          } catch { return { name, installed: true, version: 'installed', displayName: 'Docker' } }
+        }
+      } catch {}
+      // Check podman as alternative
+      try {
+        const podmanWhich = execSync('which podman 2>/dev/null || echo "not-found"', {
+          encoding: 'utf-8', timeout: 3000,
+        }).trim()
+        if (!podmanWhich.includes('not-found')) {
+          try {
+            const v = execSync('podman --version 2>&1', { encoding: 'utf-8', timeout: 5000 }).trim()
+            return { name, installed: true, version: v.split('\n')[0].trim(), displayName: 'Docker (Podman)' }
+          } catch { return { name, installed: true, version: 'installed', displayName: 'Docker (Podman)' } }
+        }
+      } catch {}
+      return { name, installed: false, version: '' }
+    }
+
     const whichOutput = execSync(`which ${name} 2>/dev/null || echo "not-found"`, {
       encoding: 'utf-8',
       timeout: 5000,
@@ -314,7 +342,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
 
   // Check which tools are available
   const availableTools: string[] = []
-  const TOOLS_CHECK = ['git', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'python3', 'pip3', 'bun', 'docker']
+  const TOOLS_CHECK = ['git', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'python3', 'pip3', 'bun', 'docker', 'podman']
   for (const tool of TOOLS_CHECK) {
     try {
       execSync(`which ${tool} 2>/dev/null`, { encoding: 'utf-8', timeout: 2000 })
@@ -373,12 +401,14 @@ app.prepare().then(() => {
       origin: '*',
       methods: ['GET', 'POST'],
     },
-    pingTimeout: 60000,
-    pingInterval: 25000,
-    maxHttpBufferSize: 1e6,
-    connectTimeout: 10000,
+    pingInterval: 10000,      // send ping every 10s
+    pingTimeout: 25000,       // wait 25s for pong before disconnect
+    upgradeTimeout: 10000,
+    maxHttpBufferSize: 1e7,   // 10MB for large pastes
+    connectTimeout: 20000,
     allowEIO3: true,
-    transports: ['websocket', 'polling'],
+    transports: ['websocket'], // skip polling entirely
+    allowUpgrades: false,
   })
 
   // ─── Socket.io Connection Handler ────────────────────────────────
@@ -536,6 +566,21 @@ app.prepare().then(() => {
       const { tool } = data
       const command = TOOL_INSTALL_COMMANDS[tool] || `sudo apt-get update && sudo apt-get install -y ${tool}`
       socket.emit('tools:install-command', { tool, command })
+    })
+
+    // Session Restore (for reconnection)
+    socket.on('restore-session', (data: { sessionId: string }) => {
+      const { sessionId } = data
+      const session = sessions.get(sessionId)
+      if (session) {
+        console.log(`[Terminal] Session ${sessionId} restored for socket ${socket.id}`)
+        session.socketId = socket.id
+        socketSessions.get(socket.id)?.add(sessionId)
+        socket.emit('terminal:restored', { sessionId, success: true })
+      } else {
+        console.log(`[Terminal] Session ${sessionId} not found for restore`)
+        socket.emit('terminal:restored', { sessionId, success: false })
+      }
     })
 
     // Ping (for latency measurement)
