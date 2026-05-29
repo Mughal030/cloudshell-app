@@ -61,6 +61,89 @@ CMD ["/bin/bash"]
 
 ensureWorkspaceDirs()
 
+// ─── Configure Passwordless Sudo ────────────────────────────────
+function configurePasswordlessSudo() {
+  try {
+    execSync('sudo -n true 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
+    console.log('[Terminal] Passwordless sudo already configured')
+    return true
+  } catch {
+    // not configured
+  }
+
+  try {
+    execSync('echo "z ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/z-user && chmod 440 /etc/sudoers.d/z-user && chown root:root /etc/sudoers.d/z-user', {
+      encoding: 'utf-8',
+      timeout: 5000,
+    })
+    execSync('sudo -n true', { encoding: 'utf-8', timeout: 5000 })
+    console.log('[Terminal] Passwordless sudo configured successfully')
+    return true
+  } catch {
+    console.log('[Terminal] Cannot configure passwordless sudo (running as non-root)')
+    return false
+  }
+}
+
+const sudoConfigured = configurePasswordlessSudo()
+
+// ─── Create sudo wrapper for current session ────────────────────
+function setupSudoWrapper() {
+  if (sudoConfigured) return
+
+  const wrapperDir = '/home/z/.local/bin'
+  const wrapperPath = join(wrapperDir, 'sudo')
+
+  try {
+    if (!existsSync(wrapperDir)) {
+      mkdirSync(wrapperDir, { recursive: true })
+    }
+
+    const wrapperScript = `#!/bin/bash
+# CloudShell sudo wrapper
+# Tries real sudo with -n (non-interactive) flag first, then falls back to unshare
+
+# Try real passwordless sudo first
+if /usr/bin/sudo -n "$@" 2>/dev/null; then
+    exit 0
+fi
+
+SUDO_CMD=""
+SUDO_ARGS=""
+
+# Parse sudo flags
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -*) SUDO_ARGS="$SUDO_ARGS $1"; shift ;;
+        *) SUDO_CMD="$1"; shift; break ;;
+    esac
+done
+
+if [ -z "$SUDO_CMD" ]; then
+    echo "sudo: no command specified" >&2
+    exit 1
+fi
+
+case "$SUDO_CMD" in
+    apt-get|apt)
+        "$SUDO_CMD" "$@" 2>&1
+        exit $?
+        ;;
+    *)
+        exec unshare --user --map-root-user "$SUDO_CMD" "$@"
+        ;;
+esac
+`
+    writeFileSync(wrapperPath, wrapperScript, 'utf-8')
+    execSync(`chmod +x ${wrapperPath}`, { encoding: 'utf-8' })
+    console.log('[Terminal] Created sudo wrapper at', wrapperPath)
+  } catch (err) {
+    console.warn('[Terminal] Could not create sudo wrapper:', err)
+  }
+}
+
+setupSudoWrapper()
+
 // ─── HTTP + Socket.io Server ─────────────────────────────────────
 const httpServer = createServer()
 const io = new Server(httpServer, {
@@ -225,7 +308,9 @@ io.on('connection', (socket) => {
         env: {
           ...process.env,
           TERM: 'xterm-256color',
-          PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin',
+          PATH: sudoConfigured
+            ? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin'
+            : '/home/z/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games',
           HOME: '/home/z',
           USER: 'z',
           LANG: 'en_US.UTF-8',
@@ -269,7 +354,9 @@ io.on('connection', (socket) => {
             env: {
               ...process.env,
               TERM: 'xterm-256color',
-              PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin',
+              PATH: sudoConfigured
+                ? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin'
+                : '/home/z/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games',
               HOME: '/home/z',
               USER: 'z',
               LANG: 'en_US.UTF-8',

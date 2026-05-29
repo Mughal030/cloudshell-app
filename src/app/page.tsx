@@ -330,14 +330,21 @@ export default function Home() {
                   <ScrollArea className="flex-1">
                     <div className="flex items-center h-9">
                       {sessions.map((session) => (
-                        <button
+                        <div
                           key={session.sessionId}
-                          className={`flex items-center gap-1.5 px-3 h-full text-xs border-r border-[#21262d] transition-colors shrink-0 ${
+                          role="tab"
+                          tabIndex={0}
+                          className={`flex items-center gap-1.5 px-3 h-full text-xs border-r border-[#21262d] transition-colors shrink-0 cursor-pointer ${
                             activeSessionId === session.sessionId
                               ? 'bg-[#0d1117] text-[#00ff41] border-b-2 border-b-[#00ff41]'
                               : 'text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#0d1117]/50'
                           }`}
                           onClick={() => setActiveSessionId(session.sessionId)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              setActiveSessionId(session.sessionId)
+                            }
+                          }}
                         >
                           <SquareTerminal className="h-3 w-3 shrink-0" />
                           <span className="truncate max-w-24">{session.label}</span>
@@ -353,7 +360,7 @@ export default function Home() {
                           >
                             <X className="h-2.5 w-2.5" />
                           </button>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   </ScrollArea>

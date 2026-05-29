@@ -90,16 +90,16 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
 
   const handleBuildImage = (dockerfileName: string) => {
     const name = dockerfileName.replace(/\.dockerfile$/i, '').toLowerCase()
-    sendCommandToTerminal(`cd /home/z/my-project/workspace && sudo docker build -f .dockerfiles/${dockerfileName} -t ${name}:latest .`)
+    sendCommandToTerminal(`cd /home/z/my-project/workspace && docker build -f .dockerfiles/${dockerfileName} -t ${name}:latest . 2>&1 || echo "Docker build failed - Docker daemon may not be running"`)
   }
 
   const handleRunContainer = (dockerfileName: string) => {
     const name = dockerfileName.replace(/\.dockerfile$/i, '').toLowerCase()
-    sendCommandToTerminal(`sudo docker run -it --rm ${name}:latest`)
+    sendCommandToTerminal(`docker run -it --rm ${name}:latest} 2>&1 || echo "Docker run failed - Docker daemon may not be running"`)
   }
 
   const handleCheckDocker = () => {
-    sendCommandToTerminal('which docker && docker --version || echo "Docker is not installed"')
+    sendCommandToTerminal('which docker 2>/dev/null && docker --version 2>/dev/null || echo "Docker is not installed or not accessible"')
   }
 
   return (

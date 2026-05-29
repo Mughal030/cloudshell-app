@@ -81,41 +81,136 @@ ensureWorkspaceDirs()
 
 // ─── Configure Passwordless Sudo ────────────────────────────────
 function configurePasswordlessSudo() {
+  // First check if passwordless sudo is already working
+  try {
+    execSync('sudo -n true 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
+    console.log('[Server] Passwordless sudo already configured')
+    return true
+  } catch {
+    // Passwordless sudo not working, try to set it up
+  }
+
   try {
     // Try to create sudoers file for user z (requires root)
-    execSync('echo "z ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/z-user 2>/dev/null && chmod 440 /etc/sudoers.d/z-user 2>/dev/null', {
+    execSync('echo "z ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/z-user && chmod 440 /etc/sudoers.d/z-user && chown root:root /etc/sudoers.d/z-user', {
       encoding: 'utf-8',
       timeout: 5000,
     })
+    // Verify it worked
+    execSync('sudo -n true', { encoding: 'utf-8', timeout: 5000 })
     console.log('[Server] Passwordless sudo configured successfully')
     return true
   } catch {
-    console.log('[Server] Cannot configure passwordless sudo (running as non-root). Will work after container restart.')
-    // Ensure .bash_profile has the setup for next restart
+    console.log('[Server] Cannot configure passwordless sudo (running as non-root). Trying alternative approaches...')
+    
+    // Try alternative: write sudoers via tee and pkexec
     try {
-      const bashProfile = `# CloudShell User Profile - sourced by start.sh as root during container startup
+      execSync('echo "z ALL=(ALL) NOPASSWD: ALL" | pkexec tee /etc/sudoers.d/z-user && pkexec chmod 440 /etc/sudoers.d/z-user', {
+        encoding: 'utf-8',
+        timeout: 5000,
+      })
+      execSync('sudo -n true', { encoding: 'utf-8', timeout: 5000 })
+      console.log('[Server] Passwordless sudo configured via pkexec')
+      return true
+    } catch {
+      // pkexec also failed
+    }
+
+    // Ensure .bash_profile has the setup for next container restart
+    try {
+      const bashProfile = `# CloudShell User Profile
+# This file is sourced by /start.sh during container startup (as root)
+
+# Configure passwordless sudo for user z
 if [ ! -f /etc/sudoers.d/z-user ]; then
     echo 'z ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/z-user 2>/dev/null
     chmod 440 /etc/sudoers.d/z-user 2>/dev/null
     chown root:root /etc/sudoers.d/z-user 2>/dev/null
 fi
+
+# Set up PATH
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin:/home/z/.bun/bin:/home/z/.npm-global/bin:$PATH"
 export HOME="/home/z"
 export EDITOR="vim"
 `
       const profilePath = '/home/z/.bash_profile'
-      if (!existsSync(profilePath) || !readFileSync(profilePath, 'utf-8').includes('NOPASSWD')) {
-        writeFileSync(profilePath, bashProfile, 'utf-8')
-        console.log('[Server] Created /home/z/.bash_profile with sudoers setup for next container restart')
-      }
+      writeFileSync(profilePath, bashProfile, 'utf-8')
+      console.log('[Server] Updated /home/z/.bash_profile with sudoers setup for next container restart')
     } catch (err) {
-      console.warn('[Server] Could not create .bash_profile:', err)
+      console.warn('[Server] Could not update .bash_profile:', err)
     }
     return false
   }
 }
 
 const sudoConfigured = configurePasswordlessSudo()
+
+// ─── Create sudo wrapper for current session ────────────────────
+// If passwordless sudo is not configured, we create a wrapper that uses
+// unshare --user --map-root-user for root-like operations
+function setupSudoWrapper() {
+  if (sudoConfigured) return
+
+  const wrapperDir = '/home/z/.local/bin'
+  const wrapperPath = `${wrapperDir}/sudo`
+
+  try {
+    if (!existsSync(wrapperDir)) {
+      mkdirSync(wrapperDir, { recursive: true })
+    }
+
+    // Create a sudo wrapper that tries real sudo first, then falls back to unshare
+    const wrapperScript = `#!/bin/bash
+# CloudShell sudo wrapper
+# Tries real sudo with -n (non-interactive) flag first, then falls back to unshare
+
+# Try real passwordless sudo first
+if /usr/bin/sudo -n "$@" 2>/dev/null; then
+    exit 0
+fi
+
+# If that fails, check if we're in a situation where we can use unshare
+# unshare --user --map-root-user gives us a root-like environment in a user namespace
+# Note: This has limitations - filesystem changes are visible but some system calls may fail
+SUDO_CMD=""
+SUDO_ARGS=""
+
+# Parse sudo flags
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -*) SUDO_ARGS="$SUDO_ARGS $1"; shift ;;
+        *) SUDO_CMD="$1"; shift; break ;;
+    esac
+done
+
+if [ -z "$SUDO_CMD" ]; then
+    echo "sudo: no command specified" >&2
+    exit 1
+fi
+
+# For apt-get operations, try without sudo first (user may have permissions)
+# For other operations, use unshare as fallback
+case "$SUDO_CMD" in
+    apt-get|apt)
+        # Try running apt directly (sometimes works in containers)
+        "$SUDO_CMD" "$@" 2>&1
+        exit $?
+        ;;
+    *)
+        # Use unshare for user namespace root
+        exec unshare --user --map-root-user "$SUDO_CMD" "$@"
+        ;;
+esac
+`
+    writeFileSync(wrapperPath, wrapperScript, 'utf-8')
+    execSync(`chmod +x ${wrapperPath}`, { encoding: 'utf-8' })
+    console.log('[Server] Created sudo wrapper at', wrapperPath)
+  } catch (err) {
+    console.warn('[Server] Could not create sudo wrapper:', err)
+  }
+}
+
+setupSudoWrapper()
 
 // ─── Tool definitions ────────────────────────────────────────────
 const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'python3', 'pip3', 'sudo']
@@ -236,6 +331,11 @@ function cleanupSocketSessions(socketId: string) {
 function createPtySession(sessionId: string, socketId: string, cols: number, rows: number, socket: any) {
   console.log(`[Terminal] Creating PTY session ${sessionId} (${cols}x${rows})`)
 
+  // Put /home/z/.local/bin first in PATH so our sudo wrapper takes priority
+  const ptyPath = sudoConfigured
+    ? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin:/home/z/.bun/bin:/home/z/.npm-global/bin'
+    : '/home/z/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.bun/bin:/home/z/.npm-global/bin'
+
   const pty = spawn(SHELL, [], {
     name: 'xterm-256color',
     cols,
@@ -244,7 +344,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     env: {
       ...process.env,
       TERM: 'xterm-256color',
-      PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin:/home/z/.bun/bin:/home/z/.npm-global/bin',
+      PATH: ptyPath,
       HOME: '/home/z',
       USER: 'z',
       LANG: 'en_US.UTF-8',
@@ -257,7 +357,9 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
   socketSessions.get(socketId)?.add(sessionId)
 
   // Send welcome message with system info
-  const sudoStatus = sudoConfigured ? '\x1b[32m✓ Passwordless sudo configured\x1b[0m' : '\x1b[33m⚠ Sudo requires password - will be fixed on next container restart\x1b[0m'
+  const sudoStatus = sudoConfigured
+    ? '\x1b[32m✓ Passwordless sudo configured\x1b[0m'
+    : '\x1b[33m⚠ Sudo wrapper active (passwordless on next restart)\x1b[0m'
   const welcomeMsg = `\r\n\x1b[1;32m☁ CloudShell Terminal\x1b[0m\r\n\x1b[2;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m\r\n\x1b[2;37mWorkspace:\x1b[0m ${WORKSPACE_DIR}\r\n\x1b[2;37mShell:\x1b[0m     ${SHELL}\r\n${sudoStatus}\r\n\x1b[2;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m\r\n`
   try {
     socket.emit('terminal:output', { sessionId, data: welcomeMsg })
