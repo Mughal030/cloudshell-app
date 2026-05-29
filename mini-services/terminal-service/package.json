@@ -1,0 +1,17 @@
+{
+  "name": "terminal-service",
+  "version": "1.0.0",
+  "description": "Terminal backend mini-service with PTY support via WebSocket",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot index.ts"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.1",
+    "node-pty": "^1.0.0",
+    "uuid": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^10.0.0"
+  }
+}
