@@ -111,7 +111,7 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
   }
 
   const handleInstallPodman = () => {
-    sendCommandToTerminal('echo "Installing Podman (rootless Docker alternative)..." && (command -v nix-env >/dev/null 2>&1 && nix-env -iA nixpkgs.podman nixpkgs.slirp4netns nixpkgs.fuse-overlayfs || (sudo apt-get update && sudo apt-get install -y podman)) && echo "alias docker=podman" >> ~/.bashrc && echo "Podman installed! Use docker or podman commands."')
+    sendCommandToTerminal('echo "Installing Podman (rootless Docker alternative)..." && (command -v nix-env >/dev/null 2>&1 && nix-env -iA nixpkgs.podman nixpkgs.slirp4netns nixpkgs.fuse-overlayfs || (echo "Podman requires root for apt installation." && echo "Alternative: Install Nix first, then: nix-env -iA nixpkgs.podman")) && echo "alias docker=podman" >> ~/.bashrc && echo "Tip: Use docker or podman commands."')
   }
 
   return (

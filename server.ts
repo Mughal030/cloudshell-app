@@ -80,51 +80,41 @@ CMD ["/bin/bash"]
 ensureWorkspaceDirs()
 
 // ─── Configure Sudo ─────────────────────────────────────────────
-const SUDO_PASSWORD = 'admin2211'
-
+// Check what level of sudo access we have
 function configureSudo() {
   // First check if passwordless sudo is already working
   try {
     execSync('/usr/bin/sudo -n true 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
     console.log('[Server] Passwordless sudo already configured')
-    return true
+    return 'passwordless' as const
   } catch {
-    // Passwordless sudo not working, try to set it up
+    // Passwordless sudo not working
   }
 
+  // Try to create sudoers file for user z (requires root)
   try {
-    // Try to create sudoers file for user z (requires root)
     execSync('echo "z ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/z-user && chmod 440 /etc/sudoers.d/z-user && chown root:root /etc/sudoers.d/z-user', {
       encoding: 'utf-8',
       timeout: 5000,
     })
-    // Verify it worked
     execSync('/usr/bin/sudo -n true', { encoding: 'utf-8', timeout: 5000 })
     console.log('[Server] Passwordless sudo configured successfully')
-    return true
+    return 'passwordless' as const
   } catch {
-    // Can't configure passwordless sudo - try password-based sudo
+    // Can't configure passwordless sudo
   }
 
-  // Try sudo with user-defined password via -S flag
-  try {
-    execSync(`echo "${SUDO_PASSWORD}" | /usr/bin/sudo -S true 2>/dev/null`, { encoding: 'utf-8', timeout: 5000 })
-    console.log('[Server] Sudo with password configured (password: admin2211)')
-    return false // not passwordless, but sudo works with password
-  } catch {
-    console.log('[Server] Cannot configure sudo. Setting up sudo wrapper...')
-    return false
-  }
+  // No real sudo access - we'll use the wrapper
+  console.log('[Server] No real sudo access. Using unshare-based sudo wrapper.')
+  return 'wrapper' as const
 }
 
-const sudoConfigured = configureSudo()
+const sudoMode = configureSudo()
 
 // ─── Create sudo wrapper for current session ────────────────────
-// If passwordless sudo is not configured, we ensure the wrapper at /home/z/.local/bin/sudo
-// is in place and executable. The wrapper script is maintained as a separate file.
+// Always ensure the wrapper at /home/z/.local/bin/sudo is in place and executable.
+// Even if passwordless sudo works, the wrapper provides a consistent interface.
 function setupSudoWrapper() {
-  if (sudoConfigured) return
-
   const wrapperDir = '/home/z/.local/bin'
   const wrapperPath = `${wrapperDir}/sudo`
 
@@ -143,12 +133,11 @@ function setupSudoWrapper() {
       }
     }
 
-    // The wrapper script is maintained at /home/z/.local/bin/sudo as a standalone file.
-    // If it doesn't exist yet, create a basic one that tries real sudo then unshare.
-    // The full wrapper should be pre-installed by the container setup.
+    // The wrapper script should be pre-installed at /home/z/.local/bin/sudo.
+    // If it doesn't exist, create a basic fallback.
     const wrapperScript = [
       '#!/bin/bash',
-      '# CloudShell sudo wrapper',
+      '# CloudShell sudo wrapper v6',
       '# Try real sudo first, then fallback to unshare',
       'if /usr/bin/sudo -n "$@" 2>/dev/null; then exit 0; fi',
       'exec unshare --user --map-root-user "$@"',
@@ -167,17 +156,17 @@ setupSudoWrapper()
 const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'python3', 'pip3', 'sudo']
 
 const TOOL_INSTALL_COMMANDS: Record<string, string> = {
-  git: 'sudo apt-get update && sudo apt-get install -y git',
-  docker: 'echo "Installing Podman (rootless Docker alternative)..." && (command -v nix-env >/dev/null && nix-env -iA nixpkgs.podman nixpkgs.slirp4netns nixpkgs.fuse-overlayfs || (sudo apt-get update && sudo apt-get install -y podman)) && echo "alias docker=podman" >> ~/.bashrc && echo "Podman installed! Use docker or podman commands."',
-  curl: 'sudo apt-get update && sudo apt-get install -y curl',
-  wget: 'sudo apt-get update && sudo apt-get install -y wget',
-  vim: 'sudo apt-get update && sudo apt-get install -y vim',
-  nano: 'sudo apt-get update && sudo apt-get install -y nano',
-  node: 'curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs',
-  npm: 'curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs',
-  python3: 'sudo apt-get update && sudo apt-get install -y python3',
-  pip3: 'sudo apt-get update && sudo apt-get install -y python3-pip',
-  sudo: 'sudo apt-get update && sudo apt-get install -y sudo',
+  git: 'which git 2>/dev/null && echo "git already installed" || echo "git: already available, no install needed"',
+  docker: 'echo "Docker/Podman: requires root for installation. Download static binary from github.com/containers/podman/releases"',
+  curl: 'which curl 2>/dev/null && echo "curl already installed" || echo "curl: already available, no install needed"',
+  wget: 'which wget 2>/dev/null && echo "wget already installed" || echo "wget: already available, no install needed"',
+  vim: 'which vim 2>/dev/null && echo "vim already installed" || echo "vim: already available, no install needed"',
+  nano: 'which nano 2>/dev/null && echo "nano already installed" || echo "nano: already available, no install needed"',
+  node: 'which node 2>/dev/null && echo "node already installed" || echo "Install via nvm: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && source ~/.bashrc && nvm install --lts"',
+  npm: 'which npm 2>/dev/null && echo "npm already installed" || echo "Install via nvm: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && source ~/.bashrc && nvm install --lts"',
+  python3: 'which python3 2>/dev/null && echo "python3 already installed" || echo "python3: already available, no install needed"',
+  pip3: 'which pip3 2>/dev/null && echo "pip3 already installed" || echo "pip3: already available, no install needed"',
+  sudo: 'which sudo 2>/dev/null && echo "sudo wrapper already installed" || echo "sudo wrapper: already available via ~/.local/bin/sudo"',
 }
 
 // ─── Helper: check if a tool is installed ────────────────────────
@@ -327,7 +316,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
       LANG: 'en_US.UTF-8',
       EDITOR: 'vim',
       CLOUDSHELL: '1',
-      SUDO_PASSWORD: SUDO_PASSWORD,
+      SUDO_MODE: sudoMode,
     },
   })
 
@@ -335,15 +324,28 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
   sessions.set(sessionId, session)
   socketSessions.get(socketId)?.add(sessionId)
 
-  // Send welcome banner
+  // Send welcome banner based on sudo mode
+  let sudoInfo: string[]
+  if (sudoMode === 'passwordless') {
+    sudoInfo = [
+      '\x1b[32m║\x1b[0m  \x1b[1;32mSudo: Full access (passwordless)\x1b[0m                    \x1b[32m║\x1b[0m',
+      '\x1b[32m║\x1b[0m  Type: \x1b[1;36msudo <command>\x1b[0m to run as root              \x1b[32m║\x1b[0m',
+    ]
+  } else {
+    sudoInfo = [
+      '\x1b[32m║\x1b[0m  \x1b[1;33mSudo: Limited (user-namespace mode)\x1b[0m               \x1b[32m║\x1b[0m',
+      '\x1b[32m║\x1b[0m  \x1b[1;36msudo <cmd>\x1b[0m runs in user namespace (fake root)  \x1b[32m║\x1b[0m',
+      '\x1b[32m║\x1b[0m  \x1b[1;33mapt/systemctl\x1b[0m: Not available (no real root) \x1b[32m║\x1b[0m',
+      '\x1b[32m║\x1b[0m  Use \x1b[1;36mnpm/pip3/bun\x1b[0m to install packages instead     \x1b[32m║\x1b[0m',
+    ]
+  }
+
   const welcomeBanner = [
     '',
     '\x1b[32m╔══════════════════════════════════════════════════════════════╗\x1b[0m',
     '\x1b[32m║\x1b[0m  \x1b[1;32m☁ CloudShell\x1b[0m                                             \x1b[32m║\x1b[0m',
     '\x1b[32m╠══════════════════════════════════════════════════════════════╣\x1b[0m',
-    `\x1b[32m║\x1b[0m  Sudo password: \x1b[1;33m${SUDO_PASSWORD}\x1b[0m  (auto-provided by wrapper)  \x1b[32m║\x1b[0m`,
-    '\x1b[32m║\x1b[0m  Just type: \x1b[1;36msudo <command>\x1b[0m — no password prompt   \x1b[32m║\x1b[0m',
-    '\x1b[32m║\x1b[0m  Passwordless sudo after container restart              \x1b[32m║\x1b[0m',
+    ...sudoInfo,
     '\x1b[32m╚══════════════════════════════════════════════════════════════╝\x1b[0m',
     '',
   ].join('\r\n')
@@ -420,7 +422,7 @@ app.prepare().then(() => {
     socketSessions.set(socket.id, new Set())
 
     // Send connection confirmation
-    socket.emit('terminal:connected', { sudoConfigured })
+    socket.emit('terminal:connected', { sudoMode })
 
     // Terminal: Create
     socket.on('terminal:create', (data?: { cols?: number; rows?: number }) => {
@@ -567,7 +569,7 @@ app.prepare().then(() => {
     // Tools: Install
     socket.on('tools:install', (data: { tool: string }) => {
       const { tool } = data
-      const command = TOOL_INSTALL_COMMANDS[tool] || `sudo apt-get update && sudo apt-get install -y ${tool}`
+      const command = TOOL_INSTALL_COMMANDS[tool] || `echo "Install ${tool}: use npm/pip3/bun or download binary to ~/.local/bin"`
       socket.emit('tools:install-command', { tool, command })
     })
 

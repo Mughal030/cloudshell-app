@@ -37,35 +37,35 @@ const XtermTerminal = dynamic(
   { ssr: false, loading: () => <div className="w-full h-full bg-[#0d1117]" /> }
 )
 
-// Quick install categories - uses sudo wrapper which handles apt operations
+// Quick install categories - rootless alternatives that work without sudo
 const QUICK_INSTALL = {
   'Dev Tools': [
-    { name: 'git', cmd: 'which git 2>/dev/null && echo "git already installed" || (sudo apt-get update && sudo apt-get install -y git)' },
-    { name: 'vim', cmd: 'which vim 2>/dev/null && echo "vim already installed" || (sudo apt-get update && sudo apt-get install -y vim)' },
-    { name: 'nano', cmd: 'which nano 2>/dev/null && echo "nano already installed" || (sudo apt-get update && sudo apt-get install -y nano)' },
-    { name: 'tmux', cmd: 'which tmux 2>/dev/null && echo "tmux already installed" || (sudo apt-get update && sudo apt-get install -y tmux)' },
-    { name: 'htop', cmd: 'which htop 2>/dev/null && echo "htop already installed" || (sudo apt-get update && sudo apt-get install -y htop)' },
+    { name: 'git', cmd: 'which git 2>/dev/null && echo "git already installed" || echo "git not available (needs root). Try: conda install git"' },
+    { name: 'vim', cmd: 'which vim 2>/dev/null && echo "vim already installed" || echo "vim not available (needs root). Try: nano (pre-installed)"' },
+    { name: 'nano', cmd: 'which nano 2>/dev/null && echo "nano already installed" || echo "nano not available (needs root)"' },
+    { name: 'tmux', cmd: 'which tmux 2>/dev/null && echo "tmux already installed" || echo "tmux not available (needs root). Use terminal tabs instead."' },
+    { name: 'htop', cmd: 'which htop 2>/dev/null && echo "htop already installed" || echo "htop not available (needs root). Try: top"' },
   ],
   'Languages': [
     { name: 'Node.js (nvm)', cmd: 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && source ~/.bashrc && nvm install --lts' },
-    { name: 'Python pip (user)', cmd: 'pip install --user --upgrade pip 2>/dev/null || python3 -m pip install --user --upgrade pip' },
-    { name: 'Go', cmd: 'curl -fsSL https://go.dev/dl/go1.22.0.linux-amd64.tar.gz | tar -C ~/.local -xzf - && echo "Add ~/.local/go/bin to PATH"' },
-    { name: 'Rust', cmd: 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y' },
+    { name: 'Python pip', cmd: 'pip3 install --upgrade pip 2>/dev/null || python3 -m pip install --upgrade pip' },
+    { name: 'Go', cmd: 'curl -fsSL https://go.dev/dl/go1.22.0.linux-amd64.tar.gz | tar -C ~/.local -xzf - && echo "export PATH=$HOME/.local/go/bin:$PATH" >> ~/.bashrc && echo "Go installed! Run: source ~/.bashrc"' },
+    { name: 'Rust', cmd: 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env' },
   ],
   'Containers': [
-    { name: 'Podman (rootless Docker)', cmd: 'echo "Installing Podman (rootless Docker alternative)..." && (command -v nix-env >/dev/null && nix-env -iA nixpkgs.podman nixpkgs.slirp4netns nixpkgs.fuse-overlayfs || (sudo apt-get update && sudo apt-get install -y podman)) && echo "alias docker=podman" >> ~/.bashrc && echo "Podman installed! Use docker or podman commands."' },
-    { name: 'Docker Compose', cmd: 'sudo apt-get update && sudo apt-get install -y docker-compose' },
+    { name: 'Podman (rootless)', cmd: 'echo "Podman requires root for installation. Alternative: download static binary from github.com/containers/podman/releases"' },
+    { name: 'Docker Compose', cmd: 'mkdir -p ~/.local/bin && curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o ~/.local/bin/docker-compose && chmod +x ~/.local/bin/docker-compose && echo "Docker Compose installed to ~/.local/bin/"' },
   ],
   'Network': [
-    { name: 'curl', cmd: 'which curl 2>/dev/null && echo "curl already installed" || (sudo apt-get update && sudo apt-get install -y curl)' },
-    { name: 'wget', cmd: 'which wget 2>/dev/null && echo "wget already installed" || (sudo apt-get update && sudo apt-get install -y wget)' },
-    { name: 'net-tools', cmd: 'which netstat 2>/dev/null && echo "net-tools already installed" || (sudo apt-get update && sudo apt-get install -y net-tools)' },
-    { name: 'OpenSSH', cmd: 'which sshd 2>/dev/null && echo "openssh already installed" || (sudo apt-get update && sudo apt-get install -y openssh-server)' },
+    { name: 'curl', cmd: 'which curl 2>/dev/null && echo "curl already installed" || echo "curl not available (needs root)"' },
+    { name: 'wget', cmd: 'which wget 2>/dev/null && echo "wget already installed" || echo "wget not available (needs root)"' },
+    { name: 'net-tools', cmd: 'which ss 2>/dev/null && echo "ss available" || echo "Use: ss -tulnp (pre-installed) instead of netstat"' },
+    { name: 'OpenSSH Client', cmd: 'which ssh 2>/dev/null && echo "ssh already installed" || echo "ssh not available (needs root)"' },
   ],
   'Databases': [
-    { name: 'PostgreSQL Client', cmd: 'sudo apt-get update && sudo apt-get install -y postgresql-client' },
-    { name: 'MySQL Client', cmd: 'sudo apt-get update && sudo apt-get install -y mysql-client' },
-    { name: 'Redis Tools', cmd: 'sudo apt-get update && sudo apt-get install -y redis-tools' },
+    { name: 'PostgreSQL Client', cmd: 'pip3 install pgcli 2>/dev/null && echo "pgcli installed via pip" || echo "Install via pip: pip3 install pgcli"' },
+    { name: 'MySQL Client', cmd: 'pip3 install mycli 2>/dev/null && echo "mycli installed via pip" || echo "Install via pip: pip3 install mycli"' },
+    { name: 'Redis Tools', cmd: 'pip3 install iredis 2>/dev/null && echo "iredis installed via pip" || echo "Install via pip: pip3 install iredis"' },
   ],
 }
 

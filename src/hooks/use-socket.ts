@@ -358,7 +358,7 @@ export function useSocket() {
     return new Promise((resolve) => {
       const socket = socketRef.current
       if (!socket) {
-        resolve(`sudo apt-get update && sudo apt-get install -y ${tool}`)
+        resolve(`echo "Install ${tool}: check if already available with 'which ${tool}', or use npm/pip3/bun to install"`)
         return
       }
 
@@ -375,7 +375,7 @@ export function useSocket() {
       // Fallback timeout
       setTimeout(() => {
         socket.off('tools:install-command', handler)
-        resolve(`sudo apt-get update && sudo apt-get install -y ${tool}`)
+        resolve(`echo "Install ${tool}: use npm/pip3/bun or download binary to ~/.local/bin"`)
       }, 3000)
     })
   }, [])
