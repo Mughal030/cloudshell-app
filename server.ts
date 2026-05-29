@@ -16,13 +16,13 @@ process.on('unhandledRejection', (reason) => {
   console.error('[Server] Unhandled Rejection:', reason)
 })
 
-// ─── Signal Handlers (debug why process keeps dying) ──────────────
+// ─── Signal Handlers ──────────────────────────────────────────────
 process.on('SIGTERM', () => {
-  console.log('[Server] Received SIGTERM - shutting down gracefully')
-  process.exit(0)
+  console.log('[Server] Received SIGTERM - ignoring (keeping alive)')
+  // Don't exit — keep the server running
 })
 process.on('SIGINT', () => {
-  console.log('[Server] Received SIGINT')
+  console.log('[Server] Received SIGINT - shutting down')
   process.exit(0)
 })
 process.on('SIGHUP', () => {
