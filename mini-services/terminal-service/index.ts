@@ -345,7 +345,7 @@ io.on('connection', (socket) => {
       // Always put .local/bin first in PATH to ensure sudo wrapper is found
       const PATH_WITH_WRAPPER = '/home/z/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.bun/bin:/home/z/.npm-global/bin'
 
-      const pty = spawn(SHELL, ['--login'], {
+      const pty = spawn(SHELL, ['--login', '-i'], {
         name: 'xterm-256color',
         cols,
         rows,
@@ -393,7 +393,7 @@ io.on('connection', (socket) => {
 
       // Helper function to create a new PTY shell (for restart)
       const createPty = (): any => {
-        const newPty = spawn(SHELL, ['--login'], {
+        const newPty = spawn(SHELL, ['--login', '-i'], {
           name: 'xterm-256color',
           cols,
           rows,
@@ -426,6 +426,9 @@ io.on('connection', (socket) => {
         sessions.delete(sessionId)
         socketSessions.get(socket.id)?.delete(sessionId)
 
+        // Tell client to clear its input buffer (prevents keystroke bleed)
+        socket.emit('clear-input-buffer', { sessionId })
+
         // Show exit message
         socket.emit('terminal:output', {
           sessionId,
@@ -457,6 +460,9 @@ io.on('connection', (socket) => {
               console.log(`Restarted PTY also exited for session ${sessionId} with code ${exitCode2}`)
               sessions.delete(sessionId)
               socketSessions.get(socket.id)?.delete(sessionId)
+
+              // Tell client to clear buffer before restart
+              socket.emit('clear-input-buffer', { sessionId })
 
               socket.emit('terminal:output', {
                 sessionId,

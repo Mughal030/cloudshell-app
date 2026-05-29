@@ -28,6 +28,9 @@ const outputHandlers = new Map<string, Set<(data: string) => void>>()
 // Buffer for output that arrives before a handler is registered
 const outputBuffer = new Map<string, string[]>()
 
+// Global clear-buffer handlers per session (for restart race condition fix)
+const clearBufferHandlers = new Map<string, Set<() => void>>()
+
 // Singleton socket instance - shared across hook instances
 let globalSocket: Socket | null = null
 let socketConnectionCount = 0
@@ -164,12 +167,21 @@ export function useSocket() {
       }
     }
 
+    // Handle clear-input-buffer event (sent before PTY restart)
+    const onClearBuffer = (data: { sessionId: string }) => {
+      const handlers = clearBufferHandlers.get(data.sessionId)
+      if (handlers && handlers.size > 0) {
+        handlers.forEach(handler => handler())
+      }
+    }
+
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     socket.on('connect_error', onConnectError)
     socket.on('terminal:output', onOutput)
     socket.on('tools:status', onToolsStatus)
     socket.on('reconnect', onReconnect)
+    socket.on('clear-input-buffer', onClearBuffer)
 
     // If already connected, update state
     if (socket.connected) {
@@ -202,6 +214,7 @@ export function useSocket() {
       socket.off('terminal:output', onOutput)
       socket.off('tools:status', onToolsStatus)
       socket.off('reconnect', onReconnect)
+      socket.off('clear-input-buffer', onClearBuffer)
 
       if (latencyIntervalRef.current) {
         clearInterval(latencyIntervalRef.current)
@@ -215,6 +228,7 @@ export function useSocket() {
         globalSocket = null
         outputHandlers.clear()
         outputBuffer.clear()
+        clearBufferHandlers.clear()
         socketConnectionCount = 0
       }
     }
@@ -313,6 +327,24 @@ export function useSocket() {
         handlers.delete(handler)
         if (handlers.size === 0) {
           outputHandlers.delete(sessionId)
+        }
+      }
+    }
+  }, [])
+
+  // Register a clear-buffer handler for a session - called before PTY restart
+  const onClearBuffer = useCallback((sessionId: string, handler: () => void) => {
+    if (!clearBufferHandlers.has(sessionId)) {
+      clearBufferHandlers.set(sessionId, new Set())
+    }
+    clearBufferHandlers.get(sessionId)!.add(handler)
+
+    return () => {
+      const handlers = clearBufferHandlers.get(sessionId)
+      if (handlers) {
+        handlers.delete(handler)
+        if (handlers.size === 0) {
+          clearBufferHandlers.delete(sessionId)
         }
       }
     }
@@ -441,6 +473,7 @@ export function useSocket() {
     sendInput,
     resizeTerminal,
     onOutput,
+    onClearBuffer,
     checkTools,
     installTool,
     readFile,

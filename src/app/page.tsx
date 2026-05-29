@@ -83,6 +83,7 @@ export default function Home() {
     sendInput,
     resizeTerminal,
     onOutput,
+    onClearBuffer,
     checkTools,
     installTool,
     readFile,
@@ -408,6 +409,7 @@ export default function Home() {
                         key={session.sessionId}
                         sessionId={session.sessionId}
                         onOutput={onOutput}
+                        onClearBuffer={onClearBuffer}
                         sendInput={sendInput}
                         resizeTerminal={resizeTerminal}
                         isActive={activeSessionId === session.sessionId}

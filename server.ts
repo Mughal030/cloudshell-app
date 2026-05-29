@@ -313,7 +313,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
   // Always put .local/bin first in PATH to ensure sudo wrapper is found
   const PATH_WITH_WRAPPER = '/home/z/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.bun/bin:/home/z/.npm-global/bin'
 
-  const pty = spawn(SHELL, ['--login'], {
+  const pty = spawn(SHELL, ['--login', '-i'], {
     name: 'xterm-256color',
     cols,
     rows,
@@ -366,6 +366,9 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
 
     sessions.delete(sessionId)
     socketSessions.get(socketId)?.delete(sessionId)
+
+    // Tell client to clear its input buffer (prevents keystroke bleed)
+    socket.emit('clear-input-buffer', { sessionId })
 
     socket.emit('terminal:output', {
       sessionId,

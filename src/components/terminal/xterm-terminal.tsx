@@ -9,6 +9,7 @@ import '@xterm/xterm/css/xterm.css'
 interface XtermTerminalProps {
   sessionId: string
   onOutput: (sessionId: string, handler: (data: string) => void) => () => void
+  onClearBuffer: (sessionId: string, handler: () => void) => () => void
   sendInput: (sessionId: string, data: string) => void
   resizeTerminal: (sessionId: string, cols: number, rows: number) => void
   isActive: boolean
@@ -17,6 +18,7 @@ interface XtermTerminalProps {
 export function XtermTerminal({
   sessionId,
   onOutput,
+  onClearBuffer,
   sendInput,
   resizeTerminal,
   isActive,
@@ -160,6 +162,23 @@ export function XtermTerminal({
 
     return unsubscribe
   }, [sessionId, onOutput])
+
+  // Subscribe to clear-buffer events for this session
+  // When the PTY is about to restart, clear the terminal state
+  // to prevent buffered keystrokes from bleeding into the new session
+  useEffect(() => {
+    const unsubscribe = onClearBuffer(sessionId, () => {
+      if (termRef.current) {
+        // Clear the terminal buffer and reset state machine
+        // This prevents "phantom" keystrokes from the old session
+        // appearing in the newly restarted shell
+        termRef.current.clear()
+        termRef.current.reset()
+      }
+    })
+
+    return unsubscribe
+  }, [sessionId, onClearBuffer])
 
   // Handle visibility changes - refit when becoming active
   useEffect(() => {
