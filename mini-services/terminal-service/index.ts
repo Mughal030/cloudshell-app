@@ -19,6 +19,7 @@ process.on('unhandledRejection', (reason) => {
 const PORT = 3003
 const WORKSPACE_DIR = '/home/z/my-project/workspace'
 const SHELL = '/bin/bash'
+const BASHRC_PATH = '/home/z/.bashrc'
 
 // ─── Ensure workspace directories exist ──────────────────────────
 function ensureWorkspaceDirs() {
@@ -341,7 +342,10 @@ io.on('connection', (socket) => {
 
       console.log(`Creating PTY session ${sessionId} (${cols}x${rows})`)
 
-      const pty = spawn(SHELL, [], {
+      // Always put .local/bin first in PATH to ensure sudo wrapper is found
+      const PATH_WITH_WRAPPER = '/home/z/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.bun/bin:/home/z/.npm-global/bin'
+
+      const pty = spawn(SHELL, ['--login'], {
         name: 'xterm-256color',
         cols,
         rows,
@@ -349,13 +353,13 @@ io.on('connection', (socket) => {
         env: {
           ...process.env,
           TERM: 'xterm-256color',
-          PATH: sudoConfigured
-            ? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin'
-            : '/home/z/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games',
+          PATH: PATH_WITH_WRAPPER,
           HOME: '/home/z',
           USER: 'z',
           LANG: 'en_US.UTF-8',
           EDITOR: 'vim',
+          CLOUDSHELL: '1',
+          SUDO_PASSWORD: SUDO_PASSWORD,
         },
       })
 
@@ -368,70 +372,121 @@ io.on('connection', (socket) => {
       sessions.set(sessionId, session)
       socketSessions.get(socket.id)?.add(sessionId)
 
+      // Send welcome banner
+      const welcomeBanner = [
+        '',
+        '\x1b[32m╔══════════════════════════════════════════════════════════════╗\x1b[0m',
+        '\x1b[32m║\x1b[0m  \x1b[1;32m☁ CloudShell\x1b[0m                                             \x1b[32m║\x1b[0m',
+        '\x1b[32m╠══════════════════════════════════════════════════════════════╣\x1b[0m',
+        `\x1b[32m║\x1b[0m  Sudo password: \x1b[1;33m${SUDO_PASSWORD}\x1b[0m  (auto-provided by wrapper)  \x1b[32m║\x1b[0m`,
+        '\x1b[32m║\x1b[0m  Just type: \x1b[1;36msudo <command>\x1b[0m — no password prompt   \x1b[32m║\x1b[0m',
+        '\x1b[32m║\x1b[0m  Passwordless sudo after container restart              \x1b[32m║\x1b[0m',
+        '\x1b[32m╚══════════════════════════════════════════════════════════════╝\x1b[0m',
+        '',
+      ].join('\r\n')
+      socket.emit('terminal:output', { sessionId, data: welcomeBanner + '\r\n' })
+
       // PTY data output -> send to client
       pty.onData((data: string) => {
         socket.emit('terminal:output', { sessionId, data })
       })
 
-      // PTY exit - auto restart
+      // Helper function to create a new PTY shell (for restart)
+      const createPty = (): any => {
+        const newPty = spawn(SHELL, ['--login'], {
+          name: 'xterm-256color',
+          cols,
+          rows,
+          cwd: WORKSPACE_DIR,
+          env: {
+            ...process.env,
+            TERM: 'xterm-256color',
+            PATH: PATH_WITH_WRAPPER,
+            HOME: '/home/z',
+            USER: 'z',
+            LANG: 'en_US.UTF-8',
+            EDITOR: 'vim',
+            CLOUDSHELL: '1',
+            SUDO_PASSWORD: SUDO_PASSWORD,
+          },
+        })
+
+        newPty.onData((data: string) => {
+          socket.emit('terminal:output', { sessionId, data })
+        })
+
+        return newPty
+      }
+
+      // PTY exit - auto restart with a delay to avoid "moving forward" issue
       pty.onExit(({ exitCode }: { exitCode: number }) => {
         console.log(`PTY exited for session ${sessionId} with code ${exitCode}`)
-        socket.emit('terminal:output', {
-          sessionId,
-          data: `\r\n\x1b[33m[Process exited with code ${exitCode}. Starting new shell...]\x1b[0m\r\n`,
-        })
 
         // Clean up old session
         sessions.delete(sessionId)
         socketSessions.get(socket.id)?.delete(sessionId)
 
-        // Auto-create a new shell
-        try {
-          const newPty = spawn(SHELL, [], {
-            name: 'xterm-256color',
-            cols,
-            rows,
-            cwd: WORKSPACE_DIR,
-            env: {
-              ...process.env,
-              TERM: 'xterm-256color',
-              PATH: sudoConfigured
-                ? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin'
-                : '/home/z/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games',
-              HOME: '/home/z',
-              USER: 'z',
-              LANG: 'en_US.UTF-8',
-              EDITOR: 'vim',
-            },
-          })
+        // Show exit message
+        socket.emit('terminal:output', {
+          sessionId,
+          data: `\r\n\x1b[33m[Shell exited with code ${exitCode}. Restarting in 2s...]\x1b[0m\r\n`,
+        })
 
-          const newSession: TerminalSession = {
-            id: sessionId,
-            pty: newPty,
-            socketId: socket.id,
-          }
+        // Delay restart by 2 seconds to let the user see what happened
+        setTimeout(() => {
+          // Check if socket is still connected before restarting
+          if (!socket.connected) return
 
-          sessions.set(sessionId, newSession)
-          socketSessions.get(socket.id)?.add(sessionId)
+          try {
+            const newPty = createPty()
 
-          newPty.onData((data: string) => {
-            socket.emit('terminal:output', { sessionId, data })
-          })
+            const newSession: TerminalSession = {
+              id: sessionId,
+              pty: newPty,
+              socketId: socket.id,
+            }
 
-          newPty.onExit(({ exitCode: exitCode2 }: { exitCode: number }) => {
-            console.log(`Restarted PTY also exited for session ${sessionId} with code ${exitCode2}`)
-            socket.emit('terminal:output', {
-              sessionId,
-              data: `\r\n\x1b[31m[Process exited with code ${exitCode2}]\x1b[0m\r\n`,
+            sessions.set(sessionId, newSession)
+            socketSessions.get(socket.id)?.add(sessionId)
+
+            // Send welcome banner for new shell
+            socket.emit('terminal:output', { sessionId, data: welcomeBanner + '\r\n' })
+
+            // Set up exit handler for restarted PTY (chain restarts)
+            newPty.onExit(({ exitCode: exitCode2 }: { exitCode: number }) => {
+              console.log(`Restarted PTY also exited for session ${sessionId} with code ${exitCode2}`)
+              sessions.delete(sessionId)
+              socketSessions.get(socket.id)?.delete(sessionId)
+
+              socket.emit('terminal:output', {
+                sessionId,
+                data: `\r\n\x1b[33m[Shell exited with code ${exitCode2}. Restarting in 2s...]\x1b[0m\r\n`,
+              })
+
+              // Chain: restart again after delay
+              setTimeout(() => {
+                if (!socket.connected) return
+                try {
+                  const chainPty = createPty()
+                  const chainSession: TerminalSession = {
+                    id: sessionId,
+                    pty: chainPty,
+                    socketId: socket.id,
+                  }
+                  sessions.set(sessionId, chainSession)
+                  socketSessions.get(socket.id)?.add(sessionId)
+                  socket.emit('terminal:output', { sessionId, data: welcomeBanner + '\r\n' })
+                } catch (chainErr) {
+                  console.error(`Failed to chain-restart PTY for session ${sessionId}:`, chainErr)
+                }
+              }, 2000)
             })
-            sessions.delete(sessionId)
-            socketSessions.get(socket.id)?.delete(sessionId)
-          })
 
-          console.log(`Restarted PTY for session ${sessionId}`)
-        } catch (restartErr) {
-          console.error(`Failed to restart PTY for session ${sessionId}:`, restartErr)
-        }
+            console.log(`Restarted PTY for session ${sessionId}`)
+          } catch (restartErr) {
+            console.error(`Failed to restart PTY for session ${sessionId}:`, restartErr)
+          }
+        }, 2000)
       })
 
       socket.emit('terminal:created', { sessionId })

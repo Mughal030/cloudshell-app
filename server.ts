@@ -310,12 +310,10 @@ function cleanupSocketSessions(socketId: string) {
 function createPtySession(sessionId: string, socketId: string, cols: number, rows: number, socket: any) {
   console.log(`[Terminal] Creating PTY session ${sessionId} (${cols}x${rows})`)
 
-  // Put /home/z/.local/bin first in PATH so our sudo wrapper takes priority
-  const ptyPath = sudoConfigured
-    ? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin:/home/z/.bun/bin:/home/z/.npm-global/bin'
-    : '/home/z/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.bun/bin:/home/z/.npm-global/bin'
+  // Always put .local/bin first in PATH to ensure sudo wrapper is found
+  const PATH_WITH_WRAPPER = '/home/z/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.bun/bin:/home/z/.npm-global/bin'
 
-  const pty = spawn(SHELL, [], {
+  const pty = spawn(SHELL, ['--login'], {
     name: 'xterm-256color',
     cols,
     rows,
@@ -323,11 +321,13 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     env: {
       ...process.env,
       TERM: 'xterm-256color',
-      PATH: ptyPath,
+      PATH: PATH_WITH_WRAPPER,
       HOME: '/home/z',
       USER: 'z',
       LANG: 'en_US.UTF-8',
       EDITOR: 'vim',
+      CLOUDSHELL: '1',
+      SUDO_PASSWORD: SUDO_PASSWORD,
     },
   })
 
@@ -335,24 +335,20 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
   sessions.set(sessionId, session)
   socketSessions.get(socketId)?.add(sessionId)
 
-  // Send welcome message with system info
-  const sudoStatus = sudoConfigured
-    ? '\x1b[32m✓ Passwordless sudo configured\x1b[0m'
-    : '\x1b[33m⚠ Sudo: password "admin2211" (full access after restart)\x1b[0m'
-
-  // Check which tools are available
-  const availableTools: string[] = []
-  const TOOLS_CHECK = ['git', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'python3', 'pip3', 'bun', 'docker', 'podman']
-  for (const tool of TOOLS_CHECK) {
-    try {
-      execSync(`which ${tool} 2>/dev/null`, { encoding: 'utf-8', timeout: 2000 })
-      availableTools.push(tool)
-    } catch {}
-  }
-
-  const welcomeMsg = `\r\n\x1b[1;32m☁ CloudShell Terminal\x1b[0m\r\n\x1b[2;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m\r\n\x1b[2;37mWorkspace:\x1b[0m ${WORKSPACE_DIR}\r\n\x1b[2;37mShell:\x1b[0m     ${SHELL}\r\n${sudoStatus}\r\n\x1b[2;37mAvailable:\x1b[0m  ${availableTools.join(', ')}\r\n\x1b[2;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m\r\n`
+  // Send welcome banner
+  const welcomeBanner = [
+    '',
+    '\x1b[32m╔══════════════════════════════════════════════════════════════╗\x1b[0m',
+    '\x1b[32m║\x1b[0m  \x1b[1;32m☁ CloudShell\x1b[0m                                             \x1b[32m║\x1b[0m',
+    '\x1b[32m╠══════════════════════════════════════════════════════════════╣\x1b[0m',
+    `\x1b[32m║\x1b[0m  Sudo password: \x1b[1;33m${SUDO_PASSWORD}\x1b[0m  (auto-provided by wrapper)  \x1b[32m║\x1b[0m`,
+    '\x1b[32m║\x1b[0m  Just type: \x1b[1;36msudo <command>\x1b[0m — no password prompt   \x1b[32m║\x1b[0m',
+    '\x1b[32m║\x1b[0m  Passwordless sudo after container restart              \x1b[32m║\x1b[0m',
+    '\x1b[32m╚══════════════════════════════════════════════════════════════╝\x1b[0m',
+    '',
+  ].join('\r\n')
   try {
-    socket.emit('terminal:output', { sessionId, data: welcomeMsg })
+    socket.emit('terminal:output', { sessionId, data: welcomeBanner + '\r\n' })
   } catch {}
 
   // PTY data output -> send to client
@@ -364,24 +360,28 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     }
   })
 
-  // PTY exit - auto restart
+  // PTY exit - auto restart with delay to avoid 'moving forward' issue
   pty.onExit(({ exitCode }: { exitCode: number }) => {
     console.log(`[Terminal] PTY exited for session ${sessionId} with code ${exitCode}`)
-    socket.emit('terminal:output', {
-      sessionId,
-      data: `\r\n\x1b[33m[Process exited with code ${exitCode}. Starting new shell...]\x1b[0m\r\n`,
-    })
 
     sessions.delete(sessionId)
     socketSessions.get(socketId)?.delete(sessionId)
 
-    // Auto-create a new shell
-    try {
-      createPtySession(sessionId, socketId, cols, rows, socket)
-      console.log(`[Terminal] Restarted PTY for session ${sessionId}`)
-    } catch (restartErr) {
-      console.error(`[Terminal] Failed to restart PTY:`, restartErr)
-    }
+    socket.emit('terminal:output', {
+      sessionId,
+      data: `\r\n\x1b[33m[Shell exited with code ${exitCode}. Restarting in 2s...]\x1b[0m\r\n`,
+    })
+
+    // Delay restart by 2 seconds so user can see what happened
+    setTimeout(() => {
+      if (!socket.connected) return
+      try {
+        createPtySession(sessionId, socketId, cols, rows, socket)
+        console.log(`[Terminal] Restarted PTY for session ${sessionId}`)
+      } catch (restartErr) {
+        console.error(`[Terminal] Failed to restart PTY:`, restartErr)
+      }
+    }, 2000)
   })
 }
 
