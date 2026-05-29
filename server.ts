@@ -16,6 +16,22 @@ process.on('unhandledRejection', (reason) => {
   console.error('[Server] Unhandled Rejection:', reason)
 })
 
+// ─── Signal Handlers (debug why process keeps dying) ──────────────
+process.on('SIGTERM', () => {
+  console.log('[Server] Received SIGTERM - shutting down gracefully')
+  process.exit(0)
+})
+process.on('SIGINT', () => {
+  console.log('[Server] Received SIGINT')
+  process.exit(0)
+})
+process.on('SIGHUP', () => {
+  console.log('[Server] Received SIGHUP - ignoring')
+})
+process.on('exit', (code) => {
+  console.log(`[Server] Process exiting with code: ${code}`)
+})
+
 // ─── Configuration ───────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3000', 10)
 const TERMINAL_PORT = 3003
@@ -62,6 +78,44 @@ CMD ["/bin/bash"]
 }
 
 ensureWorkspaceDirs()
+
+// ─── Configure Passwordless Sudo ────────────────────────────────
+function configurePasswordlessSudo() {
+  try {
+    // Try to create sudoers file for user z (requires root)
+    execSync('echo "z ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/z-user 2>/dev/null && chmod 440 /etc/sudoers.d/z-user 2>/dev/null', {
+      encoding: 'utf-8',
+      timeout: 5000,
+    })
+    console.log('[Server] Passwordless sudo configured successfully')
+    return true
+  } catch {
+    console.log('[Server] Cannot configure passwordless sudo (running as non-root). Will work after container restart.')
+    // Ensure .bash_profile has the setup for next restart
+    try {
+      const bashProfile = `# CloudShell User Profile - sourced by start.sh as root during container startup
+if [ ! -f /etc/sudoers.d/z-user ]; then
+    echo 'z ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/z-user 2>/dev/null
+    chmod 440 /etc/sudoers.d/z-user 2>/dev/null
+    chown root:root /etc/sudoers.d/z-user 2>/dev/null
+fi
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin:/home/z/.bun/bin:/home/z/.npm-global/bin:$PATH"
+export HOME="/home/z"
+export EDITOR="vim"
+`
+      const profilePath = '/home/z/.bash_profile'
+      if (!existsSync(profilePath) || !readFileSync(profilePath, 'utf-8').includes('NOPASSWD')) {
+        writeFileSync(profilePath, bashProfile, 'utf-8')
+        console.log('[Server] Created /home/z/.bash_profile with sudoers setup for next container restart')
+      }
+    } catch (err) {
+      console.warn('[Server] Could not create .bash_profile:', err)
+    }
+    return false
+  }
+}
+
+const sudoConfigured = configurePasswordlessSudo()
 
 // ─── Tool definitions ────────────────────────────────────────────
 const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'python3', 'pip3', 'sudo']
@@ -190,7 +244,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     env: {
       ...process.env,
       TERM: 'xterm-256color',
-      PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin:/home/z/.bun/bin',
+      PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin:/home/z/.bun/bin:/home/z/.npm-global/bin',
       HOME: '/home/z',
       USER: 'z',
       LANG: 'en_US.UTF-8',
@@ -201,6 +255,13 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
   const session: TerminalSession = { id: sessionId, pty, socketId, cols, rows }
   sessions.set(sessionId, session)
   socketSessions.get(socketId)?.add(sessionId)
+
+  // Send welcome message with system info
+  const sudoStatus = sudoConfigured ? '\x1b[32m✓ Passwordless sudo configured\x1b[0m' : '\x1b[33m⚠ Sudo requires password - will be fixed on next container restart\x1b[0m'
+  const welcomeMsg = `\r\n\x1b[1;32m☁ CloudShell Terminal\x1b[0m\r\n\x1b[2;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m\r\n\x1b[2;37mWorkspace:\x1b[0m ${WORKSPACE_DIR}\r\n\x1b[2;37mShell:\x1b[0m     ${SHELL}\r\n${sudoStatus}\r\n\x1b[2;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\x1b[0m\r\n`
+  try {
+    socket.emit('terminal:output', { sessionId, data: welcomeMsg })
+  } catch {}
 
   // PTY data output -> send to client
   pty.onData((data: string) => {
@@ -261,11 +322,8 @@ app.prepare().then(() => {
     console.log(`[Terminal] Client connected: ${socket.id}`)
     socketSessions.set(socket.id, new Set())
 
-    // Send welcome message
-    socket.emit('terminal:output', {
-      sessionId: 'system',
-      data: '\x1b[32mCloudShell terminal service connected.\x1b[0m\r\n',
-    })
+    // Send connection confirmation
+    socket.emit('terminal:connected', { sudoConfigured })
 
     // Terminal: Create
     socket.on('terminal:create', (data?: { cols?: number; rows?: number }) => {

@@ -192,9 +192,9 @@ export default function Home() {
             size="icon"
             className="h-7 w-7 text-[#c9d1d9] hover:text-yellow-400 hover:bg-[#21262d]"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            disabled={!mounted}
           >
-            {/* Always render Sun icon to avoid hydration mismatch */}
-            <Sun className="h-3.5 w-3.5" />
+            {mounted && theme === 'dark' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
           </Button>
         </div>
       </header>

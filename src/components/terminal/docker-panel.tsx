@@ -45,12 +45,17 @@ CMD ["/bin/bash"]`
 export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, connected }: DockerPanelProps) {
   const [dockerfiles, setDockerfiles] = useState<FileInfo[]>([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const loadDockerfiles = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const result = await listFiles('.dockerfiles')
-      if (!result.error) {
+      if (result.error) {
+        setError(result.error)
+        setDockerfiles([])
+      } else {
         setDockerfiles(result.files.filter(f => {
           const nameLower = f.name.toLowerCase()
           return nameLower.startsWith('dockerfile') || nameLower.endsWith('.dockerfile')
@@ -58,6 +63,7 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
       }
     } catch (err) {
       console.error('Error loading dockerfiles:', err)
+      setError('Failed to load Dockerfiles')
     } finally {
       setLoading(false)
     }
@@ -84,12 +90,16 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
 
   const handleBuildImage = (dockerfileName: string) => {
     const name = dockerfileName.replace(/\.dockerfile$/i, '').toLowerCase()
-    sendCommandToTerminal(`cd /home/z/my-project/workspace && docker build -f .dockerfiles/${dockerfileName} -t ${name}:latest .`)
+    sendCommandToTerminal(`cd /home/z/my-project/workspace && sudo docker build -f .dockerfiles/${dockerfileName} -t ${name}:latest .`)
   }
 
   const handleRunContainer = (dockerfileName: string) => {
     const name = dockerfileName.replace(/\.dockerfile$/i, '').toLowerCase()
-    sendCommandToTerminal(`docker run -it --rm ${name}:latest`)
+    sendCommandToTerminal(`sudo docker run -it --rm ${name}:latest`)
+  }
+
+  const handleCheckDocker = () => {
+    sendCommandToTerminal('which docker && docker --version || echo "Docker is not installed"')
   }
 
   return (
@@ -126,8 +136,21 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
       <div className="px-3 py-2 border-b border-[#21262d]/50">
         <div className="flex items-start gap-2 text-[10px] text-[#8b949e] bg-[#0d1117] rounded p-2">
           <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-400" />
-          <span>Dockerfiles are saved in <code className="text-[#00ff41] bg-[#161b22] px-1 rounded">.dockerfiles/</code> and persist across sessions.</span>
+          <div className="flex-1">
+            <span>Dockerfiles are saved in <code className="text-[#00ff41] bg-[#161b22] px-1 rounded">.dockerfiles/</code> and persist across sessions.</span>
+            <button 
+              className="block mt-1 text-blue-400 hover:text-blue-300 underline"
+              onClick={handleCheckDocker}
+            >
+              Check Docker availability
+            </button>
+          </div>
         </div>
+        {error && (
+          <div className="mt-1 text-[10px] text-red-400 bg-red-500/10 rounded p-1.5">
+            {error}
+          </div>
+        )}
       </div>
 
       {/* Dockerfiles List */}

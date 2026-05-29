@@ -20,12 +20,14 @@ export function ToolStatus({ tools, checkTools, onInstall, sendCommandToTerminal
     sendCommandToTerminal(command)
   }
 
+  const installedCount = tools.filter(t => t.installed).length
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-[#21262d]/50">
         <span className="text-xs font-medium text-[#8b949e]">
-          {tools.filter(t => t.installed).length}/{tools.length} installed
+          {loading && tools.length === 0 ? 'Checking...' : `${installedCount}/${tools.length} installed`}
         </span>
         <Button
           variant="ghost"
@@ -34,7 +36,7 @@ export function ToolStatus({ tools, checkTools, onInstall, sendCommandToTerminal
           onClick={checkTools}
           disabled={loading}
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${loading && tools.length === 0 ? 'animate-spin' : ''}`} />
         </Button>
       </div>
 
@@ -77,6 +79,12 @@ export function ToolStatus({ tools, checkTools, onInstall, sendCommandToTerminal
               )}
             </div>
           ))}
+          {tools.length === 0 && loading && (
+            <div className="text-center text-[#8b949e] text-xs py-6">
+              <RefreshCw className="h-4 w-4 mx-auto mb-2 animate-spin" />
+              Checking installed tools...
+            </div>
+          )}
           {tools.length === 0 && !loading && (
             <div className="text-center text-[#484f58] text-xs py-6">
               Click refresh to check tools

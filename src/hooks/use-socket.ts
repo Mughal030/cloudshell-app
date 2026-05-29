@@ -38,12 +38,14 @@ let socketConnectionCount = 0
 const TERMINAL_SERVICE_PORT = 3003
 
 function getOrCreateSocket(): Socket {
+  // Reuse existing connected socket
   if (globalSocket && globalSocket.connected) {
     return globalSocket
   }
 
-  // Clean up old socket if it exists
+  // Clean up old socket if it exists but is disconnected
   if (globalSocket) {
+    globalSocket.removeAllListeners()
     globalSocket.disconnect()
     globalSocket = null
   }
@@ -54,8 +56,8 @@ function getOrCreateSocket(): Socket {
     transports: ['websocket', 'polling'],
     forceNew: true,
     reconnection: true,
-    reconnectionAttempts: 30,
-    reconnectionDelay: 1000,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 500,
     reconnectionDelayMax: 5000,
     timeout: 20000,
     query: {
@@ -99,6 +101,14 @@ export function useSocket() {
       }
       // Check tools on connect
       socket.emit('tools:check')
+      // Flush any buffered output for all registered handlers
+      outputBuffer.forEach((buffered, sid) => {
+        const handlers = outputHandlers.get(sid)
+        if (handlers && handlers.size > 0) {
+          buffered.forEach(data => handlers.forEach(h => h(data)))
+          outputBuffer.delete(sid)
+        }
+      })
     }
 
     const onDisconnect = (reason: string) => {
@@ -116,6 +126,8 @@ export function useSocket() {
     }
 
     const onOutput = (data: { sessionId: string; data: string }) => {
+      // Ignore system messages (no session handler)
+      if (data.sessionId === 'system') return
       const handlers = outputHandlers.get(data.sessionId)
       if (handlers && handlers.size > 0) {
         handlers.forEach(handler => handler(data.data))
@@ -179,6 +191,7 @@ export function useSocket() {
 
       // Only disconnect the global socket if this is the last consumer
       if (socketConnectionCount <= 0) {
+        socket.removeAllListeners()
         socket.disconnect()
         globalSocket = null
         outputHandlers.clear()
