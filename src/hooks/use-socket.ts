@@ -21,6 +21,9 @@ export interface TerminalSessionInfo {
   label: string
 }
 
+// Global output handlers per session
+const outputHandlers = new Map<string, Set<(data: string) => void>>()
+
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null)
   const [connected, setConnected] = useState(false)
@@ -42,12 +45,22 @@ export function useSocket() {
     socketRef.current = socket
 
     socket.on('connect', () => {
+      console.log('[useSocket] Connected to terminal service')
       setConnected(true)
       socket.emit('tools:check')
     })
 
     socket.on('disconnect', () => {
+      console.log('[useSocket] Disconnected from terminal service')
       setConnected(false)
+    })
+
+    // Single global output handler that dispatches to all registered handlers
+    socket.on('terminal:output', (data: { sessionId: string; data: string }) => {
+      const handlers = outputHandlers.get(data.sessionId)
+      if (handlers) {
+        handlers.forEach(handler => handler(data.data))
+      }
     })
 
     socket.on('tools:status', (toolsStatus: ToolInfo[]) => {
@@ -65,15 +78,12 @@ export function useSocket() {
     }, 5000)
 
     return () => {
-      // Destroy all sessions on unmount
-      for (const session of sessions) {
-        socket.emit('terminal:destroy', { sessionId: session.sessionId })
-      }
       if (latencyIntervalRef.current) {
         clearInterval(latencyIntervalRef.current)
       }
       socket.disconnect()
       socketRef.current = null
+      outputHandlers.clear()
     }
   }, [])
 
@@ -88,7 +98,8 @@ export function useSocket() {
       const handler = (data: { sessionId: string | null; error?: string }) => {
         socket.off('terminal:created', handler)
         if (data.sessionId) {
-          const label = `Terminal ${sessions.length + 1}`
+          const num = Math.floor(Math.random() * 9000) + 1000
+          const label = `Terminal ${num}`
           setSessions(prev => [...prev, { sessionId: data.sessionId!, label }])
           setActiveSessionId(data.sessionId!)
           resolve(data.sessionId!)
@@ -100,29 +111,27 @@ export function useSocket() {
       socket.on('terminal:created', handler)
       socket.emit('terminal:create', { cols, rows })
     })
-  }, [sessions.length])
+  }, [])
 
   const destroyTerminal = useCallback((sessionId: string) => {
     const socket = socketRef.current
     if (!socket) return
 
+    // Clean up output handlers for this session
+    outputHandlers.delete(sessionId)
+
     socket.emit('terminal:destroy', { sessionId })
 
     setSessions(prev => {
       const next = prev.filter(s => s.sessionId !== sessionId)
+      // If the destroyed session was active, switch to another
+      setActiveSessionId(currentActive => {
+        if (currentActive === sessionId) {
+          return next.length > 0 ? next[0].sessionId : null
+        }
+        return currentActive
+      })
       return next
-    })
-    setActiveSessionId(prev => {
-      if (prev === sessionId) {
-        // Use setSessions to get latest state, pick first remaining
-        setSessions(current => {
-          const remaining = current.filter(s => s.sessionId !== sessionId)
-          setActiveSessionId(remaining.length > 0 ? remaining[0].sessionId : null)
-          return current
-        })
-        return null
-      }
-      return prev
     })
   }, [])
 
@@ -134,12 +143,21 @@ export function useSocket() {
     socketRef.current?.emit('terminal:resize', { sessionId, cols, rows })
   }, [])
 
-  const onOutput = useCallback((handler: (data: { sessionId: string; data: string }) => void) => {
-    const socket = socketRef.current
-    if (!socket) return () => {}
-    socket.on('terminal:output', handler)
+  // Register an output handler for a session - returns unsubscribe function
+  const onOutput = useCallback((sessionId: string, handler: (data: string) => void) => {
+    if (!outputHandlers.has(sessionId)) {
+      outputHandlers.set(sessionId, new Set())
+    }
+    outputHandlers.get(sessionId)!.add(handler)
+
     return () => {
-      socket.off('terminal:output', handler)
+      const handlers = outputHandlers.get(sessionId)
+      if (handlers) {
+        handlers.delete(handler)
+        if (handlers.size === 0) {
+          outputHandlers.delete(sessionId)
+        }
+      }
     }
   }, [])
 

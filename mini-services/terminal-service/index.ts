@@ -18,6 +18,7 @@ process.on('unhandledRejection', (reason) => {
 // ─── Configuration ───────────────────────────────────────────────
 const PORT = 3003
 const WORKSPACE_DIR = '/home/z/my-project/workspace'
+const SHELL = '/bin/bash'
 
 // ─── Ensure workspace directories exist ──────────────────────────
 function ensureWorkspaceDirs() {
@@ -29,6 +30,32 @@ function ensureWorkspaceDirs() {
   if (!existsSync(dockerfilesDir)) {
     mkdirSync(dockerfilesDir, { recursive: true })
     console.log(`Created .dockerfiles directory: ${dockerfilesDir}`)
+  }
+  // Create a sample Dockerfile
+  const sampleDockerfile = join(dockerfilesDir, 'Dockerfile.app')
+  if (!existsSync(sampleDockerfile)) {
+    const template = `FROM ubuntu:22.04
+
+# Install system packages
+RUN apt-get update && apt-get install -y \\
+    curl \\
+    wget \\
+    git \\
+    vim \\
+    nano \\
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy application files
+COPY . .
+
+# Default command
+CMD ["/bin/bash"]
+`
+    writeFileSync(sampleDockerfile, template, 'utf-8')
+    console.log(`Created sample Dockerfile: ${sampleDockerfile}`)
   }
 }
 
@@ -44,6 +71,8 @@ const io = new Server(httpServer, {
   },
   pingTimeout: 60000,
   pingInterval: 25000,
+  maxHttpBufferSize: 1e6, // 1MB
+  connectTimeout: 10000,
 })
 
 // ─── Session Storage ─────────────────────────────────────────────
@@ -61,7 +90,7 @@ const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'p
 
 const TOOL_INSTALL_COMMANDS: Record<string, string> = {
   git: 'sudo apt-get update && sudo apt-get install -y git',
-  docker: 'sudo apt-get update && sudo apt-get install -y docker.io',
+  docker: 'sudo apt-get update && sudo apt-get install -y docker.io && sudo systemctl start docker 2>/dev/null; echo "Docker installation complete"',
   curl: 'sudo apt-get update && sudo apt-get install -y curl',
   wget: 'sudo apt-get update && sudo apt-get install -y wget',
   vim: 'sudo apt-get update && sudo apt-get install -y vim',
@@ -76,20 +105,32 @@ const TOOL_INSTALL_COMMANDS: Record<string, string> = {
 // ─── Helper: check if a tool is installed ────────────────────────
 function checkTool(name: string): { name: string; installed: boolean; version: string } {
   try {
-    const versionOutput = execSync(`which ${name} 2>/dev/null && ${name} --version 2>&1 || echo "not-found"`, {
+    // First check if the command exists
+    const whichOutput = execSync(`which ${name} 2>/dev/null || echo "not-found"`, {
       encoding: 'utf-8',
       timeout: 5000,
     }).trim()
 
-    if (versionOutput.includes('not-found')) {
+    if (whichOutput.includes('not-found')) {
       return { name, installed: false, version: '' }
     }
 
-    // Extract version from output (usually the second line or first line after which path)
-    const lines = versionOutput.split('\n').filter(Boolean)
-    const versionLine = lines.length > 1 ? lines[lines.length - 1] : lines[0]
+    // Get version - use different flags for different tools
+    let versionArg = '--version'
+    if (name === 'docker') versionArg = '--version'
 
-    return { name, installed: true, version: versionLine.trim() }
+    try {
+      const versionOutput = execSync(`${name} ${versionArg} 2>&1`, {
+        encoding: 'utf-8',
+        timeout: 5000,
+      }).trim()
+
+      const firstLine = versionOutput.split('\n')[0]
+      return { name, installed: true, version: firstLine.trim() }
+    } catch {
+      // which found it but version failed - still count as installed
+      return { name, installed: true, version: 'installed' }
+    }
   } catch {
     return { name, installed: false, version: '' }
   }
@@ -104,7 +145,6 @@ function resolveWorkspacePath(inputPath: string): string | null {
   // Security check: ensure the resolved path is within workspace
   const rel = relative(WORKSPACE_DIR, target)
   if (rel.startsWith('..') || resolve(WORKSPACE_DIR, inputPath) !== target) {
-    // Path traversal attempt
     return null
   }
   return target
@@ -115,7 +155,11 @@ function listDirectory(dirPath: string): { name: string; type: 'file' | 'directo
   try {
     const entries = readdirSync(dirPath, { withFileTypes: true })
     return entries
-      .filter((entry) => !entry.name.startsWith('.'))
+      .filter((entry) => {
+        // Show .dockerfiles directory, hide other dotfiles
+        if (entry.name.startsWith('.') && entry.name !== '.dockerfiles') return false
+        return true
+      })
       .map((entry) => {
         const fullPath = join(dirPath, entry.name)
         try {
@@ -172,7 +216,9 @@ io.on('connection', (socket) => {
       const cols = data?.cols || 80
       const rows = data?.rows || 24
 
-      const pty = spawn('/bin/bash', [], {
+      console.log(`Creating PTY session ${sessionId} (${cols}x${rows})`)
+
+      const pty = spawn(SHELL, [], {
         name: 'xterm-256color',
         cols,
         rows,
@@ -180,8 +226,11 @@ io.on('connection', (socket) => {
         env: {
           ...process.env,
           TERM: 'xterm-256color',
-          PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games',
+          PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin',
           HOME: '/home/z',
+          USER: 'z',
+          LANG: 'en_US.UTF-8',
+          EDITOR: 'vim',
         },
       })
 
@@ -199,15 +248,63 @@ io.on('connection', (socket) => {
         socket.emit('terminal:output', { sessionId, data })
       })
 
-      // PTY exit
+      // PTY exit - auto restart
       pty.onExit(({ exitCode }: { exitCode: number }) => {
         console.log(`PTY exited for session ${sessionId} with code ${exitCode}`)
         socket.emit('terminal:output', {
           sessionId,
-          data: `\r\n[Process exited with code ${exitCode}]\r\n`,
+          data: `\r\n\x1b[33m[Process exited with code ${exitCode}. Starting new shell...]\x1b[0m\r\n`,
         })
+
+        // Clean up old session
         sessions.delete(sessionId)
         socketSessions.get(socket.id)?.delete(sessionId)
+
+        // Auto-create a new shell
+        try {
+          const newPty = spawn(SHELL, [], {
+            name: 'xterm-256color',
+            cols,
+            rows,
+            cwd: WORKSPACE_DIR,
+            env: {
+              ...process.env,
+              TERM: 'xterm-256color',
+              PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.local/bin',
+              HOME: '/home/z',
+              USER: 'z',
+              LANG: 'en_US.UTF-8',
+              EDITOR: 'vim',
+            },
+          })
+
+          const newSession: TerminalSession = {
+            id: sessionId,
+            pty: newPty,
+            socketId: socket.id,
+          }
+
+          sessions.set(sessionId, newSession)
+          socketSessions.get(socket.id)?.add(sessionId)
+
+          newPty.onData((data: string) => {
+            socket.emit('terminal:output', { sessionId, data })
+          })
+
+          newPty.onExit(({ exitCode: exitCode2 }: { exitCode: number }) => {
+            console.log(`Restarted PTY also exited for session ${sessionId} with code ${exitCode2}`)
+            socket.emit('terminal:output', {
+              sessionId,
+              data: `\r\n\x1b[31m[Process exited with code ${exitCode2}]\x1b[0m\r\n`,
+            })
+            sessions.delete(sessionId)
+            socketSessions.get(socket.id)?.delete(sessionId)
+          })
+
+          console.log(`Restarted PTY for session ${sessionId}`)
+        } catch (restartErr) {
+          console.error(`Failed to restart PTY for session ${sessionId}:`, restartErr)
+        }
       })
 
       socket.emit('terminal:created', { sessionId })
@@ -245,8 +342,6 @@ io.on('connection', (socket) => {
       } catch (err) {
         console.error(`Error resizing PTY for session ${sessionId}:`, err)
       }
-    } else {
-      console.warn(`Received resize for unknown session: ${sessionId}`)
     }
   })
 
@@ -267,7 +362,6 @@ io.on('connection', (socket) => {
         socket.emit('terminal:destroyed', { sessionId, error: String(err) })
       }
     } else {
-      console.warn(`Received destroy for unknown session: ${sessionId}`)
       socket.emit('terminal:destroyed', { sessionId, error: 'Session not found' })
     }
   })
@@ -313,8 +407,7 @@ io.on('connection', (socket) => {
     }
 
     try {
-      // Ensure parent directory exists
-      const parentDir = join(resolvedPath, '..')
+      const parentDir = resolve(resolvedPath, '..')
       if (!existsSync(parentDir)) {
         mkdirSync(parentDir, { recursive: true })
       }
@@ -385,6 +478,13 @@ io.on('connection', (socket) => {
     }
   })
 
+  // ── Ping (for latency measurement) ──────────────────────────
+  socket.on('ping', (callback) => {
+    if (typeof callback === 'function') {
+      callback()
+    }
+  })
+
   // ── Disconnect ───────────────────────────────────────────────
   socket.on('disconnect', (reason) => {
     console.log(`Client disconnected: ${socket.id} (reason: ${reason})`)
@@ -401,13 +501,13 @@ io.on('connection', (socket) => {
 httpServer.listen(PORT, () => {
   console.log(`Terminal service running on port ${PORT}`)
   console.log(`Workspace directory: ${WORKSPACE_DIR}`)
+  console.log(`Shell: ${SHELL}`)
 })
 
 // ─── Graceful Shutdown ───────────────────────────────────────────
 function gracefulShutdown(signal: string) {
   console.log(`Received ${signal}, shutting down terminal service...`)
 
-  // Kill all PTY sessions
   for (const [sessionId, session] of sessions) {
     try {
       session.pty.kill()
@@ -424,7 +524,6 @@ function gracefulShutdown(signal: string) {
     process.exit(0)
   })
 
-  // Force exit after 5 seconds
   setTimeout(() => {
     console.error('Forcing exit after timeout')
     process.exit(1)

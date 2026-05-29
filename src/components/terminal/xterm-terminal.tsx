@@ -8,7 +8,7 @@ import '@xterm/xterm/css/xterm.css'
 
 interface XtermTerminalProps {
   sessionId: string
-  onOutput: (handler: (data: { sessionId: string; data: string }) => void) => () => void
+  onOutput: (sessionId: string, handler: (data: string) => void) => () => void
   sendInput: (sessionId: string, data: string) => void
   resizeTerminal: (sessionId: string, cols: number, rows: number) => void
   isActive: boolean
@@ -21,13 +21,27 @@ export function XtermTerminal({
   resizeTerminal,
   isActive,
 }: XtermTerminalProps) {
-  const terminalRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const sessionIdRef = useRef(sessionId)
+  const sendInputRef = useRef(sendInput)
+  const resizeTerminalRef = useRef(resizeTerminal)
 
-  // Initialize terminal
+  // Keep refs updated without triggering re-renders or effect re-runs
   useEffect(() => {
-    if (!terminalRef.current) return
+    sessionIdRef.current = sessionId
+    sendInputRef.current = sendInput
+    resizeTerminalRef.current = resizeTerminal
+  })
+
+  // Initialize terminal ONCE - never recreate it
+  useEffect(() => {
+    if (!containerRef.current) return
+    // Prevent double init in React strict mode
+    if (termRef.current) return
+
+    console.log('[XtermTerminal] Initializing terminal for session:', sessionId)
 
     const term = new Terminal({
       cursorBlink: true,
@@ -69,93 +83,91 @@ export function XtermTerminal({
     term.loadAddon(fitAddon)
     term.loadAddon(webLinksAddon)
 
-    term.open(terminalRef.current)
-
-    // Small delay to ensure DOM is ready before fitting
-    setTimeout(() => {
-      try {
-        fitAddon.fit()
-      } catch {
-        // ignore fit errors on initial load
-      }
-    }, 100)
+    term.open(containerRef.current)
 
     termRef.current = term
     fitAddonRef.current = fitAddon
 
-    // Handle terminal input
+    // Handle terminal input - use refs so we don't need to recreate the listener
     term.onData((data: string) => {
-      sendInput(sessionId, data)
+      sendInputRef.current(sessionIdRef.current, data)
     })
 
-    // Handle resize
+    // Handle resize with ResizeObserver
     const resizeObserver = new ResizeObserver(() => {
       try {
         fitAddon.fit()
         if (term.cols && term.rows) {
-          resizeTerminal(sessionId, term.cols, term.rows)
+          resizeTerminalRef.current(sessionIdRef.current, term.cols, term.rows)
         }
       } catch {
-        // ignore resize errors
+        // ignore resize errors when terminal is not visible
       }
     })
 
-    resizeObserver.observe(terminalRef.current)
-
-    // Initial resize
-    try {
-      fitAddon.fit()
-      if (term.cols && term.rows) {
-        resizeTerminal(sessionId, term.cols, term.rows)
-      }
-    } catch {
-      // ignore
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current)
     }
 
+    // Initial fit with delay to ensure DOM is ready
+    const fitTimer = setTimeout(() => {
+      try {
+        fitAddon.fit()
+        if (term.cols && term.rows) {
+          resizeTerminalRef.current(sessionIdRef.current, term.cols, term.rows)
+        }
+      } catch {
+        // ignore
+      }
+    }, 200)
+
     return () => {
+      clearTimeout(fitTimer)
       resizeObserver.disconnect()
       term.dispose()
       termRef.current = null
       fitAddonRef.current = null
     }
-  }, [sessionId, sendInput, resizeTerminal])
+  }, []) // Empty deps - only create once!
 
-  // Handle output from socket
+  // Subscribe to output for this session
   useEffect(() => {
-    const unsubscribe = onOutput((data: { sessionId: string; data: string }) => {
-      if (data.sessionId === sessionId && termRef.current) {
-        termRef.current.write(data.data)
+    const unsubscribe = onOutput(sessionId, (data: string) => {
+      if (termRef.current) {
+        termRef.current.write(data)
       }
     })
 
     return unsubscribe
   }, [sessionId, onOutput])
 
-  // Handle visibility - refit when becoming active
+  // Handle visibility changes - refit when becoming active
   useEffect(() => {
     if (isActive && fitAddonRef.current && termRef.current) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         try {
           fitAddonRef.current?.fit()
           if (termRef.current?.cols && termRef.current?.rows) {
-            resizeTerminal(sessionId, termRef.current.cols, termRef.current.rows)
+            resizeTerminalRef.current(sessionIdRef.current, termRef.current.cols, termRef.current.rows)
           }
+          termRef.current?.focus()
         } catch {
           // ignore
         }
-      }, 50)
+      }, 100)
+      return () => clearTimeout(timer)
     }
-  }, [isActive, sessionId, resizeTerminal])
+  }, [isActive])
 
-  const handleFocus = useCallback(() => {
+  const handleContainerClick = useCallback(() => {
     termRef.current?.focus()
   }, [])
 
   return (
     <div
-      ref={terminalRef}
-      onClick={handleFocus}
-      className={`w-full h-full ${isActive ? 'block' : 'hidden'}`}
+      ref={containerRef}
+      onClick={handleContainerClick}
+      className={`w-full h-full ${isActive ? '' : 'hidden'}`}
       style={{ padding: '4px' }}
     />
   )
