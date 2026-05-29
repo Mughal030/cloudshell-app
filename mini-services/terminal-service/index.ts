@@ -61,8 +61,10 @@ CMD ["/bin/bash"]
 
 ensureWorkspaceDirs()
 
-// ─── Configure Passwordless Sudo ────────────────────────────────
-function configurePasswordlessSudo() {
+// ─── Configure Sudo ─────────────────────────────────────────────
+const SUDO_PASSWORD = 'admin2211'
+
+function configureSudo() {
   try {
     execSync('/usr/bin/sudo -n true 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
     console.log('[Terminal] Passwordless sudo already configured')
@@ -80,12 +82,12 @@ function configurePasswordlessSudo() {
     console.log('[Terminal] Passwordless sudo configured successfully')
     return true
   } catch {
-    console.log('[Terminal] Cannot configure passwordless sudo (not running as root). Using sudo wrapper...')
+    console.log('[Terminal] Cannot configure passwordless sudo. Sudo wrapper with password "admin2211" active.')
     return false
   }
 }
 
-const sudoConfigured = configurePasswordlessSudo()
+const sudoConfigured = configureSudo()
 
 // ─── Create sudo wrapper for current session ────────────────────
 function setupSudoWrapper() {

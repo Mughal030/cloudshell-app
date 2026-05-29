@@ -332,34 +332,35 @@ export default function Home() {
                       {sessions.map((session) => (
                         <div
                           key={session.sessionId}
-                          role="tab"
-                          tabIndex={0}
                           className={`flex items-center gap-1.5 px-3 h-full text-xs border-r border-[#21262d] transition-colors shrink-0 cursor-pointer ${
                             activeSessionId === session.sessionId
                               ? 'bg-[#0d1117] text-[#00ff41] border-b-2 border-b-[#00ff41]'
                               : 'text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#0d1117]/50'
                           }`}
                           onClick={() => setActiveSessionId(session.sessionId)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              setActiveSessionId(session.sessionId)
-                            }
-                          }}
                         >
                           <SquareTerminal className="h-3 w-3 shrink-0" />
                           <span className="truncate max-w-24">{session.label}</span>
                           <span className="text-[8px] text-[#484f58] shrink-0">
                             {session.sessionId.substring(0, 4)}
                           </span>
-                          <button
-                            className="ml-1 p-0.5 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-red-400 transition-colors"
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            className="ml-1 p-0.5 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-red-400 transition-colors inline-flex items-center"
                             onClick={(e) => {
                               e.stopPropagation()
                               destroyTerminal(session.sessionId)
                             }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.stopPropagation()
+                                destroyTerminal(session.sessionId)
+                              }
+                            }}
                           >
                             <X className="h-2.5 w-2.5" />
-                          </button>
+                          </span>
                         </div>
                       ))}
                     </div>

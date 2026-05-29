@@ -79,8 +79,10 @@ CMD ["/bin/bash"]
 
 ensureWorkspaceDirs()
 
-// ─── Configure Passwordless Sudo ────────────────────────────────
-function configurePasswordlessSudo() {
+// ─── Configure Sudo ─────────────────────────────────────────────
+const SUDO_PASSWORD = 'admin2211'
+
+function configureSudo() {
   // First check if passwordless sudo is already working
   try {
     execSync('/usr/bin/sudo -n true 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
@@ -101,12 +103,21 @@ function configurePasswordlessSudo() {
     console.log('[Server] Passwordless sudo configured successfully')
     return true
   } catch {
-    console.log('[Server] Cannot configure passwordless sudo (not running as root). Setting up sudo wrapper...')
+    // Can't configure passwordless sudo - try password-based sudo
+  }
+
+  // Try sudo with user-defined password via -S flag
+  try {
+    execSync(`echo "${SUDO_PASSWORD}" | /usr/bin/sudo -S true 2>/dev/null`, { encoding: 'utf-8', timeout: 5000 })
+    console.log('[Server] Sudo with password configured (password: admin2211)')
+    return false // not passwordless, but sudo works with password
+  } catch {
+    console.log('[Server] Cannot configure sudo. Setting up sudo wrapper...')
     return false
   }
 }
 
-const sudoConfigured = configurePasswordlessSudo()
+const sudoConfigured = configureSudo()
 
 // ─── Create sudo wrapper for current session ────────────────────
 // If passwordless sudo is not configured, we ensure the wrapper at /home/z/.local/bin/sudo
@@ -299,7 +310,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
   // Send welcome message with system info
   const sudoStatus = sudoConfigured
     ? '\x1b[32m✓ Passwordless sudo configured\x1b[0m'
-    : '\x1b[33m⚠ Sudo wrapper active\x1b[0m - \x1b[2;37m"sudo apt update" works, install needs next restart\x1b[0m'
+    : '\x1b[33m⚠ Sudo: password "admin2211" (full access after restart)\x1b[0m'
 
   // Check which tools are available
   const availableTools: string[] = []
