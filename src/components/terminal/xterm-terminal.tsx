@@ -36,7 +36,7 @@ export function XtermTerminal({
     resizeTerminalRef.current = resizeTerminal
   })
 
-  // Initialize terminal ONCE
+  // Initialize terminal ONCE per sessionId
   useEffect(() => {
     if (!containerRef.current) return
     if (initDoneRef.current) return
@@ -90,8 +90,12 @@ export function XtermTerminal({
     fitAddonRef.current = fitAddon
 
     // Handle terminal input - forward keystrokes to PTY via socket
-    term.onData((data: string) => {
-      sendInputRef.current(sessionIdRef.current, data)
+    const dataDisposable = term.onData((data: string) => {
+      const sid = sessionIdRef.current
+      const sendFn = sendInputRef.current
+      if (sid && sendFn) {
+        sendFn(sid, data)
+      }
     })
 
     // Handle resize with ResizeObserver
@@ -124,7 +128,6 @@ export function XtermTerminal({
       }
     }, 100))
 
-    // Second fit attempt after a longer delay (for slow DOM)
     fitTimers.push(setTimeout(() => {
       try {
         fitAddon.fit()
@@ -139,12 +142,13 @@ export function XtermTerminal({
     return () => {
       fitTimers.forEach(t => clearTimeout(t))
       resizeObserver.disconnect()
+      dataDisposable.dispose()
       term.dispose()
       termRef.current = null
       fitAddonRef.current = null
       initDoneRef.current = false
     }
-  }, [sessionId]) // Re-init if sessionId changes (shouldn't normally happen)
+  }, [sessionId]) // Re-init if sessionId changes
 
   // Subscribe to output for this session
   useEffect(() => {
@@ -160,7 +164,6 @@ export function XtermTerminal({
   // Handle visibility changes - refit when becoming active
   useEffect(() => {
     if (isActive && fitAddonRef.current && termRef.current) {
-      // Small delay to ensure the container is visible and has dimensions
       const timer = setTimeout(() => {
         try {
           if (fitAddonRef.current && termRef.current) {
@@ -189,11 +192,8 @@ export function XtermTerminal({
       className="w-full h-full"
       style={{
         padding: '4px',
-        // Use visibility instead of display:none so xterm can calculate dimensions
-        // when the terminal is inactive but still needs to be measured
         visibility: isActive ? 'visible' : 'hidden',
         position: isActive ? 'relative' : 'absolute',
-        // For inactive terminals, take them out of flow but keep dimensions calculable
         ...(isActive ? {} : {
           pointerEvents: 'none' as const,
           height: '100%',

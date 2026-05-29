@@ -9,6 +9,11 @@
 			header_up X-Forwarded-For {remote_host}
 			header_up X-Forwarded-Proto {scheme}
 			header_up X-Real-IP {remote_host}
+
+			# Support WebSocket connections for terminal service
+			transport http {
+				versions 1.1
+			}
 		}
 	}
 
@@ -18,6 +23,11 @@
 			header_up X-Forwarded-For {remote_host}
 			header_up X-Forwarded-Proto {scheme}
 			header_up X-Real-IP {remote_host}
+
+			# Support WebSocket connections
+			transport http {
+				versions 1.1
+			}
 		}
 	}
 }

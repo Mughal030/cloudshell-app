@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import {
   Terminal,
   Sun,
@@ -102,10 +101,10 @@ export default function Home() {
 
   // Auto-create first terminal on connect
   useEffect(() => {
-    if (connected && sessions.length === 0) {
+    if (mounted && connected && sessions.length === 0) {
       createTerminal().catch(console.error)
     }
-  }, [connected, sessions.length, createTerminal])
+  }, [mounted, connected, sessions.length, createTerminal])
 
   const handleNewTerminal = async () => {
     setCreatingTerminal(true)
@@ -143,13 +142,8 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen bg-[#0d1117] text-[#c9d1d9] overflow-hidden">
-      {/* ─── HEADER ──────────────────────────────────────────── */}
-      <motion.header
-        className="flex items-center justify-between px-4 h-11 border-b border-[#21262d] bg-[#161b22]/90 backdrop-blur-sm shrink-0"
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.3 }}
-      >
+      {/* HEADER */}
+      <header className="flex items-center justify-between px-4 h-11 border-b border-[#21262d] bg-[#161b22]/90 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Terminal className="h-4.5 w-4.5 text-[#00ff41]" />
@@ -161,17 +155,13 @@ export default function Home() {
           <Separator orientation="vertical" className="h-5 bg-[#21262d]" />
           <div className="flex items-center gap-1.5">
             {mounted && connected ? (
-              <motion.div
-                className="flex items-center gap-1.5"
-                initial={{ scale: 0.8 }}
-                animate={{ scale: 1 }}
-              >
+              <div className="flex items-center gap-1.5">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
                 </span>
                 <span className="text-[10px] text-green-400 font-medium">Connected</span>
-              </motion.div>
+              </div>
             ) : (
               <div className="flex items-center gap-1.5">
                 <span className="relative flex h-2 w-2">
@@ -203,145 +193,131 @@ export default function Home() {
             className="h-7 w-7 text-[#c9d1d9] hover:text-yellow-400 hover:bg-[#21262d]"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           >
-            {mounted ? (theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />) : <Sun className="h-3.5 w-3.5" />}
+            {/* Always render Sun icon to avoid hydration mismatch */}
+            <Sun className="h-3.5 w-3.5" />
           </Button>
         </div>
-      </motion.header>
+      </header>
 
-      {/* ─── MAIN CONTENT ────────────────────────────────────── */}
+      {/* MAIN CONTENT */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar Toggle (when collapsed) */}
-        <AnimatePresence>
-          {sidebarCollapsed && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 32, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              className="flex flex-col items-center py-2 border-r border-[#21262d] bg-[#161b22]/80"
+        {sidebarCollapsed && (
+          <div className="flex flex-col items-center py-2 border-r border-[#21262d] bg-[#161b22]/80 w-8 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-[#c9d1d9] hover:text-[#00ff41]"
+              onClick={() => setSidebarCollapsed(false)}
             >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+            <div className="flex flex-col gap-1 mt-2">
+              {[
+                { icon: Wrench, tab: 'tools' },
+                { icon: FolderTree, tab: 'files' },
+                { icon: Container, tab: 'docker' },
+                { icon: Zap, tab: 'quick' },
+              ].map(({ icon: Icon, tab }) => (
+                <Button
+                  key={tab}
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-[#8b949e] hover:text-[#00ff41] hover:bg-[#21262d]"
+                  onClick={() => { setSidebarTab(tab); setSidebarCollapsed(false) }}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Sidebar */}
+        {!sidebarCollapsed && (
+          <div className="flex flex-col border-r border-[#21262d] bg-[#161b22]/80 backdrop-blur-sm shrink-0 overflow-hidden" style={{ width: 280 }}>
+            {/* Sidebar Header */}
+            <div className="flex items-center justify-between px-3 h-9 border-b border-[#21262d] shrink-0">
+              <span className="text-xs font-semibold text-[#8b949e] uppercase tracking-wider">Explorer</span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-[#c9d1d9] hover:text-[#00ff41]"
-                onClick={() => setSidebarCollapsed(false)}
+                className="h-5 w-5 text-[#8b949e] hover:text-[#c9d1d9]"
+                onClick={() => setSidebarCollapsed(true)}
               >
-                <ChevronRight className="h-3.5 w-3.5" />
+                <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
-              <div className="flex flex-col gap-1 mt-2">
-                {[
-                  { icon: Wrench, tab: 'tools' },
-                  { icon: FolderTree, tab: 'files' },
-                  { icon: Container, tab: 'docker' },
-                  { icon: Zap, tab: 'quick' },
-                ].map(({ icon: Icon, tab }) => (
-                  <Button
-                    key={tab}
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-[#8b949e] hover:text-[#00ff41] hover:bg-[#21262d]"
-                    onClick={() => { setSidebarTab(tab); setSidebarCollapsed(false) }}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                  </Button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
 
-        {/* Sidebar */}
-        <AnimatePresence>
-          {!sidebarCollapsed && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 280, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="flex flex-col border-r border-[#21262d] bg-[#161b22]/80 backdrop-blur-sm shrink-0 overflow-hidden"
-            >
-              {/* Sidebar Header */}
-              <div className="flex items-center justify-between px-3 h-9 border-b border-[#21262d] shrink-0">
-                <span className="text-xs font-semibold text-[#8b949e] uppercase tracking-wider">Explorer</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 text-[#8b949e] hover:text-[#c9d1d9]"
-                  onClick={() => setSidebarCollapsed(true)}
+            {/* Sidebar Tabs */}
+            <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="flex flex-col flex-1 overflow-hidden">
+              <TabsList className="w-full h-8 bg-[#0d1117] rounded-none border-b border-[#21262d] p-0 shrink-0">
+                <TabsTrigger
+                  value="tools"
+                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
                 >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
-              </div>
+                  <Wrench className="h-3 w-3" />
+                  <span className="hidden sm:inline">Tools</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="files"
+                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
+                >
+                  <FolderTree className="h-3 w-3" />
+                  <span className="hidden sm:inline">Files</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="docker"
+                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
+                >
+                  <Container className="h-3 w-3" />
+                  <span className="hidden sm:inline">Docker</span>
+                </TabsTrigger>
+                <TabsTrigger
+                  value="quick"
+                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
+                >
+                  <Zap className="h-3 w-3" />
+                  <span className="hidden sm:inline">Quick</span>
+                </TabsTrigger>
+              </TabsList>
 
-              {/* Sidebar Tabs */}
-              <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="flex flex-col flex-1 overflow-hidden">
-                <TabsList className="w-full h-8 bg-[#0d1117] rounded-none border-b border-[#21262d] p-0 shrink-0">
-                  <TabsTrigger
-                    value="tools"
-                    className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
-                  >
-                    <Wrench className="h-3 w-3" />
-                    <span className="hidden sm:inline">Tools</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="files"
-                    className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
-                  >
-                    <FolderTree className="h-3 w-3" />
-                    <span className="hidden sm:inline">Files</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="docker"
-                    className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
-                  >
-                    <Container className="h-3 w-3" />
-                    <span className="hidden sm:inline">Docker</span>
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="quick"
-                    className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
-                  >
-                    <Zap className="h-3 w-3" />
-                    <span className="hidden sm:inline">Quick</span>
-                  </TabsTrigger>
-                </TabsList>
+              <TabsContent value="tools" className="flex-1 overflow-hidden mt-0">
+                <ToolStatus
+                  tools={tools}
+                  checkTools={checkTools}
+                  onInstall={installTool}
+                  sendCommandToTerminal={sendCommandToTerminal}
+                  loading={!mounted || !connected}
+                />
+              </TabsContent>
 
-                <TabsContent value="tools" className="flex-1 overflow-hidden mt-0">
-                  <ToolStatus
-                    tools={tools}
-                    checkTools={checkTools}
-                    onInstall={installTool}
-                    sendCommandToTerminal={sendCommandToTerminal}
-                    loading={!mounted || !connected}
-                  />
-                </TabsContent>
+              <TabsContent value="files" className="flex-1 overflow-hidden mt-0">
+                <FileManager
+                  listFiles={listFiles}
+                  onFileOpen={handleFileOpen}
+                  connected={connected}
+                />
+              </TabsContent>
 
-                <TabsContent value="files" className="flex-1 overflow-hidden mt-0">
-                  <FileManager
-                    listFiles={listFiles}
-                    onFileOpen={handleFileOpen}
-                    connected={connected}
-                  />
-                </TabsContent>
+              <TabsContent value="docker" className="flex-1 overflow-hidden mt-0">
+                <DockerPanel
+                  listFiles={listFiles}
+                  onFileOpen={handleFileOpen}
+                  sendCommandToTerminal={sendCommandToTerminal}
+                  connected={connected}
+                />
+              </TabsContent>
 
-                <TabsContent value="docker" className="flex-1 overflow-hidden mt-0">
-                  <DockerPanel
-                    listFiles={listFiles}
-                    onFileOpen={handleFileOpen}
-                    sendCommandToTerminal={sendCommandToTerminal}
-                    connected={connected}
-                  />
-                </TabsContent>
-
-                <TabsContent value="quick" className="flex-1 overflow-hidden mt-0">
-                  <QuickInstallPanel
-                    sendCommandToTerminal={sendCommandToTerminal}
-                    connected={connected}
-                  />
-                </TabsContent>
-              </Tabs>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              <TabsContent value="quick" className="flex-1 overflow-hidden mt-0">
+                <QuickInstallPanel
+                  sendCommandToTerminal={sendCommandToTerminal}
+                  connected={connected}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
+        )}
 
         {/* Main Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -354,7 +330,7 @@ export default function Home() {
                   <ScrollArea className="flex-1">
                     <div className="flex items-center h-9">
                       {sessions.map((session) => (
-                        <motion.button
+                        <button
                           key={session.sessionId}
                           className={`flex items-center gap-1.5 px-3 h-full text-xs border-r border-[#21262d] transition-colors shrink-0 ${
                             activeSessionId === session.sessionId
@@ -362,10 +338,6 @@ export default function Home() {
                               : 'text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#0d1117]/50'
                           }`}
                           onClick={() => setActiveSessionId(session.sessionId)}
-                          whileHover={{ backgroundColor: 'rgba(13, 17, 23, 0.5)' }}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.15 }}
                         >
                           <SquareTerminal className="h-3 w-3 shrink-0" />
                           <span className="truncate max-w-24">{session.label}</span>
@@ -381,7 +353,7 @@ export default function Home() {
                           >
                             <X className="h-2.5 w-2.5" />
                           </button>
-                        </motion.button>
+                        </button>
                       ))}
                     </div>
                   </ScrollArea>
@@ -400,11 +372,7 @@ export default function Home() {
                 <div className="flex-1 bg-[#0d1117] overflow-hidden relative">
                   {sessions.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
-                      <motion.div
-                        className="text-center"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                      >
+                      <div className="text-center">
                         <Terminal className="h-12 w-12 mx-auto text-[#21262d] mb-3" />
                         <p className="text-sm text-[#484f58] mb-3">
                           {mounted && connected ? 'No terminal sessions' : 'Connecting to terminal service...'}
@@ -419,7 +387,7 @@ export default function Home() {
                           <Plus className="h-3.5 w-3.5 mr-1.5" />
                           Start Terminal
                         </Button>
-                      </motion.div>
+                      </div>
                     </div>
                   ) : (
                     sessions.map((session) => (
@@ -455,13 +423,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ─── STATUS BAR ──────────────────────────────────────── */}
-      <motion.footer
-        className="flex items-center justify-between px-3 h-6 border-t border-[#21262d] bg-[#161b22]/90 text-[10px] text-[#8b949e] shrink-0"
-        initial={{ y: 10, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-      >
+      {/* STATUS BAR */}
+      <footer className="flex items-center justify-between px-3 h-6 border-t border-[#21262d] bg-[#161b22]/90 text-[10px] text-[#8b949e] shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
             <SquareTerminal className="h-2.5 w-2.5" />
@@ -492,13 +455,12 @@ export default function Home() {
             )}
           </div>
         </div>
-      </motion.footer>
+      </footer>
     </div>
   )
 }
 
-// ─── Quick Install Panel Component ──────────────────────────────
-
+// Quick Install Panel Component
 function QuickInstallPanel({
   sendCommandToTerminal,
   connected,
@@ -516,17 +478,15 @@ function QuickInstallPanel({
             </h3>
             <div className="space-y-0.5">
               {items.map((item) => (
-                <motion.button
+                <button
                   key={item.name}
                   className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs hover:bg-[#21262d] transition-colors disabled:opacity-50"
                   onClick={() => sendCommandToTerminal(item.cmd)}
                   disabled={!connected}
-                  whileHover={{ x: 2 }}
-                  transition={{ duration: 0.1 }}
                 >
                   <span className="text-[#c9d1d9]">{item.name}</span>
-                  <Zap className="h-3 w-3 text-[#00ff41] opacity-50 group-hover:opacity-100" />
-                </motion.button>
+                  <Zap className="h-3 w-3 text-[#00ff41] opacity-50" />
+                </button>
               ))}
             </div>
           </div>

@@ -1,5 +1,4 @@
 import { createServer } from 'http'
-import { parse } from 'url'
 import next from 'next'
 import { Server as SocketIOServer } from 'socket.io'
 import { spawn } from 'node-pty'
@@ -10,11 +9,11 @@ import { execSync } from 'child_process'
 
 // ─── Global Error Handlers ───────────────────────────────────────
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err)
+  console.error('[Server] Uncaught Exception:', err)
 })
 
 process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled Rejection:', reason)
+  console.error('[Server] Unhandled Rejection:', reason)
 })
 
 // ─── Configuration ───────────────────────────────────────────────
@@ -28,12 +27,12 @@ const dev = process.env.NODE_ENV !== 'production'
 function ensureWorkspaceDirs() {
   if (!existsSync(WORKSPACE_DIR)) {
     mkdirSync(WORKSPACE_DIR, { recursive: true })
-    console.log(`Created workspace directory: ${WORKSPACE_DIR}`)
+    console.log(`[Server] Created workspace directory: ${WORKSPACE_DIR}`)
   }
   const dockerfilesDir = join(WORKSPACE_DIR, '.dockerfiles')
   if (!existsSync(dockerfilesDir)) {
     mkdirSync(dockerfilesDir, { recursive: true })
-    console.log(`Created .dockerfiles directory: ${dockerfilesDir}`)
+    console.log(`[Server] Created .dockerfiles directory: ${dockerfilesDir}`)
   }
   const sampleDockerfile = join(dockerfilesDir, 'Dockerfile.app')
   if (!existsSync(sampleDockerfile)) {
@@ -58,7 +57,7 @@ COPY . .
 CMD ["/bin/bash"]
 `
     writeFileSync(sampleDockerfile, template, 'utf-8')
-    console.log(`Created sample Dockerfile: ${sampleDockerfile}`)
+    console.log(`[Server] Created sample Dockerfile: ${sampleDockerfile}`)
   }
 }
 
@@ -205,7 +204,11 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
 
   // PTY data output -> send to client
   pty.onData((data: string) => {
-    socket.emit('terminal:output', { sessionId, data })
+    try {
+      socket.emit('terminal:output', { sessionId, data })
+    } catch (err) {
+      console.error(`[Terminal] Error emitting output for session ${sessionId}:`, err)
+    }
   })
 
   // PTY exit - auto restart
@@ -230,10 +233,14 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
 }
 
 // ─── Start Next.js ───────────────────────────────────────────────
+console.log(`[Server] Starting CloudShell in ${dev ? 'development' : 'production'} mode...`)
+
 const app = next({ dev })
 const handle = app.getRequestHandler()
 
 app.prepare().then(() => {
+  console.log('[Server] Next.js prepared')
+
   // Create separate HTTP server for terminal service (port 3003)
   const terminalHttpServer = createServer()
   const io = new SocketIOServer(terminalHttpServer, {
@@ -245,13 +252,20 @@ app.prepare().then(() => {
     pingInterval: 25000,
     maxHttpBufferSize: 1e6,
     connectTimeout: 10000,
-    allowEIO3: true, // Compatibility with older clients
+    allowEIO3: true,
+    transports: ['websocket', 'polling'],
   })
 
   // ─── Socket.io Connection Handler ────────────────────────────────
   io.on('connection', (socket) => {
     console.log(`[Terminal] Client connected: ${socket.id}`)
     socketSessions.set(socket.id, new Set())
+
+    // Send welcome message
+    socket.emit('terminal:output', {
+      sessionId: 'system',
+      data: '\x1b[32mCloudShell terminal service connected.\x1b[0m\r\n',
+    })
 
     // Terminal: Create
     socket.on('terminal:create', (data?: { cols?: number; rows?: number }) => {
@@ -275,7 +289,9 @@ app.prepare().then(() => {
       const { sessionId, data: inputData } = data
       const session = sessions.get(sessionId)
       if (session) {
-        try { session.pty.write(inputData) } catch (err) {
+        try {
+          session.pty.write(inputData)
+        } catch (err) {
           console.error(`[Terminal] Error writing to PTY:`, err)
         }
       } else {
@@ -288,7 +304,11 @@ app.prepare().then(() => {
       const { sessionId, cols, rows } = data
       const session = sessions.get(sessionId)
       if (session) {
-        try { session.pty.resize(cols, rows) } catch {}
+        try {
+          session.pty.resize(cols, rows)
+        } catch (err) {
+          console.warn(`[Terminal] Error resizing PTY:`, err)
+        }
       }
     })
 
@@ -346,6 +366,7 @@ app.prepare().then(() => {
         if (!existsSync(parentDir)) mkdirSync(parentDir, { recursive: true })
         writeFileSync(resolvedPath, content, 'utf-8')
         socket.emit('file:written', { path: inputPath, error: null })
+        console.log(`[File] Written: ${inputPath}`)
       } catch (err) {
         socket.emit('file:written', { path: inputPath, error: String(err) })
       }
@@ -381,8 +402,9 @@ app.prepare().then(() => {
       try {
         const toolsStatus = TOOLS.map(checkTool)
         socket.emit('tools:status', toolsStatus)
-        console.log(`[Terminal] Tools check: ${toolsStatus.filter(t => t.installed).length}/${toolsStatus.length} installed`)
+        console.log(`[Tools] Check completed: ${toolsStatus.filter(t => t.installed).length}/${toolsStatus.length} installed`)
       } catch (err) {
+        console.error('[Tools] Error checking tools:', err)
         socket.emit('tools:status', [])
       }
     })
@@ -394,7 +416,7 @@ app.prepare().then(() => {
       socket.emit('tools:install-command', { tool, command })
     })
 
-    // Ping
+    // Ping (for latency measurement)
     socket.on('ping', (callback) => {
       if (typeof callback === 'function') callback()
     })
@@ -415,7 +437,7 @@ app.prepare().then(() => {
     console.log(`[Terminal] Terminal service running on port ${TERMINAL_PORT}`)
   }).on('error', (err: any) => {
     if (err.code === 'EADDRINUSE') {
-      console.log(`[Terminal] Port ${TERMINAL_PORT} already in use (likely from instrumentation), skipping terminal service start`)
+      console.log(`[Terminal] Port ${TERMINAL_PORT} already in use, skipping terminal service start`)
     } else {
       console.error(`[Terminal] Error starting terminal service:`, err)
     }
@@ -423,13 +445,20 @@ app.prepare().then(() => {
 
   // Start Next.js on main port
   const mainServer = createServer((req, res) => {
-    const parsedUrl = parse(req.url!, true)
-    handle(req, res, parsedUrl)
+    handle(req, res)
   })
 
   mainServer.listen(PORT, () => {
-    console.log(`[Server] Next.js running on port ${PORT}`)
-    console.log(`[Server] Terminal service on port ${TERMINAL_PORT}`)
-    console.log(`[Server] Workspace: ${WORKSPACE_DIR}`)
+    console.log(`[Server] CloudShell ready!`)
+    console.log(`[Server]   Next.js:     http://localhost:${PORT}`)
+    console.log(`[Server]   Terminal:    http://localhost:${TERMINAL_PORT}`)
+    console.log(`[Server]   Workspace:  ${WORKSPACE_DIR}`)
   })
+
+  mainServer.on('error', (err: any) => {
+    console.error(`[Server] Error starting Next.js:`, err)
+  })
+}).catch((err) => {
+  console.error('[Server] Failed to prepare Next.js:', err)
+  process.exit(1)
 })

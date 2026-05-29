@@ -27,13 +27,45 @@ const outputHandlers = new Map<string, Set<(data: string) => void>>()
 // Buffer for output that arrives before a handler is registered
 const outputBuffer = new Map<string, string[]>()
 
+// Singleton socket instance - shared across hook instances
+let globalSocket: Socket | null = null
+let socketConnectionCount = 0
+
 /**
  * Connect to the terminal service through the Caddy proxy.
- * IMPORTANT: Must use relative path with XTransformPort query parameter
- * per the environment's gateway requirements. Never use direct
- * http://hostname:port connections.
+ * Uses XTransformPort query parameter to route to the terminal service.
  */
 const TERMINAL_SERVICE_PORT = 3003
+
+function getOrCreateSocket(): Socket {
+  if (globalSocket && globalSocket.connected) {
+    return globalSocket
+  }
+
+  // Clean up old socket if it exists
+  if (globalSocket) {
+    globalSocket.disconnect()
+    globalSocket = null
+  }
+
+  console.log('[useSocket] Creating new socket connection...')
+
+  const socket = io('/', {
+    transports: ['websocket', 'polling'],
+    forceNew: true,
+    reconnection: true,
+    reconnectionAttempts: 30,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
+    query: {
+      XTransformPort: String(TERMINAL_SERVICE_PORT),
+    },
+  })
+
+  globalSocket = socket
+  return socket
+}
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null)
@@ -44,6 +76,7 @@ export function useSocket() {
   const [latency, setLatency] = useState(0)
   const latencyIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const activeSessionIdRef = useRef<string | null>(null)
+  const mountedRef = useRef(true)
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -51,44 +84,38 @@ export function useSocket() {
   }, [activeSessionId])
 
   useEffect(() => {
-    console.log('[useSocket] Connecting to terminal service via Caddy proxy...')
+    mountedRef.current = true
+    socketConnectionCount++
 
-    // Use the Caddy proxy with XTransformPort - this is the ONLY supported way
-    // per the environment's gateway requirements
-    const socket = io('/', {
-      transports: ['websocket', 'polling'],
-      forceNew: true,
-      reconnection: true,
-      reconnectionAttempts: 20,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 10000,
-      query: {
-        XTransformPort: String(TERMINAL_SERVICE_PORT),
-      },
-    })
+    console.log('[useSocket] Initializing socket connection...')
 
+    const socket = getOrCreateSocket()
     socketRef.current = socket
 
-    socket.on('connect', () => {
+    const onConnect = () => {
       console.log('[useSocket] Connected to terminal service, socket id:', socket.id)
-      setConnected(true)
+      if (mountedRef.current) {
+        setConnected(true)
+      }
       // Check tools on connect
       socket.emit('tools:check')
-    })
+    }
 
-    socket.on('disconnect', (reason) => {
+    const onDisconnect = (reason: string) => {
       console.log('[useSocket] Disconnected, reason:', reason)
-      setConnected(false)
-    })
+      if (mountedRef.current) {
+        setConnected(false)
+      }
+    }
 
-    socket.on('connect_error', (err) => {
+    const onConnectError = (err: Error) => {
       console.warn('[useSocket] Connection error:', err.message)
-      setConnected(false)
-    })
+      if (mountedRef.current) {
+        setConnected(false)
+      }
+    }
 
-    // Global output handler - dispatches to registered per-session handlers
-    socket.on('terminal:output', (data: { sessionId: string; data: string }) => {
+    const onOutput = (data: { sessionId: string; data: string }) => {
       const handlers = outputHandlers.get(data.sessionId)
       if (handlers && handlers.size > 0) {
         handlers.forEach(handler => handler(data.data))
@@ -99,12 +126,26 @@ export function useSocket() {
         }
         outputBuffer.get(data.sessionId)!.push(data.data)
       }
-    })
+    }
 
-    socket.on('tools:status', (toolsStatus: ToolInfo[]) => {
+    const onToolsStatus = (toolsStatus: ToolInfo[]) => {
       console.log('[useSocket] Received tools status:', toolsStatus.length, 'tools')
-      setTools(toolsStatus)
-    })
+      if (mountedRef.current) {
+        setTools(toolsStatus)
+      }
+    }
+
+    socket.on('connect', onConnect)
+    socket.on('disconnect', onDisconnect)
+    socket.on('connect_error', onConnectError)
+    socket.on('terminal:output', onOutput)
+    socket.on('tools:status', onToolsStatus)
+
+    // If already connected, update state
+    if (socket.connected) {
+      setConnected(true)
+      socket.emit('tools:check')
+    }
 
     // Latency measurement
     if (latencyIntervalRef.current) {
@@ -114,19 +155,36 @@ export function useSocket() {
       if (socket.connected) {
         const start = Date.now()
         socket.emit('ping', () => {
-          setLatency(Date.now() - start)
+          if (mountedRef.current) {
+            setLatency(Date.now() - start)
+          }
         })
       }
     }, 5000)
 
     return () => {
+      mountedRef.current = false
+      socketConnectionCount--
+
+      socket.off('connect', onConnect)
+      socket.off('disconnect', onDisconnect)
+      socket.off('connect_error', onConnectError)
+      socket.off('terminal:output', onOutput)
+      socket.off('tools:status', onToolsStatus)
+
       if (latencyIntervalRef.current) {
         clearInterval(latencyIntervalRef.current)
+        latencyIntervalRef.current = null
       }
-      socket.disconnect()
-      socketRef.current = null
-      outputHandlers.clear()
-      outputBuffer.clear()
+
+      // Only disconnect the global socket if this is the last consumer
+      if (socketConnectionCount <= 0) {
+        socket.disconnect()
+        globalSocket = null
+        outputHandlers.clear()
+        outputBuffer.clear()
+        socketConnectionCount = 0
+      }
     }
   }, [])
 
@@ -154,11 +212,11 @@ export function useSocket() {
       socket.on('terminal:created', handler)
       socket.emit('terminal:create', { cols, rows })
 
-      // Timeout after 10 seconds
+      // Timeout after 15 seconds
       setTimeout(() => {
         socket.off('terminal:created', handler)
         reject(new Error('Timeout creating terminal'))
-      }, 10000)
+      }, 15000)
     })
   }, [])
 
@@ -279,7 +337,7 @@ export function useSocket() {
       setTimeout(() => {
         socket.off('file:content', handler)
         resolve({ content: null, error: 'Timeout reading file' })
-      }, 5000)
+      }, 8000)
     })
   }, [])
 
@@ -304,7 +362,7 @@ export function useSocket() {
       setTimeout(() => {
         socket.off('file:written', handler)
         resolve({ error: 'Timeout writing file' })
-      }, 5000)
+      }, 8000)
     })
   }, [])
 
@@ -327,7 +385,7 @@ export function useSocket() {
       setTimeout(() => {
         socket.off('file:listing', handler)
         resolve({ files: [], error: 'Timeout listing files' })
-      }, 5000)
+      }, 8000)
     })
   }, [])
 
