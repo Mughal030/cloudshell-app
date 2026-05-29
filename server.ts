@@ -299,8 +299,8 @@ function cleanupSocketSessions(socketId: string) {
 function createPtySession(sessionId: string, socketId: string, cols: number, rows: number, socket: any) {
   console.log(`[Terminal] Creating PTY session ${sessionId} (${cols}x${rows})`)
 
-  // Always put .local/bin first in PATH to ensure sudo wrapper is found
-  const PATH_WITH_WRAPPER = '/home/z/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/home/z/.bun/bin:/home/z/.npm-global/bin'
+  // Always put .local/bin and .venv/bin first in PATH for sudo wrapper and pip3
+  const PATH_WITH_WRAPPER = '/home/z/.local/bin:/home/z/.venv/bin:/home/z/.npm-global/bin:/home/z/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games'
 
   const pty = spawn(SHELL, ['--login', '-i'], {
     name: 'xterm-256color',
@@ -317,6 +317,12 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
       EDITOR: 'vim',
       CLOUDSHELL: '1',
       SUDO_MODE: sudoMode,
+      // Fix pip3: use the user's venv instead of system's read-only venv
+      VIRTUAL_ENV: '/home/z/.venv',
+      // Ensure pip3 uses the correct python from user venv
+      PYTHONPATH: '/home/z/.venv/lib/python3.12/site-packages',
+      // Allow pip to work even if EXTERNALLY-MANAGED exists
+      PIP_BREAK_SYSTEM_PACKAGES: '1',
     },
   })
 
