@@ -64,7 +64,6 @@ ensureWorkspaceDirs()
 // ─── HTTP + Socket.io Server ─────────────────────────────────────
 const httpServer = createServer()
 const io = new Server(httpServer, {
-  path: '/',
   cors: {
     origin: '*',
     methods: ['GET', 'POST'],
@@ -498,7 +497,7 @@ io.on('connection', (socket) => {
 })
 
 // ─── Start Server ────────────────────────────────────────────────
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '::', () => {
   console.log(`Terminal service running on port ${PORT}`)
   console.log(`Workspace directory: ${WORKSPACE_DIR}`)
   console.log(`Shell: ${SHELL}`)

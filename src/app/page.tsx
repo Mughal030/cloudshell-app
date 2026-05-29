@@ -88,11 +88,17 @@ export default function Home() {
   } = useSocket()
 
   const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [sidebarTab, setSidebarTab] = useState('tools')
   const [editorFile, setEditorFile] = useState<string | null>(null)
   const [editorContent, setEditorContent] = useState<string | null>(null)
   const [creatingTerminal, setCreatingTerminal] = useState(false)
+
+  // Prevent hydration mismatch - only render theme-dependent UI after mount
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Auto-create first terminal on connect
   useEffect(() => {
@@ -196,7 +202,7 @@ export default function Home() {
             className="h-7 w-7 text-[#c9d1d9] hover:text-yellow-400 hover:bg-[#21262d]"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           >
-            {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+            {mounted ? (theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />) : <Sun className="h-3.5 w-3.5" />}
           </Button>
         </div>
       </motion.header>

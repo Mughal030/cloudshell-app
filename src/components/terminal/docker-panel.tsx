@@ -51,8 +51,13 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
     try {
       const result = await listFiles('.dockerfiles')
       if (!result.error) {
-        setDockerfiles(result.files.filter(f => f.name.endsWith('.dockerfile') || f.name === 'Dockerfile' || f.name.endsWith('.Dockerfile')))
+        setDockerfiles(result.files.filter(f => {
+          const nameLower = f.name.toLowerCase()
+          return nameLower.startsWith('dockerfile') || nameLower.endsWith('.dockerfile')
+        }))
       }
+    } catch (err) {
+      console.error('Error loading dockerfiles:', err)
     } finally {
       setLoading(false)
     }

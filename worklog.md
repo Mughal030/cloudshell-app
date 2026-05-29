@@ -1,57 +1,21 @@
 ---
 Task ID: 1
-Agent: main
-Task: Initialize fullstack project environment
+Agent: Main Agent
+Task: Fix all bugs in CloudShell terminal application
 
 Work Log:
-- Ran fullstack init script
-- Verified project structure at /home/z/my-project
-- Confirmed Next.js 16 with App Router, TypeScript, Tailwind CSS, shadcn/ui
+- Diagnosed root cause of terminal not working: socket.io path mismatch (server had `path: '/'`, client defaults to `/socket.io`)
+- Fixed terminal-service/index.ts: removed `path: '/'` from socket.io config
+- Fixed page.tsx: added `mounted` state to prevent hydration mismatch with Sun/Moon theme toggle
+- Fixed docker-panel.tsx: improved Dockerfile filter to match `Dockerfile.*` pattern (was missing `Dockerfile.app`)
+- Discovered Caddy proxy issue: `localhost` resolves to IPv6 `::1`, but terminal service was only listening on IPv4 `0.0.0.0`
+- Fixed terminal service to use Node.js instead of Bun (Node.js handles IPv4+IPv6 dual-stack properly)
+- Updated use-socket.ts: implemented dual connection strategy (direct to port 3003 + Caddy proxy fallback)
+- Added socket.io and node-pty to main package.json dependencies
+- Verified all connections work: IPv4, IPv6, and Caddy proxy all return valid socket.io responses
 
 Stage Summary:
-- Project initialized successfully with all dependencies
-- Dev server running on port 3000
-
----
-Task ID: 2
-Agent: terminal-backend-builder (subagent)
-Task: Build terminal backend mini-service
-
-Work Log:
-- Created /home/z/my-project/mini-services/terminal-service/
-- Implemented socket.io server with node-pty integration
-- Added terminal CRUD, file operations, tool checking, Docker support
-- Service running on port 3003
-
-Stage Summary:
-- Terminal service with PTY sessions, file I/O, tool status, Docker management
-- Workspace directory at /home/z/my-project/workspace/ with .dockerfiles/ subdirectory
-
----
-Task ID: 3
-Agent: terminal-frontend-builder (subagent) + main
-Task: Build terminal frontend UI
-
-Work Log:
-- Created useSocket hook at src/hooks/use-socket.ts
-- Built XtermTerminal component with xterm.js + FitAddon + WebLinksAddon
-- Built FileManager with breadcrumb navigation, new file/folder creation
-- Built ToolStatus with install buttons and status indicators
-- Built DockerPanel with Dockerfile management, build/run commands
-- Built CodeEditor with save, run, Ctrl+S support
-- Built main page with header, collapsible sidebar, resizable panels, status bar
-- Added ThemeProvider with next-themes for dark/light mode
-- Fixed stale closure in destroyTerminal
-- Updated all components with consistent dark theme styling (#0d1117, #161b22, #21262d, #00ff41)
-- Updated DockerPanel to pass template content for new Dockerfiles
-- Updated handleFileOpen to accept optional content parameter
-- Lint passes with zero errors
-
-Stage Summary:
-- Full CloudShell web terminal IDE built with:
-  - xterm.js terminal emulator with multi-session support
-  - Sidebar with 4 tabs: Tools, Files, Docker, Quick Install
-  - Code editor for Dockerfiles and workspace files
-  - Resizable panels for terminal and editor
-  - Connection status, latency display, theme toggle
-  - Quick install categories for dev tools, languages, containers, network, databases
+- All 4 bugs fixed: terminal input, hydration mismatch, Docker filter, Caddy routing
+- Terminal service must be started with Node.js (not Bun) for proper IPv6 support
+- Caddy proxy now correctly routes socket.io traffic to the terminal service
+- Services verified working: Next.js on :3000, Terminal service on :3003, Caddy on :81
