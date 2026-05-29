@@ -64,7 +64,7 @@ ensureWorkspaceDirs()
 // ─── Configure Passwordless Sudo ────────────────────────────────
 function configurePasswordlessSudo() {
   try {
-    execSync('sudo -n true 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
+    execSync('/usr/bin/sudo -n true 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
     console.log('[Terminal] Passwordless sudo already configured')
     return true
   } catch {
@@ -76,11 +76,11 @@ function configurePasswordlessSudo() {
       encoding: 'utf-8',
       timeout: 5000,
     })
-    execSync('sudo -n true', { encoding: 'utf-8', timeout: 5000 })
+    execSync('/usr/bin/sudo -n true', { encoding: 'utf-8', timeout: 5000 })
     console.log('[Terminal] Passwordless sudo configured successfully')
     return true
   } catch {
-    console.log('[Terminal] Cannot configure passwordless sudo (running as non-root)')
+    console.log('[Terminal] Cannot configure passwordless sudo (not running as root). Using sudo wrapper...')
     return false
   }
 }
@@ -99,46 +99,22 @@ function setupSudoWrapper() {
       mkdirSync(wrapperDir, { recursive: true })
     }
 
-    const wrapperScript = `#!/bin/bash
-# CloudShell sudo wrapper
-# Tries real sudo with -n (non-interactive) flag first, then falls back to unshare
+    // Check if the improved wrapper already exists
+    if (existsSync(wrapperPath)) {
+      const content = readFileSync(wrapperPath, 'utf-8')
+      if (content.includes('CloudShell sudo wrapper')) {
+        execSync(`chmod +x ${wrapperPath}`, { encoding: 'utf-8' })
+        console.log('[Terminal] Sudo wrapper already exists at', wrapperPath)
+        return
+      }
+    }
 
-# Try real passwordless sudo first
-if /usr/bin/sudo -n "$@" 2>/dev/null; then
-    exit 0
-fi
-
-SUDO_CMD=""
-SUDO_ARGS=""
-
-# Parse sudo flags
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        -*) SUDO_ARGS="$SUDO_ARGS $1"; shift ;;
-        *) SUDO_CMD="$1"; shift; break ;;
-    esac
-done
-
-if [ -z "$SUDO_CMD" ]; then
-    echo "sudo: no command specified" >&2
-    exit 1
-fi
-
-case "$SUDO_CMD" in
-    apt-get|apt)
-        "$SUDO_CMD" "$@" 2>&1
-        exit $?
-        ;;
-    *)
-        exec unshare --user --map-root-user "$SUDO_CMD" "$@"
-        ;;
-esac
-`
-    writeFileSync(wrapperPath, wrapperScript, 'utf-8')
-    execSync(`chmod +x ${wrapperPath}`, { encoding: 'utf-8' })
-    console.log('[Terminal] Created sudo wrapper at', wrapperPath)
+    // The improved wrapper is maintained as a separate file at /home/z/.local/bin/sudo
+    // It's created by the main server.ts or can be manually placed there.
+    // For the mini-service, we just ensure the directory exists and the wrapper is executable.
+    console.log('[Terminal] Sudo wrapper should be at', wrapperPath)
   } catch (err) {
-    console.warn('[Terminal] Could not create sudo wrapper:', err)
+    console.warn('[Terminal] Could not verify sudo wrapper:', err)
   }
 }
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { RefreshCw, CheckCircle2, XCircle, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +16,13 @@ interface ToolStatusProps {
 }
 
 export function ToolStatus({ tools, checkTools, onInstall, sendCommandToTerminal, loading }: ToolStatusProps) {
+  // Auto-check tools when component mounts and when it becomes visible
+  useEffect(() => {
+    if (!loading) {
+      checkTools()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleInstall = async (toolName: string) => {
     const command = await onInstall(toolName)
     sendCommandToTerminal(command)

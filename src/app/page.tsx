@@ -31,19 +31,19 @@ import { ToolStatus } from '@/components/terminal/tool-status'
 import { DockerPanel } from '@/components/terminal/docker-panel'
 import { CodeEditor } from '@/components/terminal/code-editor'
 
-// Quick install categories
+// Quick install categories - uses sudo wrapper which handles apt operations
 const QUICK_INSTALL = {
   'Dev Tools': [
-    { name: 'git', cmd: 'sudo apt-get update && sudo apt-get install -y git' },
-    { name: 'vim', cmd: 'sudo apt-get update && sudo apt-get install -y vim' },
-    { name: 'nano', cmd: 'sudo apt-get update && sudo apt-get install -y nano' },
-    { name: 'tmux', cmd: 'sudo apt-get update && sudo apt-get install -y tmux' },
-    { name: 'htop', cmd: 'sudo apt-get update && sudo apt-get install -y htop' },
+    { name: 'git', cmd: 'which git 2>/dev/null && echo "git already installed" || (sudo apt-get update && sudo apt-get install -y git)' },
+    { name: 'vim', cmd: 'which vim 2>/dev/null && echo "vim already installed" || (sudo apt-get update && sudo apt-get install -y vim)' },
+    { name: 'nano', cmd: 'which nano 2>/dev/null && echo "nano already installed" || (sudo apt-get update && sudo apt-get install -y nano)' },
+    { name: 'tmux', cmd: 'which tmux 2>/dev/null && echo "tmux already installed" || (sudo apt-get update && sudo apt-get install -y tmux)' },
+    { name: 'htop', cmd: 'which htop 2>/dev/null && echo "htop already installed" || (sudo apt-get update && sudo apt-get install -y htop)' },
   ],
   'Languages': [
-    { name: 'Node.js', cmd: 'curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs' },
-    { name: 'Python 3', cmd: 'sudo apt-get update && sudo apt-get install -y python3 python3-pip' },
-    { name: 'Go', cmd: 'sudo snap install go --classic' },
+    { name: 'Node.js (nvm)', cmd: 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && source ~/.bashrc && nvm install --lts' },
+    { name: 'Python pip (user)', cmd: 'pip install --user --upgrade pip 2>/dev/null || python3 -m pip install --user --upgrade pip' },
+    { name: 'Go', cmd: 'curl -fsSL https://go.dev/dl/go1.22.0.linux-amd64.tar.gz | tar -C ~/.local -xzf - && echo "Add ~/.local/go/bin to PATH"' },
     { name: 'Rust', cmd: 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y' },
   ],
   'Containers': [
@@ -52,8 +52,8 @@ const QUICK_INSTALL = {
     { name: 'Podman', cmd: 'sudo apt-get update && sudo apt-get install -y podman' },
   ],
   'Network': [
-    { name: 'curl', cmd: 'sudo apt-get update && sudo apt-get install -y curl' },
-    { name: 'wget', cmd: 'sudo apt-get update && sudo apt-get install -y wget' },
+    { name: 'curl', cmd: 'which curl 2>/dev/null && echo "curl already installed" || (sudo apt-get update && sudo apt-get install -y curl)' },
+    { name: 'wget', cmd: 'which wget 2>/dev/null && echo "wget already installed" || (sudo apt-get update && sudo apt-get install -y wget)' },
     { name: 'net-tools', cmd: 'sudo apt-get update && sudo apt-get install -y net-tools' },
     { name: 'OpenSSH', cmd: 'sudo apt-get update && sudo apt-get install -y openssh-server' },
   ],
@@ -194,7 +194,7 @@ export default function Home() {
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             disabled={!mounted}
           >
-            {mounted && theme === 'dark' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
+            {mounted ? (theme === 'dark' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />) : <Sun className="h-3.5 w-3.5 opacity-0" />}
           </Button>
         </div>
       </header>

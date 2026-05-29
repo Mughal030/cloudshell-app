@@ -90,16 +90,16 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
 
   const handleBuildImage = (dockerfileName: string) => {
     const name = dockerfileName.replace(/\.dockerfile$/i, '').toLowerCase()
-    sendCommandToTerminal(`cd /home/z/my-project/workspace && docker build -f .dockerfiles/${dockerfileName} -t ${name}:latest . 2>&1 || echo "Docker build failed - Docker daemon may not be running"`)
+    sendCommandToTerminal(`cd /home/z/my-project/workspace && sudo docker build -f .dockerfiles/${dockerfileName} -t ${name}:latest . 2>&1 || echo "Docker build failed - Docker may not be available in this environment"`)
   }
 
   const handleRunContainer = (dockerfileName: string) => {
     const name = dockerfileName.replace(/\.dockerfile$/i, '').toLowerCase()
-    sendCommandToTerminal(`docker run -it --rm ${name}:latest} 2>&1 || echo "Docker run failed - Docker daemon may not be running"`)
+    sendCommandToTerminal(`sudo docker run -it --rm ${name}:latest 2>&1 || echo "Docker run failed - Docker may not be available in this environment"`)
   }
 
   const handleCheckDocker = () => {
-    sendCommandToTerminal('which docker 2>/dev/null && docker --version 2>/dev/null || echo "Docker is not installed or not accessible"')
+    sendCommandToTerminal('which docker 2>/dev/null && docker --version 2>/dev/null || echo "Docker is not installed. Docker requires system-level installation (root access). Consider using Podman as an alternative."')
   }
 
   return (
@@ -137,7 +137,7 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
         <div className="flex items-start gap-2 text-[10px] text-[#8b949e] bg-[#0d1117] rounded p-2">
           <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-400" />
           <div className="flex-1">
-            <span>Dockerfiles are saved in <code className="text-[#00ff41] bg-[#161b22] px-1 rounded">.dockerfiles/</code> and persist across sessions.</span>
+            <span>Dockerfiles are saved in <code className="text-[#00ff41] bg-[#161b22] px-1 rounded">.dockerfiles/</code> and persist across sessions. Docker commands use the sudo wrapper if direct access is unavailable.</span>
             <button 
               className="block mt-1 text-blue-400 hover:text-blue-300 underline"
               onClick={handleCheckDocker}
