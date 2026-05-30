@@ -5,7 +5,8 @@ import { spawn } from 'node-pty'
 import { v4 as uuidv4 } from 'uuid'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
 import { join, resolve, relative } from 'path'
-import { execSync } from 'child_process'
+import { execSync, spawn as childSpawn, ChildProcess } from 'child_process'
+import httpProxy from 'http-proxy'
 
 // ─── Global Error Handlers ───────────────────────────────────────
 process.on('uncaughtException', (err) => {
@@ -19,10 +20,10 @@ process.on('unhandledRejection', (reason) => {
 // ─── Signal Handlers ──────────────────────────────────────────────
 process.on('SIGTERM', () => {
   console.log('[Server] Received SIGTERM - ignoring (keeping alive)')
-  // Don't exit — keep the server running
 })
 process.on('SIGINT', () => {
   console.log('[Server] Received SIGINT - shutting down')
+  stopOpenOutreach()
   process.exit(0)
 })
 process.on('SIGHUP', () => {
@@ -34,21 +35,153 @@ process.on('exit', (code) => {
 
 // ─── Configuration ───────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3000', 10)
-const TERMINAL_PORT = 3003
 const WORKSPACE_DIR = '/home/z/my-project/workspace'
 const SHELL = process.env.SHELL || '/bin/bash'
 const dev = process.env.NODE_ENV !== 'production'
+let ooStarted = false
+
+// ─── Open Outreach Service Management ────────────────────────────
+const OO_DIR = '/home/z/openoutreach'
+const OO_VENV = `${OO_DIR}/.venv`
+const OO_LOGS = `${OO_DIR}/logs`
+const OO_PIDS = `${OO_DIR}/pids`
+const OO_VNC_PORT = 5900
+const OO_NOVNC_PORT = 6080
+const OO_DJANGO_PORT = 8000
+
+const ooProcesses: { name: string; process: ChildProcess }[] = []
+
+function startOpenOutreach() {
+  mkdirSync(OO_LOGS, { recursive: true })
+  mkdirSync(OO_PIDS, { recursive: true })
+  mkdirSync(`${OO_DIR}/data`, { recursive: true })
+
+  // 1. Start Xvfb if not running
+  if (!existsSync('/tmp/.X99-lock')) {
+    const xvfb = childSpawn('/usr/bin/Xvfb', [':99', '-screen', '0', '1920x1080x24'], {
+      detached: true,
+      stdio: 'ignore',
+    })
+    xvfb.unref()
+    console.log('[OpenOutreach] Started Xvfb')
+    ooProcesses.push({ name: 'xvfb', process: xvfb })
+  } else {
+    console.log('[OpenOutreach] Xvfb already running')
+  }
+
+  // 2. Start x11vnc
+  const x11vnc = childSpawn('/home/z/.local/bin/x11vnc', [
+    '-display', ':99', '-forever', '-shared', '-nopw', '-rfbport', String(OO_VNC_PORT)
+  ], {
+    detached: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, LD_LIBRARY_PATH: '/home/z/.local/lib', DISPLAY: ':99' },
+  })
+  x11vnc.unref()
+  console.log('[OpenOutreach] Started x11vnc')
+  ooProcesses.push({ name: 'x11vnc', process: x11vnc })
+
+  // 3. Start websockify (noVNC proxy)
+  const websockify = childSpawn('/home/z/.venv/bin/websockify', [
+    '--web', '/home/z/.local/share/noVNC-1.5.0',
+    String(OO_NOVNC_PORT), `localhost:${OO_VNC_PORT}`
+  ], {
+    detached: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, LD_LIBRARY_PATH: '/home/z/.local/lib' },
+  })
+  websockify.unref()
+  console.log('[OpenOutreach] Started websockify (noVNC)')
+  ooProcesses.push({ name: 'websockify', process: websockify })
+
+  // 4. Run migrations
+  try {
+    execSync(`${OO_VENV}/bin/python ${OO_DIR}/manage.py migrate --noinput`, {
+      encoding: 'utf-8',
+      timeout: 30000,
+      env: { ...process.env, DISPLAY: ':99', DJANGO_SETTINGS_MODULE: 'linkedin.django_settings' },
+    })
+    console.log('[OpenOutreach] Migrations complete')
+  } catch (err) {
+    console.warn('[OpenOutreach] Migration warning:', String(err).slice(0, 200))
+  }
+
+  // 5. Collect static files
+  try {
+    execSync(`${OO_VENV}/bin/python ${OO_DIR}/manage.py collectstatic --noinput`, {
+      encoding: 'utf-8',
+      timeout: 30000,
+      env: { ...process.env, DISPLAY: ':99', DJANGO_SETTINGS_MODULE: 'linkedin.django_settings' },
+    })
+    console.log('[OpenOutreach] Static files collected')
+  } catch (err) {
+    console.warn('[OpenOutreach] Collectstatic warning:', String(err).slice(0, 200))
+  }
+
+  // 6. Start Django admin server
+  const django = childSpawn(`${OO_VENV}/bin/python`, [
+    'manage.py', 'runserver', `0.0.0.0:${OO_DJANGO_PORT}`
+  ], {
+    cwd: OO_DIR,
+    detached: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+      DISPLAY: ':99',
+      DJANGO_SETTINGS_MODULE: 'linkedin.django_settings',
+      PLAYWRIGHT_BROWSERS_PATH: '/home/z/.cache/ms-playwright',
+      PATH: `${OO_VENV}/bin:/home/z/.local/bin:/usr/local/bin:/usr/bin:/bin`,
+    },
+  })
+  django.unref()
+  console.log('[OpenOutreach] Started Django admin')
+  ooProcesses.push({ name: 'django', process: django })
+
+  console.log('[OpenOutreach] All services started!')
+  console.log(`[OpenOutreach]   Django Admin: http://localhost:${OO_DJANGO_PORT}/admin/`)
+  console.log(`[OpenOutreach]   noVNC:        http://localhost:${OO_NOVNC_PORT}/vnc.html`)
+}
+
+function stopOpenOutreach() {
+  for (const { name, process: proc } of ooProcesses) {
+    try {
+      proc.kill()
+      console.log(`[OpenOutreach] Stopped ${name}`)
+    } catch {}
+  }
+  ooProcesses.length = 0
+}
+
+function getOpenOutreachStatus(): Record<string, boolean> {
+  const status: Record<string, boolean> = {}
+  for (const { name, process: proc } of ooProcesses) {
+    try {
+      process.kill(proc.pid!, 0)
+      status[name] = true
+    } catch {
+      status[name] = false
+    }
+  }
+  return status
+}
+
+// ─── HTTP Proxy for Open Outreach ────────────────────────────────
+const proxy = httpProxy.createProxyServer({
+  ws: true,
+})
+
+proxy.on('error', (err, _req, _res) => {
+  // Silently ignore proxy errors
+})
 
 // ─── Ensure workspace directories exist ──────────────────────────
 function ensureWorkspaceDirs() {
   if (!existsSync(WORKSPACE_DIR)) {
     mkdirSync(WORKSPACE_DIR, { recursive: true })
-    console.log(`[Server] Created workspace directory: ${WORKSPACE_DIR}`)
   }
   const dockerfilesDir = join(WORKSPACE_DIR, '.dockerfiles')
   if (!existsSync(dockerfilesDir)) {
     mkdirSync(dockerfilesDir, { recursive: true })
-    console.log(`[Server] Created .dockerfiles directory: ${dockerfilesDir}`)
   }
   const sampleDockerfile = join(dockerfilesDir, 'Dockerfile.app')
   if (!existsSync(sampleDockerfile)) {
@@ -73,25 +206,19 @@ COPY . .
 CMD ["/bin/bash"]
 `
     writeFileSync(sampleDockerfile, template, 'utf-8')
-    console.log(`[Server] Created sample Dockerfile: ${sampleDockerfile}`)
   }
 }
 
 ensureWorkspaceDirs()
 
 // ─── Configure Sudo ─────────────────────────────────────────────
-// Check what level of sudo access we have
 function configureSudo() {
-  // First check if passwordless sudo is already working
   try {
     execSync('/usr/bin/sudo -n true 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
     console.log('[Server] Passwordless sudo already configured')
     return 'passwordless' as const
-  } catch {
-    // Passwordless sudo not working
-  }
+  } catch {}
 
-  // Try to create sudoers file for user z (requires root)
   try {
     execSync('echo "z ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/z-user && chmod 440 /etc/sudoers.d/z-user && chown root:root /etc/sudoers.d/z-user', {
       encoding: 'utf-8',
@@ -100,20 +227,15 @@ function configureSudo() {
     execSync('/usr/bin/sudo -n true', { encoding: 'utf-8', timeout: 5000 })
     console.log('[Server] Passwordless sudo configured successfully')
     return 'passwordless' as const
-  } catch {
-    // Can't configure passwordless sudo
-  }
+  } catch {}
 
-  // No real sudo access - we'll use the wrapper
   console.log('[Server] No real sudo access. Using unshare-based sudo wrapper.')
   return 'wrapper' as const
 }
 
 const sudoMode = configureSudo()
 
-// ─── Create sudo wrapper for current session ────────────────────
-// Always ensure the wrapper at /home/z/.local/bin/sudo is in place and executable.
-// Even if passwordless sudo works, the wrapper provides a consistent interface.
+// ─── Create sudo wrapper ────────────────────────────────────────
 function setupSudoWrapper() {
   const wrapperDir = '/home/z/.local/bin'
   const wrapperPath = `${wrapperDir}/sudo`
@@ -123,28 +245,23 @@ function setupSudoWrapper() {
       mkdirSync(wrapperDir, { recursive: true })
     }
 
-    // Check if the improved wrapper already exists
     if (existsSync(wrapperPath)) {
       const content = readFileSync(wrapperPath, 'utf-8')
       if (content.includes('CloudShell sudo wrapper')) {
         execSync(`chmod +x ${wrapperPath}`, { encoding: 'utf-8' })
-        console.log('[Server] Sudo wrapper already exists at', wrapperPath)
         return
       }
     }
 
-    // The wrapper script should be pre-installed at /home/z/.local/bin/sudo.
-    // If it doesn't exist, create a basic fallback.
     const wrapperScript = [
       '#!/bin/bash',
       '# CloudShell sudo wrapper v6',
-      '# Try real sudo first, then fallback to unshare',
       'if /usr/bin/sudo -n "$@" 2>/dev/null; then exit 0; fi',
       'exec unshare --user --map-root-user "$@"',
     ].join('\n')
     writeFileSync(wrapperPath, wrapperScript, 'utf-8')
     execSync(`chmod +x ${wrapperPath}`, { encoding: 'utf-8' })
-    console.log('[Server] Created basic sudo wrapper at', wrapperPath)
+    console.log('[Server] Created sudo wrapper at', wrapperPath)
   } catch (err) {
     console.warn('[Server] Could not create sudo wrapper:', err)
   }
@@ -156,47 +273,26 @@ setupSudoWrapper()
 const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'python3', 'pip3', 'sudo']
 
 const TOOL_INSTALL_COMMANDS: Record<string, string> = {
-  git: 'which git 2>/dev/null && echo "git already installed" || echo "git: already available, no install needed"',
-  docker: 'echo "Docker/Podman: requires root for installation. Download static binary from github.com/containers/podman/releases"',
-  curl: 'which curl 2>/dev/null && echo "curl already installed" || echo "curl: already available, no install needed"',
-  wget: 'which wget 2>/dev/null && echo "wget already installed" || echo "wget: already available, no install needed"',
-  vim: 'which vim 2>/dev/null && echo "vim already installed" || echo "vim: already available, no install needed"',
-  nano: 'which nano 2>/dev/null && echo "nano already installed" || echo "nano: already available, no install needed"',
-  node: 'which node 2>/dev/null && echo "node already installed" || echo "Install via nvm: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && source ~/.bashrc && nvm install --lts"',
-  npm: 'which npm 2>/dev/null && echo "npm already installed" || echo "Install via nvm: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && source ~/.bashrc && nvm install --lts"',
-  python3: 'which python3 2>/dev/null && echo "python3 already installed" || echo "python3: already available, no install needed"',
-  pip3: 'which pip3 2>/dev/null && echo "pip3 already installed" || echo "pip3: already available, no install needed"',
-  sudo: 'which sudo 2>/dev/null && echo "sudo wrapper already installed" || echo "sudo wrapper: already available via ~/.local/bin/sudo"',
+  git: 'which git 2>/dev/null && echo "git already installed" || echo "git: already available"',
+  docker: 'echo "Docker: Rootless Docker available via /home/z/bin/docker"',
+  curl: 'which curl 2>/dev/null && echo "curl already installed" || echo "curl: available"',
+  wget: 'which wget 2>/dev/null && echo "wget already installed" || echo "wget: available"',
+  vim: 'which vim 2>/dev/null && echo "vim already installed" || echo "vim: available"',
+  nano: 'which nano 2>/dev/null && echo "nano already installed" || echo "nano: available"',
+  node: 'which node 2>/dev/null && echo "node already installed" || echo "Install via nvm"',
+  npm: 'which npm 2>/dev/null && echo "npm already installed" || echo "Install via nvm"',
+  python3: 'which python3 2>/dev/null && echo "python3 already installed" || echo "python3: available"',
+  pip3: 'which pip3 2>/dev/null && echo "pip3 already installed" || echo "pip3: available"',
+  sudo: 'which sudo 2>/dev/null && echo "sudo wrapper already installed" || echo "sudo wrapper: available"',
 }
 
 // ─── Helper: check if a tool is installed ────────────────────────
 function checkTool(name: string): { name: string; installed: boolean; version: string; displayName?: string } {
   try {
-    // Special handling for docker - also check for podman
     if (name === 'docker') {
-      try {
-        const dockerWhich = execSync('which docker 2>/dev/null || echo "not-found"', {
-          encoding: 'utf-8', timeout: 3000,
-        }).trim()
-        if (!dockerWhich.includes('not-found')) {
-          try {
-            const v = execSync('docker --version 2>&1', { encoding: 'utf-8', timeout: 5000 }).trim()
-            return { name, installed: true, version: v.split('\n')[0].trim(), displayName: 'Docker' }
-          } catch { return { name, installed: true, version: 'installed', displayName: 'Docker' } }
-        }
-      } catch {}
-      // Check podman as alternative
-      try {
-        const podmanWhich = execSync('which podman 2>/dev/null || echo "not-found"', {
-          encoding: 'utf-8', timeout: 3000,
-        }).trim()
-        if (!podmanWhich.includes('not-found')) {
-          try {
-            const v = execSync('podman --version 2>&1', { encoding: 'utf-8', timeout: 5000 }).trim()
-            return { name, installed: true, version: v.split('\n')[0].trim(), displayName: 'Docker (Podman)' }
-          } catch { return { name, installed: true, version: 'installed', displayName: 'Docker (Podman)' } }
-        }
-      } catch {}
+      if (existsSync('/home/z/bin/docker')) {
+        return { name, installed: true, version: 'Rootless Docker', displayName: 'Docker (Rootless)' }
+      }
       return { name, installed: false, version: '' }
     }
 
@@ -214,8 +310,7 @@ function checkTool(name: string): { name: string; installed: boolean; version: s
         encoding: 'utf-8',
         timeout: 5000,
       }).trim()
-      const firstLine = versionOutput.split('\n')[0]
-      return { name, installed: true, version: firstLine.trim() }
+      return { name, installed: true, version: versionOutput.split('\n')[0].trim() }
     } catch {
       return { name, installed: true, version: 'installed' }
     }
@@ -229,7 +324,6 @@ function resolveWorkspacePath(inputPath: string): string | null {
   const target = inputPath
     ? resolve(WORKSPACE_DIR, inputPath)
     : WORKSPACE_DIR
-
   const rel = relative(WORKSPACE_DIR, target)
   if (rel.startsWith('..') || resolve(WORKSPACE_DIR, inputPath) !== target) {
     return null
@@ -265,7 +359,7 @@ function listDirectory(dirPath: string): { name: string; type: 'file' | 'directo
           }
         }
       })
-  } catch (err) {
+  } catch {
     return []
   }
 }
@@ -299,8 +393,15 @@ function cleanupSocketSessions(socketId: string) {
 function createPtySession(sessionId: string, socketId: string, cols: number, rows: number, socket: any) {
   console.log(`[Terminal] Creating PTY session ${sessionId} (${cols}x${rows})`)
 
-  // Always put .local/bin and .venv/bin first in PATH for sudo wrapper and pip3
-  const PATH_WITH_WRAPPER = '/home/z/.local/bin:/home/z/.venv/bin:/home/z/.npm-global/bin:/home/z/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games'
+  const HARDENED_PATH = [
+    '/home/z/.local/bin',
+    '/home/z/.venv/bin',
+    '/home/z/openoutreach/.venv/bin',
+    '/home/z/.npm-global/bin',
+    '/home/z/.bun/bin',
+    '/usr/local/sbin', '/usr/local/bin',
+    '/usr/sbin', '/usr/bin', '/sbin', '/bin',
+  ].join(':')
 
   const pty = spawn(SHELL, ['--login', '-i'], {
     name: 'xterm-256color',
@@ -309,20 +410,21 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     cwd: WORKSPACE_DIR,
     env: {
       ...process.env,
-      TERM: 'xterm-256color',
-      PATH: PATH_WITH_WRAPPER,
+      PATH: HARDENED_PATH,
       HOME: '/home/z',
       USER: 'z',
+      TERM: 'xterm-256color',
       LANG: 'en_US.UTF-8',
       EDITOR: 'vim',
       CLOUDSHELL: '1',
       SUDO_MODE: sudoMode,
-      // Fix pip3: use the user's venv instead of system's read-only venv
-      VIRTUAL_ENV: '/home/z/.venv',
-      // Ensure pip3 uses the correct python from user venv
-      PYTHONPATH: '/home/z/.venv/lib/python3.12/site-packages',
-      // Allow pip to work even if EXTERNALLY-MANAGED exists
+      VIRTUAL_ENV: '/home/z/openoutreach/.venv',
+      PYTHONPATH: '/home/z/openoutreach:/home/z/.venv/lib/python3.12/site-packages',
       PIP_BREAK_SYSTEM_PACKAGES: '1',
+      LD_LIBRARY_PATH: '/home/z/.local/lib',
+      DISPLAY: ':99',
+      PLAYWRIGHT_BROWSERS_PATH: '/home/z/.cache/ms-playwright',
+      DJANGO_SETTINGS_MODULE: 'linkedin.django_settings',
     },
   })
 
@@ -330,7 +432,6 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
   sessions.set(sessionId, session)
   socketSessions.get(socketId)?.add(sessionId)
 
-  // Send welcome banner based on sudo mode
   let sudoInfo: string[]
   if (sudoMode === 'passwordless') {
     sudoInfo = [
@@ -346,12 +447,22 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     ]
   }
 
+  const ooStatus = getOpenOutreachStatus()
+  const ooRunning = Object.values(ooStatus).some(v => v)
+
+  const ooInfo = ooRunning
+    ? ['\x1b[32m║\x1b[0m  \x1b[1;32mOpenOutreach: Running\x1b[0m                                  \x1b[32m║\x1b[0m']
+    : ['\x1b[32m║\x1b[0m  \x1b[1;33mOpenOutreach: Not started\x1b[0m                              \x1b[32m║\x1b[0m',
+       '\x1b[32m║\x1b[0m  Type: \x1b[1;36mopenoutreach start\x1b[0m to launch                   \x1b[32m║\x1b[0m']
+
   const welcomeBanner = [
     '',
     '\x1b[32m╔══════════════════════════════════════════════════════════════╗\x1b[0m',
     '\x1b[32m║\x1b[0m  \x1b[1;32m☁ CloudShell\x1b[0m                                             \x1b[32m║\x1b[0m',
     '\x1b[32m╠══════════════════════════════════════════════════════════════╣\x1b[0m',
     ...sudoInfo,
+    '\x1b[32m╠══════════════════════════════════════════════════════════════╣\x1b[0m',
+    ...ooInfo,
     '\x1b[32m╚══════════════════════════════════════════════════════════════╝\x1b[0m',
     '',
   ].join('\r\n')
@@ -359,7 +470,6 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     socket.emit('terminal:output', { sessionId, data: welcomeBanner + '\r\n' })
   } catch {}
 
-  // PTY data output -> send to client
   pty.onData((data: string) => {
     try {
       socket.emit('terminal:output', { sessionId, data })
@@ -368,22 +478,15 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     }
   })
 
-  // PTY exit - auto restart with delay to avoid 'moving forward' issue
   pty.onExit(({ exitCode }: { exitCode: number }) => {
     console.log(`[Terminal] PTY exited for session ${sessionId} with code ${exitCode}`)
-
     sessions.delete(sessionId)
     socketSessions.get(socketId)?.delete(sessionId)
-
-    // Tell client to clear its input buffer (prevents keystroke bleed)
     socket.emit('clear-input-buffer', { sessionId })
-
     socket.emit('terminal:output', {
       sessionId,
       data: `\r\n\x1b[33m[Shell exited with code ${exitCode}. Restarting in 2s...]\x1b[0m\r\n`,
     })
-
-    // Delay restart by 2 seconds so user can see what happened
     setTimeout(() => {
       if (!socket.connected) return
       try {
@@ -405,21 +508,101 @@ const handle = app.getRequestHandler()
 app.prepare().then(() => {
   console.log('[Server] Next.js prepared')
 
-  // Create separate HTTP server for terminal service (port 3003)
-  const terminalHttpServer = createServer()
-  const io = new SocketIOServer(terminalHttpServer, {
+  // Auto-start Xvfb so it's always ready for Playwright/noVNC
+  if (!existsSync('/tmp/.X99-lock')) {
+    try {
+      const xvfb = childSpawn('/usr/bin/Xvfb', [':99', '-screen', '0', '1920x1080x24'], {
+        detached: true,
+        stdio: 'ignore',
+      })
+      xvfb.unref()
+      console.log('[Server] Xvfb started on display :99')
+    } catch (err) {
+      console.warn('[Server] Failed to auto-start Xvfb:', err)
+    }
+  } else {
+    console.log('[Server] Xvfb already running')
+  }
+
+  // ─── Main HTTP Server (Next.js + Socket.IO + Proxy on SAME port) ────
+  // CRITICAL: Socket.IO MUST be on the same port as Next.js (3000)
+  // because Caddy reverse proxy only forwards to port 3000.
+  // The client connects to /socket.io/ which Socket.IO handles internally.
+  const mainServer = createServer((req, res) => {
+    const url = req.url || '/'
+
+    // Health check endpoint
+    if (url === '/api/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, uptime: process.uptime(), ooStarted }))
+      return
+    }
+
+    // Proxy: noVNC
+    if (url.startsWith('/novnc') || url.startsWith('/vnc')) {
+      const targetUrl = url.replace(/^\/novnc/, '').replace(/^\/vnc/, '') || '/vnc.html'
+      req.url = targetUrl
+      proxy.web(req, res, { target: `http://127.0.0.1:${OO_NOVNC_PORT}` })
+      return
+    }
+
+    // Proxy: Django Admin
+    if (url.startsWith('/admin') || url.startsWith('/django') || url.startsWith('/openoutreach/api')) {
+      const targetUrl = url.replace(/^\/django/, '').replace(/^\/openoutreach\/api/, '')
+      req.url = targetUrl
+      proxy.web(req, res, { target: `http://127.0.0.1:${OO_DJANGO_PORT}` })
+      return
+    }
+
+    // Proxy: Django static files
+    if (url.startsWith('/static/')) {
+      proxy.web(req, res, { target: `http://127.0.0.1:${OO_DJANGO_PORT}` })
+      return
+    }
+
+    // Proxy: Django media files
+    if (url.startsWith('/media/')) {
+      proxy.web(req, res, { target: `http://127.0.0.1:${OO_DJANGO_PORT}` })
+      return
+    }
+
+    // Default: Next.js handler
+    handle(req, res)
+  })
+
+  // ─── WebSocket Upgrade Handler ────────────────────────────────
+  // Socket.IO handles its own /socket.io/ upgrades internally.
+  // We only need to proxy noVNC WebSocket upgrades here.
+  mainServer.on('upgrade', (req, socket, head) => {
+    const url = req.url || ''
+
+    // Forward noVNC WebSocket connections to websockify
+    if (url.startsWith('/novnc') || url.startsWith('/vnc')) {
+      console.log(`[Proxy] WebSocket upgrade for noVNC: ${url}`)
+      proxy.ws(req, socket, head, {
+        target: `http://127.0.0.1:${OO_NOVNC_PORT}`
+      })
+    }
+    // /socket.io/ upgrades are handled by Socket.IO automatically
+  })
+
+  // ─── Attach Socket.IO to the SAME server as Next.js ───────────
+  // This is the key fix: Socket.IO must be on port 3000 (same as Next.js)
+  // so that Caddy reverse proxy can reach both web and terminal connections.
+  const io = new SocketIOServer(mainServer, {
     cors: {
       origin: '*',
       methods: ['GET', 'POST'],
     },
-    pingInterval: 10000,      // send ping every 10s
-    pingTimeout: 25000,       // wait 25s for pong before disconnect
+    path: '/socket.io/',
+    pingInterval: 10000,
+    pingTimeout: 25000,
     upgradeTimeout: 10000,
-    maxHttpBufferSize: 1e7,   // 10MB for large pastes
+    maxHttpBufferSize: 1e7,
     connectTimeout: 20000,
     allowEIO3: true,
-    transports: ['websocket'], // skip polling entirely
-    allowUpgrades: false,
+    transports: ['polling', 'websocket'],  // POLLING FIRST for proxy compatibility
+    allowUpgrades: true,
   })
 
   // ─── Socket.io Connection Handler ────────────────────────────────
@@ -427,7 +610,6 @@ app.prepare().then(() => {
     console.log(`[Terminal] Client connected: ${socket.id}`)
     socketSessions.set(socket.id, new Set())
 
-    // Send connection confirmation
     socket.emit('terminal:connected', { sudoMode })
 
     // Terminal: Create
@@ -436,9 +618,7 @@ app.prepare().then(() => {
         const sessionId = uuidv4()
         const cols = data?.cols || 80
         const rows = data?.rows || 24
-
         createPtySession(sessionId, socket.id, cols, rows, socket)
-
         socket.emit('terminal:created', { sessionId })
         console.log(`[Terminal] Session created: ${sessionId}`)
       } catch (err) {
@@ -457,8 +637,6 @@ app.prepare().then(() => {
         } catch (err) {
           console.error(`[Terminal] Error writing to PTY:`, err)
         }
-      } else {
-        console.warn(`[Terminal] Received input for unknown session: ${sessionId}`)
       }
     })
 
@@ -529,7 +707,6 @@ app.prepare().then(() => {
         if (!existsSync(parentDir)) mkdirSync(parentDir, { recursive: true })
         writeFileSync(resolvedPath, content, 'utf-8')
         socket.emit('file:written', { path: inputPath, error: null })
-        console.log(`[File] Written: ${inputPath}`)
       } catch (err) {
         socket.emit('file:written', { path: inputPath, error: String(err) })
       }
@@ -565,7 +742,6 @@ app.prepare().then(() => {
       try {
         const toolsStatus = TOOLS.map(checkTool)
         socket.emit('tools:status', toolsStatus)
-        console.log(`[Tools] Check completed: ${toolsStatus.filter(t => t.installed).length}/${toolsStatus.length} installed`)
       } catch (err) {
         console.error('[Tools] Error checking tools:', err)
         socket.emit('tools:status', [])
@@ -575,31 +751,83 @@ app.prepare().then(() => {
     // Tools: Install
     socket.on('tools:install', (data: { tool: string }) => {
       const { tool } = data
-      const command = TOOL_INSTALL_COMMANDS[tool] || `echo "Install ${tool}: use npm/pip3/bun or download binary to ~/.local/bin"`
+      const command = TOOL_INSTALL_COMMANDS[tool] || `echo "Install ${tool}: use npm/pip3/bun"`
       socket.emit('tools:install-command', { tool, command })
     })
 
-    // Session Restore (for reconnection)
+    // OpenOutreach: Status
+    socket.on('openoutreach:status', () => {
+      socket.emit('openoutreach:status', { ...getOpenOutreachStatus(), started: ooStarted })
+    })
+
+    // OpenOutreach: Start
+    socket.on('openoutreach:start', async () => {
+      if (!ooStarted) {
+        socket.emit('openoutreach:status', { state: 'starting', msg: 'Starting services...' })
+        try {
+          startOpenOutreach()
+          ooStarted = true
+          console.log('[OpenOutreach] Services started lazily via UI')
+        } catch (err) {
+          console.error('[OpenOutreach] Failed to start services:', err)
+          socket.emit('openoutreach:status', { state: 'error', msg: String(err) })
+          return
+        }
+      }
+      socket.emit('openoutreach:status', { ...getOpenOutreachStatus(), started: ooStarted, state: 'running' })
+    })
+
+    // OpenOutreach: Start daemon
+    socket.on('openoutreach:start-daemon', () => {
+      if (!ooStarted) {
+        try {
+          startOpenOutreach()
+          ooStarted = true
+        } catch (err) {
+          console.error('[OpenOutreach] Failed to start base services:', err)
+        }
+      }
+      try {
+        const daemon = childSpawn(`${OO_VENV}/bin/python`, [
+          'manage.py', 'rundaemon'
+        ], {
+          cwd: OO_DIR,
+          detached: true,
+          stdio: ['ignore', 'pipe', 'pipe'],
+          env: {
+            ...process.env,
+            DISPLAY: ':99',
+            DJANGO_SETTINGS_MODULE: 'linkedin.django_settings',
+            PLAYWRIGHT_BROWSERS_PATH: '/home/z/.cache/ms-playwright',
+            PATH: `${OO_VENV}/bin:/home/z/.local/bin:/usr/local/bin:/usr/bin:/bin`,
+          },
+        })
+        daemon.unref()
+        ooProcesses.push({ name: 'daemon', process: daemon })
+        socket.emit('openoutreach:status', { ...getOpenOutreachStatus(), started: ooStarted })
+        console.log('[OpenOutreach] Daemon started')
+      } catch (err) {
+        console.error('[OpenOutreach] Failed to start daemon:', err)
+      }
+    })
+
+    // Session Restore
     socket.on('restore-session', (data: { sessionId: string }) => {
       const { sessionId } = data
       const session = sessions.get(sessionId)
       if (session) {
-        console.log(`[Terminal] Session ${sessionId} restored for socket ${socket.id}`)
         session.socketId = socket.id
         socketSessions.get(socket.id)?.add(sessionId)
         socket.emit('terminal:restored', { sessionId, success: true })
       } else {
-        console.log(`[Terminal] Session ${sessionId} not found for restore`)
         socket.emit('terminal:restored', { sessionId, success: false })
       }
     })
 
-    // Ping (for latency measurement)
     socket.on('ping', (callback) => {
       if (typeof callback === 'function') callback()
     })
 
-    // Disconnect
     socket.on('disconnect', (reason) => {
       console.log(`[Terminal] Client disconnected: ${socket.id} (${reason})`)
       cleanupSocketSessions(socket.id)
@@ -610,31 +838,18 @@ app.prepare().then(() => {
     })
   })
 
-  // Start terminal service on port 3003
-  terminalHttpServer.listen(TERMINAL_PORT, () => {
-    console.log(`[Terminal] Terminal service running on port ${TERMINAL_PORT}`)
-  }).on('error', (err: any) => {
-    if (err.code === 'EADDRINUSE') {
-      console.log(`[Terminal] Port ${TERMINAL_PORT} already in use, skipping terminal service start`)
-    } else {
-      console.error(`[Terminal] Error starting terminal service:`, err)
-    }
-  })
-
-  // Start Next.js on main port
-  const mainServer = createServer((req, res) => {
-    handle(req, res)
-  })
-
+  // ─── Start unified server on port 3000 ─────────────────────────
   mainServer.listen(PORT, () => {
     console.log(`[Server] CloudShell ready!`)
-    console.log(`[Server]   Next.js:     http://localhost:${PORT}`)
-    console.log(`[Server]   Terminal:    http://localhost:${TERMINAL_PORT}`)
-    console.log(`[Server]   Workspace:  ${WORKSPACE_DIR}`)
+    console.log(`[Server]   Next.js + Terminal: http://localhost:${PORT}`)
+    console.log(`[Server]   Socket.IO path:     /socket.io/`)
+    console.log(`[Server]   noVNC:              http://localhost:${PORT}/novnc/`)
+    console.log(`[Server]   Django Admin:       http://localhost:${PORT}/admin/`)
+    console.log(`[Server]   Workspace:          ${WORKSPACE_DIR}`)
   })
 
   mainServer.on('error', (err: any) => {
-    console.error(`[Server] Error starting Next.js:`, err)
+    console.error(`[Server] Error starting server:`, err)
   })
 }).catch((err) => {
   console.error('[Server] Failed to prepare Next.js:', err)
