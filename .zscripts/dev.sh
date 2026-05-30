@@ -13,7 +13,7 @@ if [ ! -d "node_modules" ]; then
     bun install 2>&1 | tail -3
 fi
 
-# Ensure http-proxy is installed (needed for Django/noVNC proxy)
+# Ensure http-proxy is installed
 if [ ! -d "node_modules/http-proxy" ]; then
     echo "[dev.sh] Installing http-proxy..."
     npm install http-proxy 2>&1 | tail -3
@@ -21,16 +21,16 @@ fi
 
 # Environment
 export HOME=/home/z
-export PATH=/home/z/.local/bin:/home/z/openoutreach/.venv/bin:/home/z/.venv/bin:/usr/local/bin:/usr/bin:/bin
+export PATH=/home/z/bin:/home/z/.local/bin:/home/z/openoutreach/.venv/bin:/home/z/.venv/bin:/usr/local/bin:/usr/bin:/bin
 export PORT=3000
+export LD_LIBRARY_PATH=/home/z/.local/lib
 
-# Build Next.js for production (required for stable Caddy proxy)
+# Build Next.js for production
 if [ ! -f .next/BUILD_ID ]; then
     echo "[dev.sh] Building Next.js (first time)..."
     npx next build 2>&1 | tail -5
 fi
 
-# Use production mode - dev mode crashes through Caddy reverse proxy
 export NODE_ENV=production
 
 # Clean any stale lock files
@@ -40,30 +40,65 @@ LOG=/home/z/my-project/server.log
 
 echo "[dev.sh] Starting CloudShell supervisor (pid=$$)" | tee -a "$LOG"
 
-# Supervisor loop: keep the server running, restart on crash
+# ─── Start OpenOutreach Services ────────────────────────────
+start_openoutreach() {
+    echo "[$(date)] Starting OpenOutreach services..." >> "$LOG"
+    mkdir -p /home/z/openoutreach/logs
+
+    # 1. Xvfb
+    if [ ! -f /tmp/.X99-lock ]; then
+        /usr/bin/Xvfb :99 -screen 0 1920x1080x24 &
+        sleep 1
+    fi
+
+    # 2. x11vnc
+    if ! ss -tlnp | grep -q ':5900'; then
+        LD_LIBRARY_PATH=/home/z/.local/lib DISPLAY=:99 /home/z/.local/bin/x11vnc \
+            -display :99 -forever -shared -nopw -rfbport 5900 \
+            &>>/home/z/openoutreach/logs/x11vnc.log &
+        sleep 1
+    fi
+
+    # 3. websockify (noVNC)
+    if ! ss -tlnp | grep -q ':6080'; then
+        /home/z/.venv/bin/websockify \
+            --web /home/z/.local/share/noVNC-1.5.0 \
+            6080 localhost:5900 \
+            &>>/home/z/openoutreach/logs/websockify.log &
+        sleep 1
+    fi
+
+    # 4. Django admin server
+    if ! ss -tlnp | grep -q ':8000'; then
+        cd /home/z/openoutreach
+        DJANGO_SETTINGS_MODULE=linkedin.django_settings \
+        DISPLAY=:99 \
+        /home/z/openoutreach/.venv/bin/python manage.py runserver 0.0.0.0:8000 \
+            &>>/home/z/openoutreach/logs/django.log &
+        cd /home/z/my-project
+        sleep 2
+    fi
+}
+
+# Start OpenOutreach on boot
+start_openoutreach
+
+# ─── Supervisor Loop ────────────────────────────────────────
 while true; do
-    # Kill any existing server on port 3000
     fuser -k 3000/tcp 2>/dev/null || true
     sleep 1
 
     echo "[$(date)] Starting CloudShell server..." >> "$LOG"
-
     node --experimental-strip-types server.ts >> "$LOG" 2>&1
     EXIT_CODE=$?
-
     echo "[$(date)] Server exited with code $EXIT_CODE" >> "$LOG"
 
-    # Clean exit - don't restart
     if [ "$EXIT_CODE" -eq 0 ]; then
-        echo "[dev.sh] Clean shutdown, not restarting" | tee -a "$LOG"
         break
     fi
 
-    # Crash or signal - wait and restart
-    echo "[dev.sh] Server crashed (exit=$EXIT_CODE), restarting in 3s..." | tee -a "$LOG"
     sleep 3
-
-    # Kill any stale processes on port 3000
     fuser -k 3000/tcp 2>/dev/null || true
     sleep 1
+    start_openoutreach
 done

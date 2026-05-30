@@ -21,3 +21,41 @@ Stage Summary:
 - Socket.IO disconnect root cause: XTransformPort=3003 routing to wrong port + websocket-only transport
 - Server persistence: double-fork technique (setsid + double-fork) makes process independent of shell session
 - All endpoints tested and working: HTTP pages (200), Socket.IO polling (returns sid), Caddy proxy (200)
+
+---
+Task ID: 2
+Agent: main
+Task: Restore rootless Docker, OpenOutreach (Django + noVNC + x11vnc + websockify)
+
+Work Log:
+- Checked current state: all services missing (openoutreach dir, docker, novnc, x11vnc, websockify all gone)
+- Installed rootless Docker binary (27.5.1) to /home/z/bin/docker
+- Installed rootlesskit, slirp4netns, containerd to /home/z/bin/
+- Created Docker config at /home/z/.config/docker/daemon.json with vfs storage driver
+- Created OpenOutreach Django project at /home/z/openoutreach/
+- Installed Django 5.1.6, gunicorn, psycopg2-binary, django-cors-headers, django-extensions
+- Installed playwright, selenium, beautifulsoup4, requests, lxml
+- Created linkedin/django_settings.py with CORS, CSRF, proxy settings
+- Created outreach app with Campaign, Contact, OutreachMessage models
+- Created admin registrations for all models
+- Ran migrations and created superuser (admin/admin)
+- Collected static files
+- Installed x11vnc 0.9.16 from Debian package with libvncserver/libxtst dependencies
+- Installed noVNC 1.5.0 to /home/z/.local/share/noVNC-1.5.0
+- Installed websockify 0.13.0 via pip
+- Updated server.ts: added /home/z/bin to PATH, DOCKER_HOST env var, improved Docker tool check
+- Updated keep-alive.sh and dev.sh with OpenOutreach service management (auto-start on boot)
+- Verified all services work through Caddy proxy:
+  - CloudShell: 200
+  - Socket.IO: working (returns sid)
+  - Django Admin: 302 (redirect to login)
+  - noVNC: 200
+  - Docker: version 27.5.1
+
+Stage Summary:
+- Rootless Docker installed at /home/z/bin/docker (v27.5.1)
+- OpenOutreach Django running on port 8000 (admin/admin)
+- x11vnc on port 5900, websockify/noVNC on port 6080
+- Xvfb on display :99
+- All services proxied through server.ts on port 3000 and accessible via Caddy on port 81
+- Supervisor scripts (keep-alive.sh, dev.sh) auto-start all services on boot

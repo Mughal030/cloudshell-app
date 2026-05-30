@@ -274,7 +274,7 @@ const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'p
 
 const TOOL_INSTALL_COMMANDS: Record<string, string> = {
   git: 'which git 2>/dev/null && echo "git already installed" || echo "git: already available"',
-  docker: 'echo "Docker: Rootless Docker available via /home/z/bin/docker"',
+  docker: 'echo "Docker: Rootless Docker available at /home/z/bin/docker - run: dockerd-rootless & then docker ps"',
   curl: 'which curl 2>/dev/null && echo "curl already installed" || echo "curl: available"',
   wget: 'which wget 2>/dev/null && echo "wget already installed" || echo "wget: available"',
   vim: 'which vim 2>/dev/null && echo "vim already installed" || echo "vim: available"',
@@ -291,7 +291,12 @@ function checkTool(name: string): { name: string; installed: boolean; version: s
   try {
     if (name === 'docker') {
       if (existsSync('/home/z/bin/docker')) {
-        return { name, installed: true, version: 'Rootless Docker', displayName: 'Docker (Rootless)' }
+        try {
+          const v = execSync('/home/z/bin/docker --version 2>&1', { encoding: 'utf-8', timeout: 5000 }).trim()
+          return { name, installed: true, version: v, displayName: 'Docker (Rootless)' }
+        } catch {
+          return { name, installed: true, version: 'Rootless Docker', displayName: 'Docker (Rootless)' }
+        }
       }
       return { name, installed: false, version: '' }
     }
@@ -394,9 +399,10 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
   console.log(`[Terminal] Creating PTY session ${sessionId} (${cols}x${rows})`)
 
   const HARDENED_PATH = [
-    '/home/z/.local/bin',
-    '/home/z/.venv/bin',
-    '/home/z/openoutreach/.venv/bin',
+    '/home/z/bin',                   // Rootless Docker binaries
+    '/home/z/.local/bin',            // x11vnc, sudo wrapper, etc.
+    '/home/z/.venv/bin',             // websockify, python tools
+    '/home/z/openoutreach/.venv/bin',// Django venv
     '/home/z/.npm-global/bin',
     '/home/z/.bun/bin',
     '/usr/local/sbin', '/usr/local/bin',
@@ -418,6 +424,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
       EDITOR: 'vim',
       CLOUDSHELL: '1',
       SUDO_MODE: sudoMode,
+      DOCKER_HOST: `unix:///run/user/${process.getuid()}/docker.sock`,
       VIRTUAL_ENV: '/home/z/openoutreach/.venv',
       PYTHONPATH: '/home/z/openoutreach:/home/z/.venv/lib/python3.12/site-packages',
       PIP_BREAK_SYSTEM_PACKAGES: '1',
