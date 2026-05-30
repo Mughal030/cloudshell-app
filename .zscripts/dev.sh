@@ -66,15 +66,15 @@ start_openoutreach() {
         sleep 1
     fi
 
-    # 4. Django admin server
+    # 4. Django admin server (Real OpenOutreach)
     if ! ss -tlnp | grep -q ':8000'; then
-        cd /home/z/openoutreach
-        DJANGO_SETTINGS_MODULE=linkedin.django_settings \
+        cd /home/z/openoutreach-source
+        source .venv/bin/activate
         DISPLAY=:99 \
-        /home/z/openoutreach/.venv/bin/python manage.py runserver 0.0.0.0:8000 \
-            &>>/home/z/openoutreach/logs/django.log &
+        python manage.py runserver --noreload 0.0.0.0:8000 \
+            &>>/home/z/openoutreach-source/logs/admin.log &
         cd /home/z/my-project
-        sleep 2
+        sleep 3
     fi
 }
 
