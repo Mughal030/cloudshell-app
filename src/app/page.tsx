@@ -17,6 +17,7 @@ import {
   Container,
   Zap,
   SquareTerminal,
+  Globe,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
@@ -29,6 +30,7 @@ import { useSocket } from '@/hooks/use-socket'
 import { FileManager } from '@/components/terminal/file-manager'
 import { ToolStatus } from '@/components/terminal/tool-status'
 import { DockerPanel } from '@/components/terminal/docker-panel'
+import { OpenOutreachPanel } from '@/components/terminal/openoutreach-panel'
 import { CodeEditor } from '@/components/terminal/code-editor'
 
 // Dynamic import xterm.js with SSR disabled — it accesses window/DOM APIs during init
@@ -90,12 +92,16 @@ export default function Home() {
     writeFile,
     listFiles,
     sendCommandToTerminal,
+    ooStatus,
+    checkOoStatus,
+    startOoServices,
+    startOoDaemon,
   } = useSocket()
 
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [sidebarTab, setSidebarTab] = useState('tools')
+  const [sidebarTab, setSidebarTab] = useState('services')
   const [editorFile, setEditorFile] = useState<string | null>(null)
   const [editorContent, setEditorContent] = useState<string | null>(null)
   const [creatingTerminal, setCreatingTerminal] = useState(false)
@@ -220,6 +226,7 @@ export default function Home() {
             </Button>
             <div className="flex flex-col gap-1 mt-2">
               {[
+                { icon: Globe, tab: 'services' },
                 { icon: Wrench, tab: 'tools' },
                 { icon: FolderTree, tab: 'files' },
                 { icon: Container, tab: 'docker' },
@@ -259,6 +266,13 @@ export default function Home() {
             <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="flex flex-col flex-1 overflow-hidden">
               <TabsList className="w-full h-8 bg-[#0d1117] rounded-none border-b border-[#21262d] p-0 shrink-0">
                 <TabsTrigger
+                  value="services"
+                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
+                >
+                  <Globe className="h-3 w-3" />
+                  <span className="hidden sm:inline">Services</span>
+                </TabsTrigger>
+                <TabsTrigger
                   value="tools"
                   className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
                 >
@@ -287,6 +301,17 @@ export default function Home() {
                   <span className="hidden sm:inline">Quick</span>
                 </TabsTrigger>
               </TabsList>
+
+              <TabsContent value="services" className="flex-1 overflow-hidden mt-0">
+                <OpenOutreachPanel
+                  ooStatus={ooStatus}
+                  checkOoStatus={checkOoStatus}
+                  startOoServices={startOoServices}
+                  startOoDaemon={startOoDaemon}
+                  sendCommandToTerminal={sendCommandToTerminal}
+                  connected={connected}
+                />
+              </TabsContent>
 
               <TabsContent value="tools" className="flex-1 overflow-hidden mt-0">
                 <ToolStatus

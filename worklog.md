@@ -59,3 +59,27 @@ Stage Summary:
 - Xvfb on display :99
 - All services proxied through server.ts on port 3000 and accessible via Caddy on port 81
 - Supervisor scripts (keep-alive.sh, dev.sh) auto-start all services on boot
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Restore OpenOutreach features (Django, noVNC, Xvfb, Rootless Docker) in CloudShell
+
+Work Log:
+- Verified all backend services were already running (Xvfb, x11vnc, websockify, Django)
+- Confirmed rootless Docker installed at /home/z/bin/docker
+- Created new OpenOutreachPanel component with Django Admin, noVNC, and service management UI
+- Added OpenOutreach hooks (ooStatus, checkOoStatus, startOoServices, startOoDaemon) to use-socket.ts
+- Updated page.tsx to add "Services" tab as first sidebar tab (with Globe icon)
+- Updated DockerPanel to use rootless Docker (/home/z/bin/docker) instead of podman
+- Fixed noVNC proxy URL rewriting bug (was double-matching /novnc and /vnc patterns)
+- Rebuilt Next.js production bundle successfully
+- Verified all proxy endpoints working: /novnc/vnc.html (200), /admin/ (302), /static/ (200), /socket.io/ (200)
+
+Stage Summary:
+- All OpenOutreach features restored and accessible through UI
+- New "Services" tab provides quick launch buttons for Django Admin, noVNC Desktop, Outreach API
+- Service status indicators show Xvfb, x11vnc, websockify, Django running state
+- Terminal commands available for docker, openoutreach management
+- Django admin user exists: admin / admin123
+- Rootless Docker v27.5.1 available at /home/z/bin/docker

@@ -547,8 +547,15 @@ app.prepare().then(() => {
 
     // Proxy: noVNC
     if (url.startsWith('/novnc') || url.startsWith('/vnc')) {
-      const targetUrl = url.replace(/^\/novnc/, '').replace(/^\/vnc/, '') || '/vnc.html'
-      req.url = targetUrl
+      let targetPath: string
+      if (url.startsWith('/novnc')) {
+        targetPath = url.slice('/novnc'.length) || '/vnc.html'
+      } else {
+        targetPath = url.slice('/vnc'.length) || '/vnc.html'
+      }
+      if (!targetPath.startsWith('/')) targetPath = '/' + targetPath
+      console.log(`[Proxy] noVNC: ${url} -> ${targetPath}`)
+      req.url = targetPath
       proxy.web(req, res, { target: `http://127.0.0.1:${OO_NOVNC_PORT}` })
       return
     }
@@ -864,3 +871,5 @@ app.prepare().then(() => {
   console.error('[Server] Failed to prepare Next.js:', err)
   process.exit(1)
 })
+
+// This won't work as patch - let me add console.log inline instead

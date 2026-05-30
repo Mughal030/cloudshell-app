@@ -464,6 +464,60 @@ export function useSocket() {
     }
   }, [sendInput])
 
+  // OpenOutreach status
+  const [ooStatus, setOoStatus] = useState<Record<string, boolean | string>>({})
+
+  const checkOoStatus = useCallback(() => {
+    const socket = socketRef.current
+    if (!socket || !socket.connected) return
+
+    const handler = (data: Record<string, boolean | string>) => {
+      socket.off('openoutreach:status', handler)
+      setOoStatus(data)
+    }
+
+    socket.on('openoutreach:status', handler)
+    socket.emit('openoutreach:status')
+
+    setTimeout(() => {
+      socket.off('openoutreach:status', handler)
+    }, 5000)
+  }, [])
+
+  const startOoServices = useCallback(() => {
+    const socket = socketRef.current
+    if (!socket || !socket.connected) return
+
+    const handler = (data: Record<string, boolean | string>) => {
+      socket.off('openoutreach:status', handler)
+      setOoStatus(data)
+    }
+
+    socket.on('openoutreach:status', handler)
+    socket.emit('openoutreach:start')
+
+    setTimeout(() => {
+      socket.off('openoutreach:status', handler)
+    }, 15000)
+  }, [])
+
+  const startOoDaemon = useCallback(() => {
+    const socket = socketRef.current
+    if (!socket || !socket.connected) return
+
+    const handler = (data: Record<string, boolean | string>) => {
+      socket.off('openoutreach:status', handler)
+      setOoStatus(data)
+    }
+
+    socket.on('openoutreach:status', handler)
+    socket.emit('openoutreach:start-daemon')
+
+    setTimeout(() => {
+      socket.off('openoutreach:status', handler)
+    }, 10000)
+  }, [])
+
   return {
     socket: socketRef,
     connected,
@@ -484,5 +538,9 @@ export function useSocket() {
     writeFile,
     listFiles,
     sendCommandToTerminal,
+    ooStatus,
+    checkOoStatus,
+    startOoServices,
+    startOoDaemon,
   }
 }

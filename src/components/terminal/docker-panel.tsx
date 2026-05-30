@@ -88,30 +88,29 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
     return `${(bytes / (1024 * 1024)).toFixed(1)}M`
   }
 
-  // Use podman if available, otherwise fall back to docker
+  // Use rootless Docker installed at /home/z/bin/docker
   const getContainerCmd = () => {
-    // Check if podman is available in PATH (podman is a rootless Docker alternative)
-    return 'podman'
+    return '/home/z/bin/docker'
   }
 
   const handleBuildImage = (dockerfileName: string) => {
     const name = dockerfileName.replace(/\.dockerfile$/i, '').toLowerCase()
     const cmd = getContainerCmd()
-    sendCommandToTerminal(`cd /home/z/my-project/workspace && ${cmd} build -f .dockerfiles/${dockerfileName} -t ${name}:latest . 2>&1 || docker build -f .dockerfiles/${dockerfileName} -t ${name}:latest . 2>&1 || echo "Container build failed - Neither Podman nor Docker is available. Install Podman: nix-env -iA nixpkgs.podman"`)
+    sendCommandToTerminal(`cd /home/z/my-project/workspace && ${cmd} build -f .dockerfiles/${dockerfileName} -t ${name}:latest . 2>&1 || echo "Docker build failed - make sure dockerd-rootless is running (dockerd-rootless &)"`)
   }
 
   const handleRunContainer = (dockerfileName: string) => {
     const name = dockerfileName.replace(/\.dockerfile$/i, '').toLowerCase()
     const cmd = getContainerCmd()
-    sendCommandToTerminal(`${cmd} run -it --rm ${name}:latest 2>&1 || docker run -it --rm ${name}:latest 2>&1 || echo "Container run failed - Neither Podman nor Docker is available."`)
+    sendCommandToTerminal(`${cmd} run -it --rm ${name}:latest 2>&1 || echo "Docker run failed - make sure dockerd-rootless is running (dockerd-rootless &)"`)
   }
 
   const handleCheckDocker = () => {
-    sendCommandToTerminal('echo "=== Checking container runtime ===" && (which podman 2>/dev/null && podman --version 2>/dev/null && echo "Podman (rootless Docker alternative) is available!" || echo "Podman not found") && (which docker 2>/dev/null && docker --version 2>/dev/null && echo "Docker is available!" || echo "Docker not found") && echo "" && echo "Tip: Install Podman (rootless) via Nix:" && echo "  1. Install Nix:  curl -L https://nixos.org/nix/install | sh -s -- --no-daemon" && echo "  2. Install Podman: nix-env -iA nixpkgs.podman nixpkgs.slirp4netns nixpkgs.fuse-overlayfs"')
+    sendCommandToTerminal('echo "=== Checking Docker (Rootless) ===" && /home/z/bin/docker --version 2>/dev/null && echo "Docker found!" && echo "" && (pgrep -f dockerd-rootless > /dev/null && echo "Docker daemon: Running" || echo "Docker daemon: NOT running (start with: dockerd-rootless &)") && /home/z/bin/docker ps 2>&1 || echo "Docker not available - start daemon first: dockerd-rootless &"')
   }
 
   const handleInstallPodman = () => {
-    sendCommandToTerminal('echo "Installing Podman (rootless Docker alternative)..." && (command -v nix-env >/dev/null 2>&1 && nix-env -iA nixpkgs.podman nixpkgs.slirp4netns nixpkgs.fuse-overlayfs || (echo "Podman requires root for apt installation." && echo "Alternative: Install Nix first, then: nix-env -iA nixpkgs.podman")) && echo "alias docker=podman" >> ~/.bashrc && echo "Tip: Use docker or podman commands."')
+    sendCommandToTerminal('echo "Starting rootless Docker daemon..." && dockerd-rootless &>/dev/null & sleep 3 && /home/z/bin/docker ps && echo "Docker is ready!" || echo "Failed to start Docker daemon"')
   }
 
   return (
@@ -149,19 +148,19 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
         <div className="flex items-start gap-2 text-[10px] text-[#8b949e] bg-[#0d1117] rounded p-2">
           <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-400" />
           <div className="flex-1">
-            <span>Dockerfiles are saved in <code className="text-[#00ff41] bg-[#161b22] px-1 rounded">.dockerfiles/</code> and persist across sessions. Build/run commands use Podman (rootless) when available, falling back to Docker.</span>
+            <span>Dockerfiles are saved in <code className="text-[#00ff41] bg-[#161b22] px-1 rounded">.dockerfiles/</code> and persist across sessions. Uses <b>Rootless Docker</b> at <code className="text-[#00ff41] bg-[#161b22] px-1 rounded">/home/z/bin/docker</code></span>
             <div className="flex gap-2 mt-1">
               <button
                 className="text-blue-400 hover:text-blue-300 underline"
                 onClick={handleCheckDocker}
               >
-                Check runtime
+                Check Docker
               </button>
               <button
                 className="text-green-400 hover:text-green-300 underline"
                 onClick={handleInstallPodman}
               >
-                Install Podman
+                Start Daemon
               </button>
             </div>
           </div>
