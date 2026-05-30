@@ -62,3 +62,10 @@ db/
 
 # workspace submodules (user-specific)
 /workspace/
+
+# Additional exclusions
+upload/
+*.pid
+skills/
+agent-ctx/
+workspace/
