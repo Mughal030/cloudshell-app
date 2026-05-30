@@ -41,7 +41,7 @@ const dev = process.env.NODE_ENV !== 'production'
 let ooStarted = false
 
 // ─── Open Outreach Service Management ────────────────────────────
-const OO_DIR = '/home/z/openoutreach'
+const OO_DIR = '/home/z/openoutreach-source'
 const OO_VENV = `${OO_DIR}/.venv`
 const OO_LOGS = `${OO_DIR}/logs`
 const OO_PIDS = `${OO_DIR}/pids`
