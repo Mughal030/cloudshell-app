@@ -37,10 +37,15 @@ let socketConnectionCount = 0
 
 /**
  * Connect to the terminal service through the Caddy proxy.
- * Uses XTransformPort query parameter to route to the terminal service.
+ *
+ * CRITICAL FIXES:
+ * 1. Do NOT use XTransformPort - it tells Caddy to route to a different port.
+ *    Our Socket.IO server runs on the SAME port (3000) as Next.js, and Caddy
+ *    already proxies to port 3000 by default.
+ * 2. Use polling FIRST, then upgrade to websocket. This is essential for
+ *    reverse proxy compatibility (polling works over regular HTTP, while
+ *    websocket requires a successful upgrade which can fail through proxies).
  */
-const TERMINAL_SERVICE_PORT = 3003
-
 function getOrCreateSocket(): Socket {
   // Reuse existing connected socket
   if (globalSocket && globalSocket.connected) {
@@ -56,17 +61,16 @@ function getOrCreateSocket(): Socket {
 
   console.log('[useSocket] Creating new socket connection...')
 
-  const socket = io('/', {
-    transports: ['websocket'],        // avoid polling fallback
+  const socket = io({
+    path: '/socket.io/',
+    transports: ['polling', 'websocket'],  // POLLING FIRST for proxy compat, then upgrade
+    upgrade: true,                          // allow transport upgrade
     reconnection: true,
-    reconnectionAttempts: Infinity,    // keep trying forever
+    reconnectionAttempts: Infinity,         // keep trying forever
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
     timeout: 20000,
-    forceNew: false,                   // reuse singleton
-    query: {
-      XTransformPort: String(TERMINAL_SERVICE_PORT),
-    },
+    forceNew: false,                        // reuse singleton
   })
 
   globalSocket = socket

@@ -591,18 +591,20 @@ app.prepare().then(() => {
   // so that Caddy reverse proxy can reach both web and terminal connections.
   const io = new SocketIOServer(mainServer, {
     cors: {
-      origin: '*',
+      origin: true,           // Reflect the requesting origin (works with any proxy)
       methods: ['GET', 'POST'],
+      credentials: true,
     },
     path: '/socket.io/',
-    pingInterval: 10000,
-    pingTimeout: 25000,
-    upgradeTimeout: 10000,
+    pingInterval: 15000,      // Slightly longer for proxy overhead
+    pingTimeout: 30000,       // Longer timeout for proxy environments
+    upgradeTimeout: 15000,    // More time for WebSocket upgrade through proxy
     maxHttpBufferSize: 1e7,
-    connectTimeout: 20000,
-    allowEIO3: true,
+    connectTimeout: 30000,    // Longer connect timeout for proxy
+    allowEIO3: true,          // Support older clients
     transports: ['polling', 'websocket'],  // POLLING FIRST for proxy compatibility
-    allowUpgrades: true,
+    allowUpgrades: true,      // Allow upgrade from polling to websocket
+    cookie: false,            // Don't set cookies (avoids CORS issues with proxy)
   })
 
   // ─── Socket.io Connection Handler ────────────────────────────────
