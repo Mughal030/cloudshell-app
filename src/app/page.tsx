@@ -111,10 +111,15 @@ export default function Home() {
     setMounted(true)
   }, [])
 
-  // Auto-create first terminal on connect
+  // Auto-create first terminal on connect (with delay to ensure stable connection)
   useEffect(() => {
     if (mounted && connected && sessions.length === 0) {
-      createTerminal().catch(console.error)
+      const timer = setTimeout(() => {
+        if (connected && sessions.length === 0) {
+          createTerminal().catch(console.error)
+        }
+      }, 1500)  // Wait 1.5s to ensure connection is stable before creating terminal
+      return () => clearTimeout(timer)
     }
   }, [mounted, connected, sessions.length, createTerminal])
 

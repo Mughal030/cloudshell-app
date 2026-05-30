@@ -67,10 +67,12 @@ function getOrCreateSocket(): Socket {
     upgrade: true,                          // allow transport upgrade
     reconnection: true,
     reconnectionAttempts: Infinity,         // keep trying forever
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-    timeout: 20000,
+    reconnectionDelay: 2000,                // Start at 2s
+    reconnectionDelayMax: 10000,            // Max 10s between attempts
+    randomizationFactor: 0.5,               // Add jitter to avoid thundering herd
+    timeout: 30000,                         // Longer timeout for proxy environments
     forceNew: false,                        // reuse singleton
+    rememberUpgrade: true,                  // Remember if websocket worked before
   })
 
   globalSocket = socket

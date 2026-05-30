@@ -1,9 +1,7 @@
 #!/bin/bash
 # /home/z/my-project/.zscripts/dev.sh
 # Called by Z.ai platform -> tini -> /start.sh -> this script
-#
-# This script is run as a background process by start.sh.
-# It supervises the CloudShell server, restarting it if it crashes.
+# Supervises the CloudShell server, restarting it if it crashes.
 
 cd /home/z/my-project
 
@@ -85,20 +83,28 @@ start_openoutreach
 
 # ─── Supervisor Loop ────────────────────────────────────────
 while true; do
+    # Clean up old port if needed
     fuser -k 3000/tcp 2>/dev/null || true
     sleep 1
 
     echo "[$(date)] Starting CloudShell server..." >> "$LOG"
+    
+    # Start the server (foreground - supervisor waits for it)
     node --experimental-strip-types server.ts >> "$LOG" 2>&1
     EXIT_CODE=$?
     echo "[$(date)] Server exited with code $EXIT_CODE" >> "$LOG"
 
+    # Exit code 0 means intentional shutdown
     if [ "$EXIT_CODE" -eq 0 ]; then
-        break
+        echo "[$(date)] Intentional shutdown, waiting 10s before restart..." >> "$LOG"
+        sleep 10
     fi
 
+    # Wait before restarting
     sleep 3
     fuser -k 3000/tcp 2>/dev/null || true
     sleep 1
+    
+    # Restart OpenOutreach services if they died
     start_openoutreach
 done

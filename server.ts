@@ -154,6 +154,8 @@ function stopOpenOutreach() {
 
 function getOpenOutreachStatus(): Record<string, boolean> {
   const status: Record<string, boolean> = {}
+
+  // Check in-memory tracked processes first
   for (const { name, process: proc } of ooProcesses) {
     try {
       process.kill(proc.pid!, 0)
@@ -162,6 +164,18 @@ function getOpenOutreachStatus(): Record<string, boolean> {
       status[name] = false
     }
   }
+
+  // Also check actual running services (for services started by dev.sh, not by the server)
+  try {
+    const netstat = execSync('ss -tlnp 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
+    if (!('django' in status)) status.django = netstat.includes(':8000')
+    if (!('websockify' in status)) status.websockify = netstat.includes(':6080')
+    if (!('x11vnc' in status)) status.x11vnc = netstat.includes(':5900')
+  } catch {}
+
+  // Check Xvfb
+  if (!('xvfb' in status)) status.xvfb = existsSync('/tmp/.X99-lock')
+
   return status
 }
 
@@ -531,6 +545,23 @@ app.prepare().then(() => {
     console.log('[Server] Xvfb already running')
   }
 
+  // Check if OpenOutreach services are already running (started by dev.sh)
+  // and set ooStarted accordingly so the UI shows correct status
+  try {
+    const netstatOutput = execSync('ss -tlnp 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
+    const hasDjango = netstatOutput.includes(':8000')
+    const hasVNC = netstatOutput.includes(':5900')
+    const hasNoVNC = netstatOutput.includes(':6080')
+    if (hasDjango && hasVNC && hasNoVNC) {
+      ooStarted = true
+      console.log('[Server] OpenOutreach services already running (detected via port check)')
+    } else {
+      console.log(`[Server] OpenOutreach services status: Django=${hasDjango}, VNC=${hasVNC}, noVNC=${hasNoVNC}`)
+    }
+  } catch (err) {
+    console.warn('[Server] Could not check service ports:', err)
+  }
+
   // ─── Main HTTP Server (Next.js + Socket.IO + Proxy on SAME port) ────
   // CRITICAL: Socket.IO MUST be on the same port as Next.js (3000)
   // because Caddy reverse proxy only forwards to port 3000.
@@ -623,8 +654,14 @@ app.prepare().then(() => {
 
   // ─── Socket.io Connection Handler ────────────────────────────────
   io.on('connection', (socket) => {
-    console.log(`[Terminal] Client connected: ${socket.id}`)
+    const transport = socket.conn.transport.name
+    console.log(`[Terminal] Client connected: ${socket.id} via ${transport}`)
     socketSessions.set(socket.id, new Set())
+
+    // Log transport upgrades for debugging
+    socket.conn.on('upgrade', (newTransport) => {
+      console.log(`[Terminal] Transport upgrade for ${socket.id}: ${transport} -> ${newTransport.name}`)
+    })
 
     socket.emit('terminal:connected', { sudoMode })
 
@@ -845,8 +882,9 @@ app.prepare().then(() => {
     })
 
     socket.on('disconnect', (reason) => {
-      console.log(`[Terminal] Client disconnected: ${socket.id} (${reason})`)
-      cleanupSocketSessions(socket.id)
+      console.log(`[Terminal] Client disconnected: ${socket.id} (${reason}, transport was: ${socket.conn.transport.name})`)
+      // Don't immediately clean up sessions - let them persist for reconnect
+      // cleanupSocketSessions(socket.id)
     })
 
     socket.on('error', (error) => {

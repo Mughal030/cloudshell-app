@@ -83,3 +83,25 @@ Stage Summary:
 - Terminal commands available for docker, openoutreach management
 - Django admin user exists: admin / admin123
 - Rootless Docker v27.5.1 available at /home/z/bin/docker
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix app not working - ensure preview and published URLs work
+
+Work Log:
+- Diagnosed Socket.IO disconnect loop: clients connecting then immediately disconnecting with "transport close" and "ping timeout"
+- Fixed server-side: added transport logging, disabled immediate session cleanup on disconnect
+- Fixed client-side: increased reconnection delays (2s start, 10s max), added jitter, increased timeout to 30s, added rememberUpgrade
+- Fixed auto-create terminal: added 1.5s delay to ensure stable connection before creating PTY
+- Fixed ooStarted flag: now checks actual running services via port detection (ss -tlnp)
+- Fixed getOpenOutreachStatus: now checks both in-memory processes AND actual running services
+- Fixed server persistence: used setsid + double-fork to keep server alive across shell session changes
+- Server now running stable for 2+ minutes with all endpoints working
+
+Stage Summary:
+- All endpoints verified: Main (200), Socket.IO (200), noVNC (200), Admin (302), Static (200)
+- All services running: Xvfb, x11vnc, websockify, Django, Node.js
+- Rootless Docker v27.5.1 installed at /home/z/bin/docker
+- ooStarted=true (services auto-detected)
+- Server process survives shell session changes (double-fork + setsid)
