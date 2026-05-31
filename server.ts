@@ -40,6 +40,65 @@ const SHELL = process.env.SHELL || '/bin/bash'
 const dev = process.env.NODE_ENV !== 'production'
 let ooStarted = false
 
+// ─── Service Installation Status ────────────────────────────────
+interface ServiceInstallStatus {
+  name: string
+  installed: boolean
+  running: boolean
+  installing: boolean
+  error: string | null
+}
+const serviceInstallStatus: Record<string, ServiceInstallStatus> = {
+  xvfb: { name: 'Xvfb', installed: false, running: false, installing: false, error: null },
+  x11vnc: { name: 'x11vnc', installed: false, running: false, installing: false, error: null },
+  websockify: { name: 'websockify/noVNC', installed: false, running: false, installing: false, error: null },
+  docker: { name: 'Docker', installed: false, running: false, installing: false, error: null },
+  django: { name: 'Django/OpenOutreach', installed: false, running: false, installing: false, error: null },
+}
+
+function updateServiceStatus() {
+  // Xvfb
+  serviceInstallStatus.xvfb.installed = existsSync('/usr/bin/Xvfb')
+  serviceInstallStatus.xvfb.running = existsSync('/tmp/.X99-lock')
+
+  // x11vnc
+  serviceInstallStatus.x11vnc.installed = existsSync('/home/z/.local/bin/x11vnc') || checkCommand('x11vnc')
+  try {
+    const netstat = execSync('ss -tlnp 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
+    serviceInstallStatus.x11vnc.running = netstat.includes(':5900')
+  } catch { serviceInstallStatus.x11vnc.running = false }
+
+  // websockify/noVNC
+  serviceInstallStatus.websockify.installed = checkCommand('websockify') || existsSync('/home/z/.venv/bin/websockify')
+  try {
+    const netstat = execSync('ss -tlnp 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
+    serviceInstallStatus.websockify.running = netstat.includes(':6080')
+  } catch { serviceInstallStatus.websockify.running = false }
+
+  // Docker
+  serviceInstallStatus.docker.installed = existsSync('/home/z/bin/docker') || checkCommand('docker')
+  try {
+    execSync('docker info 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
+    serviceInstallStatus.docker.running = true
+  } catch { serviceInstallStatus.docker.running = false }
+
+  // Django
+  serviceInstallStatus.django.installed = existsSync('/home/z/openoutreach-source/manage.py')
+  try {
+    const netstat = execSync('ss -tlnp 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
+    serviceInstallStatus.django.running = netstat.includes(':8000')
+  } catch { serviceInstallStatus.django.running = false }
+}
+
+function checkCommand(cmd: string): boolean {
+  try {
+    execSync(`which ${cmd} 2>/dev/null`, { encoding: 'utf-8', timeout: 3000 })
+    return true
+  } catch {
+    return false
+  }
+}
+
 // ─── Open Outreach Service Management ────────────────────────────
 const OO_DIR = '/home/z/openoutreach-source'
 const OO_VENV = `${OO_DIR}/.venv`
@@ -58,88 +117,126 @@ function startOpenOutreach() {
 
   // 1. Start Xvfb if not running
   if (!existsSync('/tmp/.X99-lock')) {
-    const xvfb = childSpawn('/usr/bin/Xvfb', [':99', '-screen', '0', '1920x1080x24'], {
-      detached: true,
-      stdio: 'ignore',
-    })
-    xvfb.unref()
-    console.log('[OpenOutreach] Started Xvfb')
-    ooProcesses.push({ name: 'xvfb', process: xvfb })
+    if (existsSync('/usr/bin/Xvfb')) {
+      const xvfb = childSpawn('/usr/bin/Xvfb', [':99', '-screen', '0', '1920x1080x24'], {
+        detached: true,
+        stdio: 'ignore',
+      })
+      xvfb.unref()
+      console.log('[OpenOutreach] Started Xvfb')
+      ooProcesses.push({ name: 'xvfb', process: xvfb })
+    } else {
+      console.warn('[OpenOutreach] Xvfb not available at /usr/bin/Xvfb')
+    }
   } else {
     console.log('[OpenOutreach] Xvfb already running')
   }
 
-  // 2. Start x11vnc
-  const x11vnc = childSpawn('/home/z/.local/bin/x11vnc', [
-    '-display', ':99', '-forever', '-shared', '-nopw', '-rfbport', String(OO_VNC_PORT)
-  ], {
-    detached: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, LD_LIBRARY_PATH: '/home/z/.local/lib', DISPLAY: ':99' },
-  })
-  x11vnc.unref()
-  console.log('[OpenOutreach] Started x11vnc')
-  ooProcesses.push({ name: 'x11vnc', process: x11vnc })
-
-  // 3. Start websockify (noVNC proxy)
-  const websockify = childSpawn('/home/z/.venv/bin/websockify', [
-    '--web', '/home/z/.local/share/noVNC-1.5.0',
-    String(OO_NOVNC_PORT), `localhost:${OO_VNC_PORT}`
-  ], {
-    detached: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, LD_LIBRARY_PATH: '/home/z/.local/lib' },
-  })
-  websockify.unref()
-  console.log('[OpenOutreach] Started websockify (noVNC)')
-  ooProcesses.push({ name: 'websockify', process: websockify })
-
-  // 4. Run migrations
-  try {
-    execSync(`${OO_VENV}/bin/python ${OO_DIR}/manage.py migrate --noinput`, {
-      encoding: 'utf-8',
-      timeout: 30000,
-      env: { ...process.env, DISPLAY: ':99', DJANGO_SETTINGS_MODULE: 'linkedin.django_settings' },
-    })
-    console.log('[OpenOutreach] Migrations complete')
-  } catch (err) {
-    console.warn('[OpenOutreach] Migration warning:', String(err).slice(0, 200))
+  // 2. Start x11vnc (try multiple locations)
+  const x11vncBin = existsSync('/home/z/.local/bin/x11vnc') ? '/home/z/.local/bin/x11vnc'
+    : checkCommand('x11vnc') ? 'x11vnc'
+    : null
+  if (x11vncBin) {
+    try {
+      const x11vnc = childSpawn(x11vncBin, [
+        '-display', ':99', '-forever', '-shared', '-nopw', '-rfbport', String(OO_VNC_PORT)
+      ], {
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, LD_LIBRARY_PATH: '/home/z/.local/lib', DISPLAY: ':99' },
+      })
+      x11vnc.unref()
+      console.log('[OpenOutreach] Started x11vnc')
+      ooProcesses.push({ name: 'x11vnc', process: x11vnc })
+    } catch (err) {
+      console.warn('[OpenOutreach] Failed to start x11vnc:', err)
+      serviceInstallStatus.x11vnc.error = String(err)
+    }
+  } else {
+    console.warn('[OpenOutreach] x11vnc not installed. Run: sudo apt-get install x11vnc or download binary')
+    serviceInstallStatus.x11vnc.error = 'Not installed - background installer may be running'
   }
 
-  // 5. Collect static files
-  try {
-    execSync(`${OO_VENV}/bin/python ${OO_DIR}/manage.py collectstatic --noinput`, {
-      encoding: 'utf-8',
-      timeout: 30000,
-      env: { ...process.env, DISPLAY: ':99', DJANGO_SETTINGS_MODULE: 'linkedin.django_settings' },
-    })
-    console.log('[OpenOutreach] Static files collected')
-  } catch (err) {
-    console.warn('[OpenOutreach] Collectstatic warning:', String(err).slice(0, 200))
+  // 3. Start websockify (noVNC proxy) - try multiple locations
+  const noVncDir = existsSync('/home/z/.local/share/noVNC') ? '/home/z/.local/share/noVNC'
+    : existsSync('/home/z/.local/share/noVNC-1.5.0') ? '/home/z/.local/share/noVNC-1.5.0'
+    : null
+  const websockifyBin = existsSync('/home/z/.venv/bin/websockify') ? '/home/z/.venv/bin/websockify'
+    : checkCommand('websockify') ? 'websockify'
+    : null
+  if (websockifyBin && noVncDir) {
+    try {
+      const websockify = childSpawn(websockifyBin, [
+        '--web', noVncDir,
+        String(OO_NOVNC_PORT), `localhost:${OO_VNC_PORT}`
+      ], {
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, LD_LIBRARY_PATH: '/home/z/.local/lib' },
+      })
+      websockify.unref()
+      console.log('[OpenOutreach] Started websockify (noVNC)')
+      ooProcesses.push({ name: 'websockify', process: websockify })
+    } catch (err) {
+      console.warn('[OpenOutreach] Failed to start websockify:', err)
+      serviceInstallStatus.websockify.error = String(err)
+    }
+  } else {
+    console.warn(`[OpenOutreach] websockify/noVNC not available (websockify=${websockifyBin}, noVNC=${noVncDir})`)
+    serviceInstallStatus.websockify.error = 'Not installed - background installer may be running'
   }
 
-  // 6. Start Django admin server
-  const django = childSpawn(`${OO_VENV}/bin/python`, [
-    'manage.py', 'runserver', `0.0.0.0:${OO_DJANGO_PORT}`
-  ], {
-    cwd: OO_DIR,
-    detached: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: {
-      ...process.env,
-      DISPLAY: ':99',
-      DJANGO_SETTINGS_MODULE: 'linkedin.django_settings',
-      PLAYWRIGHT_BROWSERS_PATH: '/home/z/.cache/ms-playwright',
-      PATH: `${OO_VENV}/bin:/home/z/.local/bin:/usr/local/bin:/usr/bin:/bin`,
-    },
-  })
-  django.unref()
-  console.log('[OpenOutreach] Started Django admin')
-  ooProcesses.push({ name: 'django', process: django })
+  // 4. Start Django (only if source exists)
+  if (existsSync(`${OO_DIR}/manage.py`) && existsSync(OO_VENV)) {
+    // Run migrations
+    try {
+      execSync(`${OO_VENV}/bin/python ${OO_DIR}/manage.py migrate --noinput`, {
+        encoding: 'utf-8',
+        timeout: 30000,
+        env: { ...process.env, DISPLAY: ':99', DJANGO_SETTINGS_MODULE: 'linkedin.django_settings' },
+      })
+      console.log('[OpenOutreach] Migrations complete')
+    } catch (err) {
+      console.warn('[OpenOutreach] Migration warning:', String(err).slice(0, 200))
+    }
 
-  console.log('[OpenOutreach] All services started!')
-  console.log(`[OpenOutreach]   Django Admin: http://localhost:${OO_DJANGO_PORT}/admin/`)
-  console.log(`[OpenOutreach]   noVNC:        http://localhost:${OO_NOVNC_PORT}/vnc.html`)
+    // Collect static files
+    try {
+      execSync(`${OO_VENV}/bin/python ${OO_DIR}/manage.py collectstatic --noinput`, {
+        encoding: 'utf-8',
+        timeout: 30000,
+        env: { ...process.env, DISPLAY: ':99', DJANGO_SETTINGS_MODULE: 'linkedin.django_settings' },
+      })
+      console.log('[OpenOutreach] Static files collected')
+    } catch (err) {
+      console.warn('[OpenOutreach] Collectstatic warning:', String(err).slice(0, 200))
+    }
+
+    // Start Django admin server
+    const django = childSpawn(`${OO_VENV}/bin/python`, [
+      'manage.py', 'runserver', `0.0.0.0:${OO_DJANGO_PORT}`
+    ], {
+      cwd: OO_DIR,
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        DISPLAY: ':99',
+        DJANGO_SETTINGS_MODULE: 'linkedin.django_settings',
+        PLAYWRIGHT_BROWSERS_PATH: '/home/z/.cache/ms-playwright',
+        PATH: `${OO_VENV}/bin:/home/z/.local/bin:/usr/local/bin:/usr/bin:/bin`,
+      },
+    })
+    django.unref()
+    console.log('[OpenOutreach] Started Django admin')
+    ooProcesses.push({ name: 'django', process: django })
+  } else {
+    console.warn(`[OpenOutreach] Django source not found at ${OO_DIR} or venv missing at ${OO_VENV}`)
+    serviceInstallStatus.django.error = 'OpenOutreach source not installed'
+  }
+
+  console.log('[OpenOutreach] Service startup complete (check warnings above for any issues)')
+  updateServiceStatus()
 }
 
 function stopOpenOutreach() {
@@ -531,19 +628,31 @@ app.prepare().then(() => {
 
   // Auto-start Xvfb so it's always ready for Playwright/noVNC
   if (!existsSync('/tmp/.X99-lock')) {
-    try {
-      const xvfb = childSpawn('/usr/bin/Xvfb', [':99', '-screen', '0', '1920x1080x24'], {
-        detached: true,
-        stdio: 'ignore',
-      })
-      xvfb.unref()
-      console.log('[Server] Xvfb started on display :99')
-    } catch (err) {
-      console.warn('[Server] Failed to auto-start Xvfb:', err)
+    if (existsSync('/usr/bin/Xvfb')) {
+      try {
+        const xvfb = childSpawn('/usr/bin/Xvfb', [':99', '-screen', '0', '1920x1080x24'], {
+          detached: true,
+          stdio: 'ignore',
+        })
+        xvfb.unref()
+        console.log('[Server] Xvfb started on display :99')
+      } catch (err) {
+        console.warn('[Server] Failed to auto-start Xvfb:', err)
+      }
+    } else {
+      console.warn('[Server] Xvfb not available at /usr/bin/Xvfb - background installer will try to set it up')
     }
   } else {
     console.log('[Server] Xvfb already running')
   }
+
+  // Update service install status
+  updateServiceStatus()
+
+  // Periodically update service status (every 15s)
+  setInterval(() => {
+    updateServiceStatus()
+  }, 15000)
 
   // Check if OpenOutreach services are already running (started by dev.sh)
   // and set ooStarted accordingly so the UI shows correct status
@@ -573,6 +682,14 @@ app.prepare().then(() => {
     if (url === '/api/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ ok: true, uptime: process.uptime(), ooStarted }))
+      return
+    }
+
+    // Service installation status endpoint
+    if (url === '/api/services') {
+      updateServiceStatus()
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(serviceInstallStatus))
       return
     }
 
@@ -810,7 +927,8 @@ app.prepare().then(() => {
 
     // OpenOutreach: Status
     socket.on('openoutreach:status', () => {
-      socket.emit('openoutreach:status', { ...getOpenOutreachStatus(), started: ooStarted })
+      updateServiceStatus()
+      socket.emit('openoutreach:status', { ...getOpenOutreachStatus(), started: ooStarted, services: serviceInstallStatus })
     })
 
     // OpenOutreach: Start
