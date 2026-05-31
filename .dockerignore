@@ -1,0 +1,8 @@
+node_modules
+.next
+.git
+download/
+*.log
+mini-services/
+examples/
+prisma/

@@ -1,0 +1,30 @@
+# ─── Koyeb Deployment Configuration ──────────────────────────────
+# Deploy to Koyeb as a backup/fallback hosting option
+# Uses the same Dockerfile as HuggingFace Spaces
+# ─────────────────────────────────────────────────────────────────
+
+name: cloudshell-terminal
+
+services:
+  - name: cloudshell
+    instance_type: nano
+    ports:
+      - port: 7860
+        protocol: http
+    health_check:
+      grace_period: 60s
+      interval: 30s
+      timeout: 10s
+    docker:
+      dockerfile: Dockerfile
+    env:
+      - key: PORT
+        value: "7860"
+      - key: NODE_ENV
+        value: production
+      - key: WORKSPACE_DIR
+        value: /home/cloudshell/workspace
+      - key: APP_HOME
+        value: /home/cloudshell
+      - key: SHELL
+        value: /bin/bash

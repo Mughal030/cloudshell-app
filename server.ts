@@ -35,10 +35,23 @@ process.on('exit', (code) => {
 
 // ─── Configuration ───────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3000', 10)
-const WORKSPACE_DIR = '/home/z/my-project/workspace'
+const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/home/z/my-project/workspace'
 const SHELL = process.env.SHELL || '/bin/bash'
 const dev = process.env.NODE_ENV !== 'production'
 let ooStarted = false
+
+// ─── Path Configuration (portable: works on Z.ai and Docker) ─────
+const APP_HOME = process.env.APP_HOME || process.env.HOME || '/home/z'
+const APP_USER = process.env.USER || 'z'
+const LOCAL_BIN = `${APP_HOME}/.local/bin`
+const LOCAL_LIB = `${APP_HOME}/.local/lib`
+const LOCAL_SHARE = `${APP_HOME}/.local/share`
+const VENV_BIN = process.env.VENV_BIN || `${APP_HOME}/.venv/bin`
+const BIN_DIR = `${APP_HOME}/bin`
+const CACHE_DIR = `${APP_HOME}/.cache`
+const PLAYWRIGHT_PATH = `${CACHE_DIR}/ms-playwright`
+const NOVNC_DIR = process.env.NOVNC_DIR || `${LOCAL_SHARE}/noVNC`
+const OO_DIR = process.env.OO_DIR || '/home/z/openoutreach-source'
 
 // ─── Service Installation Status ────────────────────────────────
 interface ServiceInstallStatus {
@@ -62,28 +75,28 @@ function updateServiceStatus() {
   serviceInstallStatus.xvfb.running = existsSync('/tmp/.X99-lock')
 
   // x11vnc
-  serviceInstallStatus.x11vnc.installed = existsSync('/home/z/.local/bin/x11vnc') || checkCommand('x11vnc')
+  serviceInstallStatus.x11vnc.installed = existsSync(`${LOCAL_BIN}/x11vnc`) || checkCommand('x11vnc')
   try {
     const netstat = execSync('ss -tlnp 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
     serviceInstallStatus.x11vnc.running = netstat.includes(':5900')
   } catch { serviceInstallStatus.x11vnc.running = false }
 
   // websockify/noVNC
-  serviceInstallStatus.websockify.installed = checkCommand('websockify') || existsSync('/home/z/.venv/bin/websockify')
+  serviceInstallStatus.websockify.installed = checkCommand('websockify') || existsSync(`${VENV_BIN}/websockify`)
   try {
     const netstat = execSync('ss -tlnp 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
     serviceInstallStatus.websockify.running = netstat.includes(':6080')
   } catch { serviceInstallStatus.websockify.running = false }
 
   // Docker
-  serviceInstallStatus.docker.installed = existsSync('/home/z/bin/docker') || checkCommand('docker')
+  serviceInstallStatus.docker.installed = existsSync(`${BIN_DIR}/docker`) || checkCommand('docker')
   try {
     execSync('docker info 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
     serviceInstallStatus.docker.running = true
   } catch { serviceInstallStatus.docker.running = false }
 
   // Django
-  serviceInstallStatus.django.installed = existsSync('/home/z/openoutreach-source/manage.py')
+  serviceInstallStatus.django.installed = existsSync(`${OO_DIR}/manage.py`)
   try {
     const netstat = execSync('ss -tlnp 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
     serviceInstallStatus.django.running = netstat.includes(':8000')
@@ -100,8 +113,7 @@ function checkCommand(cmd: string): boolean {
 }
 
 // ─── Open Outreach Service Management ────────────────────────────
-const OO_DIR = '/home/z/openoutreach-source'
-const OO_VENV = `${OO_DIR}/.venv`
+const OO_VENV = process.env.OO_VENV || `${OO_DIR}/.venv`
 const OO_LOGS = `${OO_DIR}/logs`
 const OO_PIDS = `${OO_DIR}/pids`
 const OO_VNC_PORT = 5900
@@ -133,7 +145,7 @@ function startOpenOutreach() {
   }
 
   // 2. Start x11vnc (try multiple locations)
-  const x11vncBin = existsSync('/home/z/.local/bin/x11vnc') ? '/home/z/.local/bin/x11vnc'
+  const x11vncBin = existsSync(`${LOCAL_BIN}/x11vnc`) ? `${LOCAL_BIN}/x11vnc`
     : checkCommand('x11vnc') ? 'x11vnc'
     : null
   if (x11vncBin) {
@@ -143,7 +155,7 @@ function startOpenOutreach() {
       ], {
         detached: true,
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, LD_LIBRARY_PATH: '/home/z/.local/lib', DISPLAY: ':99' },
+        env: { ...process.env, LD_LIBRARY_PATH: LOCAL_LIB, DISPLAY: ':99' },
       })
       x11vnc.unref()
       console.log('[OpenOutreach] Started x11vnc')
@@ -158,10 +170,11 @@ function startOpenOutreach() {
   }
 
   // 3. Start websockify (noVNC proxy) - try multiple locations
-  const noVncDir = existsSync('/home/z/.local/share/noVNC') ? '/home/z/.local/share/noVNC'
-    : existsSync('/home/z/.local/share/noVNC-1.5.0') ? '/home/z/.local/share/noVNC-1.5.0'
+  const noVncDir = existsSync(NOVNC_DIR) ? NOVNC_DIR
+    : existsSync(`${LOCAL_SHARE}/noVNC`) ? `${LOCAL_SHARE}/noVNC`
+    : existsSync(`${LOCAL_SHARE}/noVNC-1.5.0`) ? `${LOCAL_SHARE}/noVNC-1.5.0`
     : null
-  const websockifyBin = existsSync('/home/z/.venv/bin/websockify') ? '/home/z/.venv/bin/websockify'
+  const websockifyBin = existsSync(`${VENV_BIN}/websockify`) ? `${VENV_BIN}/websockify`
     : checkCommand('websockify') ? 'websockify'
     : null
   if (websockifyBin && noVncDir) {
@@ -172,7 +185,7 @@ function startOpenOutreach() {
       ], {
         detached: true,
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: { ...process.env, LD_LIBRARY_PATH: '/home/z/.local/lib' },
+        env: { ...process.env, LD_LIBRARY_PATH: LOCAL_LIB },
       })
       websockify.unref()
       console.log('[OpenOutreach] Started websockify (noVNC)')
@@ -223,8 +236,8 @@ function startOpenOutreach() {
         ...process.env,
         DISPLAY: ':99',
         DJANGO_SETTINGS_MODULE: 'linkedin.django_settings',
-        PLAYWRIGHT_BROWSERS_PATH: '/home/z/.cache/ms-playwright',
-        PATH: `${OO_VENV}/bin:/home/z/.local/bin:/usr/local/bin:/usr/bin:/bin`,
+        PLAYWRIGHT_BROWSERS_PATH: PLAYWRIGHT_PATH,
+        PATH: `${OO_VENV}/bin:${LOCAL_BIN}:/usr/local/bin:/usr/bin:/bin`,
       },
     })
     django.unref()
@@ -331,7 +344,7 @@ function configureSudo() {
   } catch {}
 
   try {
-    execSync('echo "z ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/z-user && chmod 440 /etc/sudoers.d/z-user && chown root:root /etc/sudoers.d/z-user', {
+    execSync(`echo "${APP_USER} ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/${APP_USER}-user && chmod 440 /etc/sudoers.d/${APP_USER}-user && chown root:root /etc/sudoers.d/${APP_USER}-user`, {
       encoding: 'utf-8',
       timeout: 5000,
     })
@@ -348,7 +361,7 @@ const sudoMode = configureSudo()
 
 // ─── Create sudo wrapper ────────────────────────────────────────
 function setupSudoWrapper() {
-  const wrapperDir = '/home/z/.local/bin'
+  const wrapperDir = LOCAL_BIN
   const wrapperPath = `${wrapperDir}/sudo`
 
   try {
@@ -385,7 +398,7 @@ const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'p
 
 const TOOL_INSTALL_COMMANDS: Record<string, string> = {
   git: 'which git 2>/dev/null && echo "git already installed" || echo "git: already available"',
-  docker: 'echo "Docker: Rootless Docker available at /home/z/bin/docker - run: dockerd-rootless & then docker ps"',
+  docker: `echo "Docker: Rootless Docker available at ${BIN_DIR}/docker - run: dockerd-rootless & then docker ps"`,
   curl: 'which curl 2>/dev/null && echo "curl already installed" || echo "curl: available"',
   wget: 'which wget 2>/dev/null && echo "wget already installed" || echo "wget: available"',
   vim: 'which vim 2>/dev/null && echo "vim already installed" || echo "vim: available"',
@@ -401,9 +414,9 @@ const TOOL_INSTALL_COMMANDS: Record<string, string> = {
 function checkTool(name: string): { name: string; installed: boolean; version: string; displayName?: string } {
   try {
     if (name === 'docker') {
-      if (existsSync('/home/z/bin/docker')) {
+      if (existsSync(`${BIN_DIR}/docker`)) {
         try {
-          const v = execSync('/home/z/bin/docker --version 2>&1', { encoding: 'utf-8', timeout: 5000 }).trim()
+          const v = execSync(`${BIN_DIR}/docker --version 2>&1`, { encoding: 'utf-8', timeout: 5000 }).trim()
           return { name, installed: true, version: v, displayName: 'Docker (Rootless)' }
         } catch {
           return { name, installed: true, version: 'Rootless Docker', displayName: 'Docker (Rootless)' }
@@ -510,12 +523,12 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
   console.log(`[Terminal] Creating PTY session ${sessionId} (${cols}x${rows})`)
 
   const HARDENED_PATH = [
-    '/home/z/bin',                   // Rootless Docker binaries
-    '/home/z/.local/bin',            // x11vnc, sudo wrapper, etc.
-    '/home/z/.venv/bin',             // websockify, python tools
-    '/home/z/openoutreach/.venv/bin',// Django venv
-    '/home/z/.npm-global/bin',
-    '/home/z/.bun/bin',
+    BIN_DIR,                            // Rootless Docker binaries
+    LOCAL_BIN,                          // x11vnc, sudo wrapper, etc.
+    VENV_BIN,                           // websockify, python tools
+    `${APP_HOME}/openoutreach/.venv/bin`, // Django venv
+    `${APP_HOME}/.npm-global/bin`,
+    `${APP_HOME}/.bun/bin`,
     '/usr/local/sbin', '/usr/local/bin',
     '/usr/sbin', '/usr/bin', '/sbin', '/bin',
   ].join(':')
@@ -528,20 +541,20 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     env: {
       ...process.env,
       PATH: HARDENED_PATH,
-      HOME: '/home/z',
-      USER: 'z',
+      HOME: APP_HOME,
+      USER: APP_USER,
       TERM: 'xterm-256color',
       LANG: 'en_US.UTF-8',
       EDITOR: 'vim',
       CLOUDSHELL: '1',
       SUDO_MODE: sudoMode,
       DOCKER_HOST: `unix:///run/user/${process.getuid()}/docker.sock`,
-      VIRTUAL_ENV: '/home/z/openoutreach/.venv',
-      PYTHONPATH: '/home/z/openoutreach:/home/z/.venv/lib/python3.12/site-packages',
+      VIRTUAL_ENV: `${APP_HOME}/openoutreach/.venv`,
+      PYTHONPATH: `${APP_HOME}/openoutreach:${VENV_BIN}/lib/python3.12/site-packages`,
       PIP_BREAK_SYSTEM_PACKAGES: '1',
-      LD_LIBRARY_PATH: '/home/z/.local/lib',
+      LD_LIBRARY_PATH: LOCAL_LIB,
       DISPLAY: ':99',
-      PLAYWRIGHT_BROWSERS_PATH: '/home/z/.cache/ms-playwright',
+      PLAYWRIGHT_BROWSERS_PATH: PLAYWRIGHT_PATH,
       DJANGO_SETTINGS_MODULE: 'linkedin.django_settings',
     },
   })
@@ -969,8 +982,8 @@ app.prepare().then(() => {
             ...process.env,
             DISPLAY: ':99',
             DJANGO_SETTINGS_MODULE: 'linkedin.django_settings',
-            PLAYWRIGHT_BROWSERS_PATH: '/home/z/.cache/ms-playwright',
-            PATH: `${OO_VENV}/bin:/home/z/.local/bin:/usr/local/bin:/usr/bin:/bin`,
+            PLAYWRIGHT_BROWSERS_PATH: PLAYWRIGHT_PATH,
+            PATH: `${OO_VENV}/bin:${LOCAL_BIN}:/usr/local/bin:/usr/bin:/bin`,
           },
         })
         daemon.unref()
