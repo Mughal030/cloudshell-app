@@ -126,3 +126,36 @@ Stage Summary:
 - File size: 152.3 KB
 - All quality checks passed
 - Report covers: executive summary, what we're building, Z.ai platform details, preview mode features, published mode failures, all 8 attempted fixes, current code state, core challenge analysis, key files reference, what we need help with, technical environment, and next steps
+---
+Task ID: 2
+Agent: Main Agent
+Task: Implement Strategy 1 from Strategic Advisory v5 - commit node_modules for instant deploy
+
+Work Log:
+- Read entire CloudShell-Advisory-v5-Strategic.html (1150 lines)
+- Analyzed 3 strategies: S1 (commit node_modules, ~5-8s), S2 (replace Next.js, ~10-15s), S3 (push current lite, ~43-100s)
+- Implemented Strategy 1 (recommended, fastest path to working published mode)
+- Rewrote .zscripts/dev.sh with production-ready version:
+  - Timing/logging with millisecond precision
+  - Django kill guard on ports 3000/8000
+  - Python health-check responder (starts in <0.5s)
+  - Conditional npm ci (only if node_modules missing)
+  - Conditional next build (only if .next/BUILD_ID missing)
+  - Clean health responder handover with PID file
+  - Supervisor loop with auto-restart on crash
+- Updated .gitignore to NOT ignore node_modules/ and .next/
+- Discovered @homebridge/node-pty-prebuilt-multiarch lacks Linux binaries (only has darwin/win32)
+- Reverted to original node-pty@0.10.1 with native build using node-gyp
+- Verified node-pty, next, socket.io all load correctly
+- Committed .next/ bundle (196 files)
+- Committed production node_modules/ (60,451 files, ~1GB)
+- Committed dev.sh and .gitignore changes
+- Committed package.json/package-lock.json reversion
+
+Stage Summary:
+- All Strategy 1 changes committed locally (4 commits)
+- Cannot push to GitHub without authentication token
+- Key discovery: prebuilt node-pty lacks Linux binaries, must use original with native build
+- node_modules is ~1GB (larger than advisory's 50-100MB estimate due to Next.js dependencies)
+- Expected boot time in published mode: <8 seconds (health responder in <1s, Node.js in 3-5s)
+- All feature reintegrations (Django, noVNC, Docker) deferred to Phase 2-4 per roadmap
