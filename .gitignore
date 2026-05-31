@@ -1,5 +1,6 @@
 # dependencies
-node_modules
+# node_modules — COMMITTED for instant Z.ai deploy (Strategy 1)
+# node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -11,8 +12,8 @@ node_modules
 # testing
 /coverage
 
-# next.js
-/.next/
+# next.js — .next/ COMMITTED for instant Z.ai deploy
+# /.next/
 /out/
 
 # production
@@ -53,8 +54,8 @@ prompt
 /agent-ctx/
 /download/
 
-# database
-*.sqlite3
+# database — *.sqlite3 will be committed for Django (Phase 2)
+# *.sqlite3
 db/
 
 # pid files
@@ -65,7 +66,6 @@ db/
 
 # Additional exclusions
 upload/
-*.pid
 skills/
 agent-ctx/
 workspace/

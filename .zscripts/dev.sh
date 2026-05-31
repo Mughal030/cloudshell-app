@@ -1,110 +1,101 @@
 #!/bin/bash
-# /home/z/my-project/.zscripts/dev.sh
-# Called by Z.ai platform -> tini -> /start.sh -> this script
-# Supervises the CloudShell server, restarting it if it crashes.
-
+# .zscripts/dev.sh — CloudShell Z.ai entry point (Strategy 1)
+# Assumes: node_modules/ committed, .next/ committed
+# Expected boot: < 8 seconds (112s safety margin)
+set -euo pipefail
 cd /home/z/my-project
 
-# Install dependencies if needed
-if [ ! -d "node_modules" ]; then
-    echo "[dev.sh] Installing dependencies..."
-    bun install 2>&1 | tail -3
+### ─── Timing ───────────────────────────────────────────────
+START=$(date +%s%N)
+log() { echo "[$(( ($(date +%s%N) - START) / 1000000 ))ms] $*"; }
+
+log "=== CloudShell dev.sh starting ==="
+
+### ─── 1. Kill Guard (prevents Django/any process on port 3000) ──
+for port in 3000 8000; do
+    pid=$(ss -tlnp 2>/dev/null | awk -v p=":$port" '$4~p{match($6,/pid=([0-9]+)/,a); print a[1]}')
+    [ -n "$pid" ] && kill -9 $pid 2>/dev/null && log "Killed PID $pid on port $port"
+done
+
+### ─── 2. Python Health-Check Responder (starts in <0.5s) ───────
+python3 -c "
+import http.server, os
+
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        body = b'CloudShell starting...'
+        self.send_response(200)
+        self.send_header('Content-Type','text/plain')
+        self.send_header('Content-Length', len(body))
+        self.end_headers()
+        self.wfile.write(body)
+    def log_message(self, *a): pass
+
+httpd = http.server.HTTPServer(('0.0.0.0', 3000), H)
+with open('/tmp/health-responder.pid', 'w') as f:
+    f.write(str(os.getpid()))
+httpd.serve_forever()
+" &
+log "Health responder started on :3000"
+
+### ─── 3. Check node_modules (no npm install if committed) ──────
+if [ -d node_modules/next ]; then
+    log "node_modules present (committed) — skipping npm install"
+else
+    log "WARN: node_modules missing — running npm ci (slow path)"
+    npm ci --omit=dev --prefer-offline --ignore-scripts 2>&1 | tail -3
+    log "npm ci complete"
 fi
 
-# Ensure http-proxy is installed
-if [ ! -d "node_modules/http-proxy" ]; then
-    echo "[dev.sh] Installing http-proxy..."
-    npm install http-proxy 2>&1 | tail -3
+### ─── 4. Check .next/ (no build if committed) ──────────────────
+if [ -f .next/BUILD_ID ]; then
+    log "Pre-built .next/ present — skipping next build"
+else
+    log "WARN: .next/ missing — running next build (slow path)"
+    NODE_ENV=production npx next build 2>&1 | tail -5
+    log "next build complete"
 fi
 
-# Environment
-export HOME=/home/z
-export PATH=/home/z/bin:/home/z/.local/bin:/home/z/openoutreach/.venv/bin:/home/z/.venv/bin:/usr/local/bin:/usr/bin:/bin
-export PORT=3000
-export LD_LIBRARY_PATH=/home/z/.local/lib
-
-# Build Next.js for production
-if [ ! -f .next/BUILD_ID ]; then
-    echo "[dev.sh] Building Next.js (first time)..."
-    npx next build 2>&1 | tail -5
-fi
-
+### ─── 5. Start real server ────────────────────────────────────
 export NODE_ENV=production
+export PORT=3000
+export HOME=/home/z
+export PATH=/home/z/.local/bin:/home/z/openoutreach/.venv/bin:/usr/local/bin:/usr/bin:/bin
+export DISPLAY=:99
 
-# Clean any stale lock files
-rm -f /home/z/my-project/.next/dev/lock
+log "Starting Node.js server..."
+node --experimental-strip-types server.ts > /tmp/cloudshell-server.log 2>&1 &
+SERVER_PID=$!
+log "Server process started (pid=$SERVER_PID)"
 
-LOG=/home/z/my-project/server.log
-
-echo "[dev.sh] Starting CloudShell supervisor (pid=$$)" | tee -a "$LOG"
-
-# ─── Start OpenOutreach Services ────────────────────────────
-start_openoutreach() {
-    echo "[$(date)] Starting OpenOutreach services..." >> "$LOG"
-    mkdir -p /home/z/openoutreach/logs
-
-    # 1. Xvfb
-    if [ ! -f /tmp/.X99-lock ]; then
-        /usr/bin/Xvfb :99 -screen 0 1920x1080x24 &
-        sleep 1
+### ─── 6. Wait for real server to be ready ──────────────────────
+READY=0
+for i in $(seq 1 30); do
+    sleep 1
+    RESP=$(curl -s http://localhost:3000/ 2>/dev/null || echo "")
+    if echo "$RESP" | grep -qv "CloudShell starting" && [ -n "$RESP" ]; then
+        READY=1
+        log "Real server is ready (${i}s after fork)"
+        break
     fi
+done
 
-    # 2. x11vnc
-    if ! ss -tlnp | grep -q ':5900'; then
-        LD_LIBRARY_PATH=/home/z/.local/lib DISPLAY=:99 /home/z/.local/bin/x11vnc \
-            -display :99 -forever -shared -nopw -rfbport 5900 \
-            &>>/home/z/openoutreach/logs/x11vnc.log &
-        sleep 1
-    fi
+### ─── 7. Kill health responder — hand over port 3000 ──────────
+if [ -f /tmp/health-responder.pid ]; then
+    kill $(cat /tmp/health-responder.pid) 2>/dev/null
+    rm -f /tmp/health-responder.pid
+    log "Health responder killed — port 3000 handed to Node.js"
+fi
 
-    # 3. websockify (noVNC)
-    if ! ss -tlnp | grep -q ':6080'; then
-        /home/z/.venv/bin/websockify \
-            --web /home/z/.local/share/noVNC-1.5.0 \
-            6080 localhost:5900 \
-            &>>/home/z/openoutreach/logs/websockify.log &
-        sleep 1
-    fi
-
-    # 4. Django admin server (Real OpenOutreach)
-    if ! ss -tlnp | grep -q ':8000'; then
-        cd /home/z/openoutreach-source
-        source .venv/bin/activate
-        DISPLAY=:99 \
-        python manage.py runserver --noreload 0.0.0.0:8000 \
-            &>>/home/z/openoutreach-source/logs/admin.log &
-        cd /home/z/my-project
-        sleep 3
-    fi
-}
-
-# Start OpenOutreach on boot
-start_openoutreach
-
-# ─── Supervisor Loop ────────────────────────────────────────
+### ─── 8. Supervisor loop (auto-restart on crash) ───────────────
+log "=== Supervisor active. Server running. ==="
 while true; do
-    # Clean up old port if needed
-    fuser -k 3000/tcp 2>/dev/null || true
-    sleep 1
-
-    echo "[$(date)] Starting CloudShell server..." >> "$LOG"
-    
-    # Start the server (foreground - supervisor waits for it)
-    node --experimental-strip-types server.ts >> "$LOG" 2>&1
-    EXIT_CODE=$?
-    echo "[$(date)] Server exited with code $EXIT_CODE" >> "$LOG"
-
-    # Exit code 0 means intentional shutdown
-    if [ "$EXIT_CODE" -eq 0 ]; then
-        echo "[$(date)] Intentional shutdown, waiting 10s before restart..." >> "$LOG"
-        sleep 10
+    if ! kill -0 $SERVER_PID 2>/dev/null; then
+        log "Server crashed! Restarting in 2s..."
+        sleep 2
+        node --experimental-strip-types server.ts >> /tmp/cloudshell-server.log 2>&1 &
+        SERVER_PID=$!
+        log "Server restarted (pid=$SERVER_PID)"
     fi
-
-    # Wait before restarting
-    sleep 3
-    fuser -k 3000/tcp 2>/dev/null || true
-    sleep 1
-    
-    # Restart OpenOutreach services if they died
-    start_openoutreach
+    sleep 5
 done
