@@ -1,6 +1,5 @@
 # dependencies
-# node_modules — COMMITTED for instant Z.ai deploy (Strategy 1)
-# node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -12,8 +11,8 @@
 # testing
 /coverage
 
-# next.js — .next/ COMMITTED for instant Z.ai deploy
-# /.next/
+# next.js
+/.next/
 /out/
 
 # production
