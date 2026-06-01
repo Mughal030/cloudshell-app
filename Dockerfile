@@ -7,7 +7,7 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ─── System Dependencies ──────────────────────────────────────────
+# ─── System Dependencies (COMPREHENSIVE - everything a dev needs) ─
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -28,6 +28,37 @@ RUN apt-get update && apt-get install -y \
     uidmap \
     dbus-user-session \
     gosu \
+    # Additional dev tools pre-installed so sudo apt rarely needed
+    htop \
+    tree \
+    less \
+    zip \
+    unzip \
+    net-tools \
+    iputils-ping \
+    openssh-client \
+    rsync \
+    strace \
+    ltrace \
+    jq \
+    file \
+    diffutils \
+    patch \
+    make \
+    cmake \
+    autoconf \
+    automake \
+    libtool \
+    pkg-config \
+    software-properties-common \
+    apt-utils \
+    gpg \
+    gpg-agent \
+    # Language runtimes
+    python3-dev \
+    # Network tools
+    netcat \
+    dnsutils \
     && rm -rf /var/lib/apt/lists/*
 
 # Generate UTF-8 locale
@@ -45,7 +76,6 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 RUN node --version && npm --version
 
 # ─── Docker CLI + Rootless Docker ─────────────────────────────────
-# Install Docker CE CLI only (not the full daemon - we'll use rootless mode)
 RUN install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
     && chmod a+r /etc/apt/keyrings/docker.gpg \
@@ -106,17 +136,14 @@ ENV PORT=7860 \
     APP_HOME=/home/cloudshell
 
 # ─── Entrypoint ──────────────────────────────────────────────────
-# IMPORTANT: Entry point runs as ROOT first to fix permissions,
-# then drops to cloudshell user to start the server.
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
 # Expose default port
 EXPOSE 7860
 
-# NOTE: We do NOT use USER directive here.
-# The entrypoint starts as root, fixes permissions, then drops to cloudshell.
-# This is required for sudo apt-get and Docker to work properly.
+# NOTE: Do NOT use USER directive - entrypoint starts as root,
+# fixes permissions, then drops to cloudshell via gosu.
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \

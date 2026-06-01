@@ -2,14 +2,11 @@
 # ────────────────────────────────────────────────────────────────────
 # CloudShell Terminal IDE - Docker Entrypoint
 # Starts as ROOT to fix permissions, then drops to cloudshell user.
-# This is required for sudo apt-get and Docker to work properly.
 # ────────────────────────────────────────────────────────────────────
 
 echo "=========================================="
 echo "[Entrypoint] CloudShell Terminal IDE starting..."
 echo "[Entrypoint] Initial user: $(whoami)"
-echo "[Entrypoint] Home: $HOME"
-echo "[Entrypoint] Workspace: ${WORKSPACE_DIR:-/home/cloudshell/workspace}"
 echo "=========================================="
 
 # ─── Fix APT permissions (run as root) ─────────────────────────
@@ -23,8 +20,6 @@ chmod -R 755 /var/cache/apt 2>/dev/null || true
 mkdir -p /var/lib/dpkg/lock-frontend 2>/dev/null || true
 chown -R root:root /var/lib/dpkg 2>/dev/null || true
 chmod -R 755 /var/lib/dpkg 2>/dev/null || true
-
-# Fix /tmp permissions
 chmod 1777 /tmp 2>/dev/null || true
 chmod 1777 /var/tmp 2>/dev/null || true
 
@@ -43,45 +38,69 @@ mkdir -p /home/cloudshell/bin 2>/dev/null || true
 chown -R cloudshell:cloudshell /home/cloudshell 2>/dev/null || true
 echo "[Entrypoint] Cloudshell home directory fixed"
 
-# ─── Create effective sudo wrapper ──────────────────────────────
+# ─── Create smart sudo wrapper ──────────────────────────────────
+# In HF Spaces, the container is UNPRIVILEGED - even with sudo,
+# the kernel blocks operations like writing to /var/lib/apt/.
+# This wrapper provides real functionality by using alternative methods.
 WRAPPER_DIR="/home/cloudshell/.local/bin"
 mkdir -p "$WRAPPER_DIR" 2>/dev/null || true
 
 cat > "${WRAPPER_DIR}/sudo" << 'SUDOWRAPPER'
 #!/bin/bash
-# CloudShell sudo wrapper v8 - handles apt and system commands properly
-# First try real sudo (works when entrypoint runs as root)
-if /usr/bin/sudo -n "$@" 2>/dev/null; then
-    exit 0
-fi
+# CloudShell sudo wrapper v9 - works in unprivileged containers
+# Tries real sudo first, then provides smart alternatives
 
-# For apt-get commands, fix permissions and retry
+# First: try real sudo (works on some platforms)
+/usr/bin/sudo -n "$@" 2>/dev/null && exit 0
+
+# Second: for apt-get/apt commands, try with real sudo + permission fixes
 case "$1" in
     apt|apt-get)
-        shift
-        # Fix apt directories before running
-        /usr/bin/sudo mkdir -p /var/lib/apt/lists/partial 2>/dev/null
-        /usr/bin/sudo chmod -R 755 /var/lib/apt 2>/dev/null
-        /usr/bin/sudo chown -R root:root /var/lib/apt 2>/dev/null
-        /usr/bin/sudo mkdir -p /var/cache/apt 2>/dev/null
-        /usr/bin/sudo chmod -R 755 /var/cache/apt 2>/dev/null
-        /usr/bin/sudo chown -R root:root /var/cache/apt 2>/dev/null
-        # Now try the apt command
-        /usr/bin/sudo "$@" 2>/dev/null && exit 0
-        # If real sudo still fails, try with unshare
-        exec unshare --user --map-root-user "$@"
+        CMD="$1"; shift
+        case "$1" in
+            update)
+                # Try to update apt lists
+                /usr/bin/sudo mkdir -p /var/lib/apt/lists/partial 2>/dev/null
+                /usr/bin/sudo chmod -R 777 /var/lib/apt/lists 2>/dev/null
+                /usr/bin/sudo apt-get update "$@" 2>/dev/null && exit 0
+                # Fallback: tell user apt is not available
+                echo "⚠ apt-get update not available in this container (unprivileged)"
+                echo "  Most packages are pre-installed. For new packages, use:"
+                echo "    npm install <pkg>     (Node.js packages)"
+                echo "    pip3 install <pkg>    (Python packages)"
+                exit 1
+                ;;
+            install)
+                /usr/bin/sudo apt-get install -y "$@" 2>/dev/null && exit 0
+                echo "⚠ apt-get install not available in this container (unprivileged)"
+                echo "  Package '$*' could not be installed via apt."
+                echo "  Try alternatives:"
+                echo "    npm install <pkg>     (Node.js packages)"
+                echo "    pip3 install <pkg>    (Python packages)"
+                echo "    conda install <pkg>   (if conda available)"
+                exit 1
+                ;;
+            *)
+                /usr/bin/sudo "$CMD" "$@" 2>/dev/null && exit 0
+                echo "⚠ apt command not available in this container (unprivileged)"
+                exit 1
+                ;;
+        esac
         ;;
-    dpkg)
-        shift
+    docker|dockerd*)
+        # Docker CLI works without sudo for most commands
         /usr/bin/sudo "$@" 2>/dev/null && exit 0
-        exec unshare --user --map-root-user "$@"
+        "$@" 2>/dev/null && exit 0
+        echo "⚠ Docker daemon not running in this container"
+        echo "  Docker CLI is available but requires a running daemon."
+        exit 1
         ;;
     systemctl|service)
-        shift
-        echo "Warning: $1 requires real root access (not available in this container)"
-        exec unshare --user --map-root-user "$@"
+        echo "⚠ systemctl/service not available in this container (unprivileged)"
+        exit 1
         ;;
     *)
+        # For other commands, try real sudo then unshare fallback
         /usr/bin/sudo "$@" 2>/dev/null && exit 0
         exec unshare --user --map-root-user "$@"
         ;;
@@ -89,11 +108,23 @@ esac
 SUDOWRAPPER
 chown cloudshell:cloudshell "${WRAPPER_DIR}/sudo" 2>/dev/null || true
 chmod +x "${WRAPPER_DIR}/sudo" 2>/dev/null || true
-echo "[Entrypoint] Enhanced sudo wrapper created"
+echo "[Entrypoint] Smart sudo wrapper v9 created"
 
 # ─── Setup Docker ──────────────────────────────────────────────
 if command -v docker &> /dev/null; then
-    echo "[Entrypoint] Docker CLI found: $(docker --version 2>/dev/null || echo 'version unknown')"
+    echo "[Entrypoint] Docker CLI found: $(docker --version 2>/dev/null || echo 'unknown')"
+
+    # Try to start rootless Docker daemon
+    echo "[Entrypoint] Attempting to start rootless Docker daemon..."
+    su -c "dockerd-rootless.sh --experimental &>/tmp/dockerd-rootless.log &" cloudshell 2>/dev/null || true
+    sleep 3
+
+    # Check if Docker is running
+    if su -c "docker info &>/dev/null" cloudshell 2>/dev/null; then
+        echo "[Entrypoint] Docker daemon is running!"
+    else
+        echo "[Entrypoint] Docker daemon not running - CLI available for remote use"
+    fi
 else
     echo "[Entrypoint] Docker CLI not found"
 fi
@@ -110,10 +141,9 @@ COPY . .
 CMD ["/bin/bash"]
 DOCKERFILE
     chown -R cloudshell:cloudshell "${WORKSPACE}/.dockerfiles" 2>/dev/null || true
-    echo "[Entrypoint] Sample Dockerfile created"
 fi
 
-# ─── Create .bashrc with useful aliases ──────────────────────────
+# ─── Create .bashrc with useful aliases and functions ────────────
 if [ ! -f "/home/cloudshell/.bashrc_cloudshell" ]; then
     cat > "/home/cloudshell/.bashrc_cloudshell" << 'BASHRC'
 # CloudShell custom bashrc additions
@@ -127,23 +157,75 @@ alias l='ls -CF'
 alias ..='cd ..'
 alias ...='cd ../..'
 
-# Docker helpers (if Docker available)
+# Docker helpers
 if command -v docker &>/dev/null; then
     alias dps='docker ps'
     alias dimg='docker images'
 fi
 
+# Quick install functions (work WITHOUT sudo apt)
+npm-install() { npm install --prefix "${HOME}/.local" "$@" && export PATH="${HOME}/.local/node_modules/.bin:${PATH}"; }
+pip-install() { pip3 install --user "$@" && export PATH="${HOME}/.local/bin:${PATH}"; }
+
 # Show tool status
 cloudshell-tools() {
     echo "=== CloudShell Tool Status ==="
+    local ok=0 total=0
     for tool in git docker curl wget vim nano node npm python3 pip3 sudo; do
+        total=$((total + 1))
         if command -v "$tool" &>/dev/null; then
             version=$("$tool" --version 2>/dev/null | head -1)
             echo "  ✅ $tool: $version"
+            ok=$((ok + 1))
         else
             echo "  ❌ $tool: not found"
         fi
     done
+    echo ""
+    echo "  ${ok}/${total} tools installed"
+}
+
+# Test all tools
+cloudshell-test() {
+    echo "=== CloudShell Full Command Test ==="
+    echo ""
+
+    echo "--- Basic Tools ---"
+    echo -n "  git: "; git --version 2>&1 | head -1
+    echo -n "  curl: "; curl --version 2>&1 | head -1
+    echo -n "  wget: "; wget --version 2>&1 | head -1
+    echo -n "  vim: "; vim --version 2>&1 | head -1
+    echo -n "  nano: "; nano --version 2>&1 | head -1
+    echo ""
+
+    echo "--- Development ---"
+    echo -n "  node: "; node --version 2>&1
+    echo -n "  npm: "; npm --version 2>&1
+    echo -n "  python3: "; python3 --version 2>&1
+    echo -n "  pip3: "; pip3 --version 2>&1 | head -1
+    echo ""
+
+    echo "--- Docker ---"
+    echo -n "  docker: "; docker --version 2>&1
+    echo -n "  docker info: "
+    if docker info &>/dev/null 2>&1; then echo "RUNNING"; else echo "NOT RUNNING (CLI only)"; fi
+    echo ""
+
+    echo "--- Sudo ---"
+    echo -n "  sudo: "; sudo --version 2>&1 | head -1
+    echo -n "  sudo apt update: "
+    if sudo apt update &>/dev/null 2>&1; then echo "WORKS"; else echo "NOT AVAILABLE (use npm/pip instead)"; fi
+    echo ""
+
+    echo "--- Extra Tools ---"
+    echo -n "  htop: "; htop --version 2>&1 | head -1
+    echo -n "  tree: "; tree --version 2>&1 | head -1
+    echo -n "  jq: "; jq --version 2>&1
+    echo -n "  zip: "; zip --version 2>&1 | head -2 | tail -1
+    echo -n "  ssh: "; ssh -V 2>&1
+    echo -n "  make: "; make --version 2>&1 | head -1
+    echo -n "  cmake: "; cmake --version 2>&1 | head -1
+    echo -n "  rsync: "; rsync --version 2>&1 | head -1
 }
 BASHRC
     chown cloudshell:cloudshell "/home/cloudshell/.bashrc_cloudshell" 2>/dev/null || true
@@ -163,12 +245,4 @@ echo "[Entrypoint] Dropping to cloudshell user..."
 echo "[Entrypoint] Starting server: $*"
 echo "=========================================="
 
-# Use gosu or su to drop privileges, then exec the CMD
-if command -v gosu &> /dev/null; then
-    exec gosu cloudshell "$@"
-elif command -v su-exec &> /dev/null; then
-    exec su-exec cloudshell "$@"
-else
-    # Fallback: use su
-    exec su -c "export HOME=/home/cloudshell USER=cloudshell PATH=/home/cloudshell/bin:/home/cloudshell/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && cd /app && $*" cloudshell
-fi
+exec gosu cloudshell "$@"

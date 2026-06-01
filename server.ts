@@ -423,15 +423,14 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
   let sudoInfo: string[]
   if (sudoMode === 'passwordless') {
     sudoInfo = [
-      '\x1b[32m║\x1b[0m  \x1b[1;32mSudo: Full access (passwordless)\x1b[0m                    \x1b[32m║\x1b[0m',
-      '\x1b[32m║\x1b[0m  Type: \x1b[1;36msudo <command>\x1b[0m to run as root              \x1b[32m║\x1b[0m',
+      '\x1b[32m║\x1b[0m  \x1b[1;32mSudo: Available (passwordless)\x1b[0m                          \x1b[32m║\x1b[0m',
+      '\x1b[32m║\x1b[0m  \x1b[1;36msudo <command>\x1b[0m to run as root                      \x1b[32m║\x1b[0m',
     ]
   } else {
     sudoInfo = [
-      '\x1b[32m║\x1b[0m  \x1b[1;33mSudo: Limited (user-namespace mode)\x1b[0m               \x1b[32m║\x1b[0m',
-      '\x1b[32m║\x1b[0m  \x1b[1;36msudo <cmd>\x1b[0m runs in user namespace (fake root)  \x1b[32m║\x1b[0m',
-      '\x1b[32m║\x1b[0m  \x1b[1;33mapt/systemctl\x1b[0m: Not available (no real root) \x1b[32m║\x1b[0m',
-      '\x1b[32m║\x1b[0m  Use \x1b[1;36mnpm/pip3/bun\x1b[0m to install packages instead     \x1b[32m║\x1b[0m',
+      '\x1b[32m║\x1b[0m  \x1b[1;33mSudo: Limited (unprivileged container)\x1b[0m                \x1b[32m║\x1b[0m',
+      '\x1b[32m║\x1b[0m  \x1b[1;33mapt-get\x1b[0m: Not available (use \x1b[36mnpm/pip3\x1b[0m instead)    \x1b[32m║\x1b[0m',
+      '\x1b[32m║\x1b[0m  Type \x1b[1;36mcloudshell-test\x1b[0m to test all tools              \x1b[32m║\x1b[0m',
     ]
   }
 
@@ -441,6 +440,8 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     '\x1b[32m║\x1b[0m  \x1b[1;32m☁ CloudShell\x1b[0m                                             \x1b[32m║\x1b[0m',
     '\x1b[32m╠══════════════════════════════════════════════════════════════╣\x1b[0m',
     ...sudoInfo,
+    '\x1b[32m║\x1b[0m  Type \x1b[1;36mcloudshell-tools\x1b[0m to see installed tools            \x1b[32m║\x1b[0m',
+    '\x1b[32m║\x1b[0m  Type \x1b[1;36mcloudshell-test\x1b[0m to test all commands              \x1b[32m║\x1b[0m',
     '\x1b[32m╚══════════════════════════════════════════════════════════════╝\x1b[0m',
     '',
   ].join('\r\n')
