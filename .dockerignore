@@ -6,3 +6,13 @@ download/
 mini-services/
 examples/
 prisma/
+skills/
+agent-ctx/
+workspace/
+upload/
+.claude
+.z-ai-config
+*.sqlite3
+*.pid
+.env
+bun.lock

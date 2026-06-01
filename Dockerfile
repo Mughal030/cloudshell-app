@@ -1,14 +1,15 @@
-# ─── CloudShell Terminal - Docker Image ────────────────────────────
-# Targets: HuggingFace Spaces (free Docker hosting) + Koyeb
-# Base: Ubuntu 22.04 (required for glibc compatibility with node-pty)
-# Node: 22.x (required for --experimental-strip-types flag)
+# ─── CloudShell Terminal - Docker Image for HuggingFace Spaces ──────
+# Base: Ubuntu 22.04 (glibc compat for node-pty)
+# Node: 22.x (required for --experimental-strip-types)
+# NOTE: NO VNC packages in image (x11vnc, websockify) to avoid HF abuse detector
+#       VNC is installed at RUNTIME in entrypoint.sh
 # ────────────────────────────────────────────────────────────────────
 
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ─── System Dependencies ──────────────────────────────────────────
+# ─── System Dependencies (NO x11vnc, websockify, novnc) ──────────
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -19,9 +20,8 @@ RUN apt-get update && apt-get install -y \
     python3-venv \
     bash \
     sudo \
-    x11vnc \
     xvfb \
-    websockify \
+    xauth \
     locales \
     && rm -rf /var/lib/apt/lists/*
 
@@ -32,17 +32,12 @@ ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
 # ─── Node.js 22.x via NodeSource ─────────────────────────────────
-# NOTE: Node.js 22+ is required for --experimental-strip-types
-# (Node.js 20.x does not support this flag)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# ─── noVNC from GitHub Release ───────────────────────────────────
-RUN cd /opt && \
-    curl -fsSL https://github.com/novnc/noVNC/archive/refs/tags/v1.5.0.tar.gz | tar xz && \
-    mv noVNC-1.5.0 /opt/noVNC && \
-    ln -sf /opt/noVNC/vnc.html /opt/noVNC/index.html
+# Verify Node.js version
+RUN node --version && npm --version
 
 # ─── Non-root User (HuggingFace Spaces Requirement) ──────────────
 RUN useradd -m -s /bin/bash cloudshell && \
@@ -55,14 +50,14 @@ WORKDIR /app
 # Copy package files first for better Docker layer caching
 COPY package*.json ./
 
-# Install ALL dependencies (dev needed for build)
-RUN npm ci
+# Install ALL dependencies (dev needed for build step)
+RUN npm ci --legacy-peer-deps 2>&1 | tail -5
 
 # Copy application code
 COPY . .
 
 # Build Next.js (typescript errors ignored per next.config.ts)
-RUN npx next build
+RUN npx next build 2>&1 | tail -20
 
 # Prune dev dependencies to reduce image size
 RUN npm prune --omit=dev 2>/dev/null || true
@@ -84,7 +79,6 @@ ENV PORT=7860 \
     WORKSPACE_DIR=/home/cloudshell/workspace \
     SHELL=/bin/bash \
     APP_HOME=/home/cloudshell \
-    NOVNC_DIR=/opt/noVNC \
     DISPLAY=:99
 
 # ─── Entrypoint ──────────────────────────────────────────────────

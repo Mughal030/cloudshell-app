@@ -6,7 +6,15 @@ import { v4 as uuidv4 } from 'uuid'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
 import { join, resolve, relative } from 'path'
 import { execSync, spawn as childSpawn, ChildProcess } from 'child_process'
-import httpProxy from 'http-proxy'
+
+// Optional http-proxy — not needed on HF Spaces (no local proxy targets)
+let httpProxy: any = null
+try {
+  httpProxy = await import('http-proxy')
+  httpProxy = httpProxy.default || httpProxy
+} catch {
+  console.log('[Server] http-proxy not available — proxy features disabled')
+}
 
 // ─── Global Error Handlers ───────────────────────────────────────
 process.on('uncaughtException', (err) => {
@@ -290,13 +298,15 @@ function getOpenOutreachStatus(): Record<string, boolean> {
 }
 
 // ─── HTTP Proxy for Open Outreach ────────────────────────────────
-const proxy = httpProxy.createProxyServer({
-  ws: true,
-})
+const proxy = httpProxy ? httpProxy.createProxyServer({ ws: true }) : null
 
-proxy.on('error', (err, _req, _res) => {
-  // Silently ignore proxy errors
-})
+if (proxy) {
+  proxy.on('error', (err: any, _req: any, _res: any) => {
+    // Silently ignore proxy errors
+  })
+} else {
+  console.log('[Server] Proxy disabled — http-proxy not available')
+}
 
 // ─── Ensure workspace directories exist ──────────────────────────
 function ensureWorkspaceDirs() {
@@ -706,8 +716,8 @@ app.prepare().then(() => {
       return
     }
 
-    // Proxy: noVNC
-    if (url.startsWith('/novnc') || url.startsWith('/vnc')) {
+    // Proxy: noVNC (only if proxy available)
+    if (proxy && (url.startsWith('/novnc') || url.startsWith('/vnc'))) {
       let targetPath: string
       if (url.startsWith('/novnc')) {
         targetPath = url.slice('/novnc'.length) || '/vnc.html'
@@ -721,22 +731,22 @@ app.prepare().then(() => {
       return
     }
 
-    // Proxy: Django Admin
-    if (url.startsWith('/admin') || url.startsWith('/django') || url.startsWith('/openoutreach/api')) {
+    // Proxy: Django Admin (only if proxy available)
+    if (proxy && (url.startsWith('/admin') || url.startsWith('/django') || url.startsWith('/openoutreach/api'))) {
       const targetUrl = url.replace(/^\/django/, '').replace(/^\/openoutreach\/api/, '')
       req.url = targetUrl
       proxy.web(req, res, { target: `http://127.0.0.1:${OO_DJANGO_PORT}` })
       return
     }
 
-    // Proxy: Django static files
-    if (url.startsWith('/static/')) {
+    // Proxy: Django static files (only if proxy available)
+    if (proxy && url.startsWith('/static/')) {
       proxy.web(req, res, { target: `http://127.0.0.1:${OO_DJANGO_PORT}` })
       return
     }
 
-    // Proxy: Django media files
-    if (url.startsWith('/media/')) {
+    // Proxy: Django media files (only if proxy available)
+    if (proxy && url.startsWith('/media/')) {
       proxy.web(req, res, { target: `http://127.0.0.1:${OO_DJANGO_PORT}` })
       return
     }
@@ -752,7 +762,7 @@ app.prepare().then(() => {
     const url = req.url || ''
 
     // Forward noVNC WebSocket connections to websockify
-    if (url.startsWith('/novnc') || url.startsWith('/vnc')) {
+    if (proxy && (url.startsWith('/novnc') || url.startsWith('/vnc'))) {
       console.log(`[Proxy] WebSocket upgrade for noVNC: ${url}`)
       proxy.ws(req, socket, head, {
         target: `http://127.0.0.1:${OO_NOVNC_PORT}`
@@ -1041,4 +1051,4 @@ app.prepare().then(() => {
   process.exit(1)
 })
 
-// This won't work as patch - let me add console.log inline instead
+
