@@ -15,12 +15,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CloudShell - Web Terminal IDE",
-  description: "Professional web-based terminal IDE with file management, Docker support, and tool installation.",
-  keywords: ["CloudShell", "terminal", "IDE", "web terminal", "Docker", "development"],
-  authors: [{ name: "CloudShell Team" }],
+  title: "Jasbol Hack - Web Terminal IDE",
+  description: "Professional web-based terminal IDE with file management, Docker support, and tool installation by Jasbol Hack.",
+  keywords: ["Jasbol Hack", "CloudShell", "terminal", "IDE", "web terminal", "Docker", "development", "hacking", "cybersecurity"],
+  authors: [{ name: "Jasbol Hack" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/favicon.png",
+    apple: "/jasbol-hack-logo.png",
   },
 };
 

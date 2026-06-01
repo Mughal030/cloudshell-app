@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
+import Image from 'next/image'
 import {
   Terminal,
   Sun,
@@ -163,10 +164,17 @@ export default function Home() {
       <header className="flex items-center justify-between px-4 h-11 border-b border-[#21262d] bg-[#161b22]/90 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Terminal className="h-4.5 w-4.5 text-[#00ff41]" />
+            <Image
+              src="/jasbol-hack-logo.png"
+              alt="Jasbol Hack"
+              width={28}
+              height={28}
+              className="rounded-sm"
+              priority
+            />
             <h1 className="text-sm font-bold tracking-wide">
-              <span className="text-[#00ff41]">Cloud</span>
-              <span className="text-[#c9d1d9]">Shell</span>
+              <span className="text-[#00ff41]">Jasbol</span>
+              <span className="text-[#c9d1d9]"> Hack</span>
             </h1>
           </div>
           <Separator orientation="vertical" className="h-5 bg-[#21262d]" />
