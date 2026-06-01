@@ -1,15 +1,13 @@
-# ─── CloudShell Terminal - Docker Image for HuggingFace Spaces ──────
+# ─── CloudShell Terminal IDE - Docker Image for Cloud Hosting ──────
 # Base: Ubuntu 22.04 (glibc compat for node-pty)
 # Node: 22.x (required for --experimental-strip-types)
-# NOTE: NO VNC packages in image (x11vnc, websockify) to avoid HF abuse detector
-#       VNC is installed at RUNTIME in entrypoint.sh
 # ────────────────────────────────────────────────────────────────────
 
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ─── System Dependencies (NO x11vnc, websockify, novnc) ──────────
+# ─── System Dependencies ──────────────────────────────────────────
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -20,8 +18,6 @@ RUN apt-get update && apt-get install -y \
     python3-venv \
     bash \
     sudo \
-    xvfb \
-    xauth \
     locales \
     && rm -rf /var/lib/apt/lists/*
 
@@ -39,7 +35,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 # Verify Node.js version
 RUN node --version && npm --version
 
-# ─── Non-root User (HuggingFace Spaces Requirement) ──────────────
+# ─── Non-root User ───────────────────────────────────────────────
 RUN useradd -m -s /bin/bash cloudshell && \
     echo "cloudshell ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/cloudshell && \
     chmod 440 /etc/sudoers.d/cloudshell
@@ -78,14 +74,13 @@ ENV PORT=7860 \
     USER=cloudshell \
     WORKSPACE_DIR=/home/cloudshell/workspace \
     SHELL=/bin/bash \
-    APP_HOME=/home/cloudshell \
-    DISPLAY=:99
+    APP_HOME=/home/cloudshell
 
 # ─── Entrypoint ──────────────────────────────────────────────────
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
-# Expose HuggingFace Spaces default port
+# Expose default port
 EXPOSE 7860
 
 # Switch to non-root user
