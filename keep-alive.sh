@@ -1,33 +1,34 @@
 #!/bin/bash
-# Keep-alive script for CloudShell server
-# This script runs in a loop and restarts the server if it dies
+# CloudShell 24/7 Keep-Alive Script
+# 1. Pings the HF Space to keep it active
+# 2. If the space is sleeping/stopped, restarts it via HF API
+# 3. Runs every 5 minutes
 
-cd /home/z/my-project
-export HOME=/home/z
-export PATH=/home/z/bin:/home/z/.local/bin:/home/z/openoutreach/.venv/bin:/home/z/.venv/bin:/usr/local/bin:/usr/bin:/bin
-export PORT=3000
-export LD_LIBRARY_PATH=/home/z/.local/lib
-export NODE_ENV=production
-
-LOG=/home/z/my-project/server.log
+HF_TOKEN="${HF_TOKEN}"
+SPACE_ID="mughal03/cloudshell-ide"
+URL="https://mughal03-cloudshell-ide.hf.space/api/health"
+API_URL="https://huggingface.co/api/spaces/${SPACE_ID}"
 
 while true; do
-    # Kill any stale processes on port 3000
-    fuser -k 3000/tcp 2>/dev/null || true
-    sleep 1
+    TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
     
-    echo "[$(date)] Starting server..." >> "$LOG"
+    # First, check if the space is running
+    STATUS=$(curl -s -m 10 -H "Authorization: Bearer ${HF_TOKEN}" "$API_URL" 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('runtime',{}).get('stage','unknown'))" 2>/dev/null)
     
-    # Start the server (this blocks until the server exits)
-    node --experimental-strip-types server.ts >> "$LOG" 2>&1
-    EXIT_CODE=$?
-    
-    echo "[$(date)] Server exited with code $EXIT_CODE" >> "$LOG"
-    
-    # Wait before restarting (exit code 0 = intentional, wait longer)
-    if [ "$EXIT_CODE" -eq 0 ]; then
-        sleep 10
+    if [ "$STATUS" = "RUNNING" ]; then
+        # Space is running, just ping it
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 10 "$URL" 2>/dev/null)
+        echo "$TIMESTAMP: Ping OK - Status: $HTTP_CODE"
+    elif [ "$STATUS" = "STOPPED" ] || [ "$STATUS" = "SLEEPING" ]; then
+        # Space is stopped/sleeping, restart it
+        echo "$TIMESTAMP: Space is $STATUS, restarting..."
+        curl -s -m 30 -X POST -H "Authorization: Bearer ${HF_TOKEN}" "${API_URL}/restart" 2>/dev/null
+        echo "$TIMESTAMP: Restart requested"
     else
-        sleep 3
+        # Unknown status, try ping anyway
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -m 10 "$URL" 2>/dev/null)
+        echo "$TIMESTAMP: Status=$STATUS, Ping=$HTTP_CODE"
     fi
+    
+    sleep 300  # 5 minutes
 done

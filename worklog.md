@@ -76,3 +76,30 @@ Stage Summary:
 - nano: PRE-INSTALLED in Docker image
 - sudo apt: Works with passwordless sudo for cloudshell user
 - All 11/11 tools should now show as installed
+
+---
+Task ID: fix-sudo-apt-keepalive
+Agent: main
+Task: Fix sudo apt permission denied + set up 24/7 keep-alive
+
+Work Log:
+- Analyzed screenshot showing "E: List directory /var/lib/apt/lists/ partial is missing. - Acquire (13: Permission denied)"
+- Root cause: entrypoint ran as cloudshell user, couldn't fix /var/lib/apt permissions
+- Fixed Dockerfile: removed USER cloudshell directive, entrypoint starts as ROOT
+- Added gosu package for proper privilege dropping (root -> cloudshell)
+- Entry point now: runs as root, fixes all permissions, then exec gosu cloudshell for the server
+- Fixed /var/lib/apt/lists/partial, /var/cache/apt, /var/lib/dpkg permissions at build time
+- Enhanced sudo wrapper v8 with apt-specific permission fixing
+- Added self-ping keep-alive in server.ts (pings /api/health every 5 min)
+- Created external keep-alive script using HF API:
+  - Pings the space every 5 minutes
+  - Detects if space is STOPPED/SLEEPING and restarts it
+  - Runs as background process on the Z.ai machine
+- Pushed to both GitHub and HF Spaces
+- Verified app is RUNNING with healthy status
+
+Stage Summary:
+- sudo apt-get: FIXED (entrypoint runs as root first, drops to cloudshell via gosu)
+- 24/7 keep-alive: ACTIVE (self-ping + external HF API monitoring + restart)
+- HF Space: https://mughal03-cloudshell-ide.hf.space (RUNNING)
+- Keep-alive script: /home/z/my-project/keep-alive.sh (PID running)
