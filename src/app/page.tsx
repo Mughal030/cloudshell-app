@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-import Image from 'next/image'
 import {
   Terminal,
   Sun,
@@ -164,13 +163,12 @@ export default function Home() {
       <header className="flex items-center justify-between px-4 h-11 border-b border-[#21262d] bg-[#161b22]/90 backdrop-blur-sm shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Image
+            <img
               src="/jasbol-hack-logo.png"
               alt="Jasbol Hack"
               width={28}
               height={28}
               className="rounded-sm"
-              priority
             />
             <h1 className="text-sm font-bold tracking-wide">
               <span className="text-[#00ff41]">Jasbol</span>

@@ -12,9 +12,6 @@ const nextConfig: NextConfig = {
   assetPrefix: undefined,
   // Handle WebSocket connections in production
   serverExternalPackages: ["node-pty", "socket.io"],
-  turbopack: {
-    root: "/home/z/my-project",
-  },
 };
 
 export default nextConfig;
