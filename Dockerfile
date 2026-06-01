@@ -19,6 +19,14 @@ RUN apt-get update && apt-get install -y \
     bash \
     sudo \
     locales \
+    vim \
+    nano \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    iptables \
+    uidmap \
+    dbus-user-session \
     && rm -rf /var/lib/apt/lists/*
 
 # Generate UTF-8 locale
@@ -35,10 +43,21 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 # Verify Node.js version
 RUN node --version && npm --version
 
+# ─── Docker CLI + Rootless Docker ─────────────────────────────────
+# Install Docker CE CLI only (not the full daemon - we'll use rootless mode)
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && chmod a+r /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y docker-ce-cli docker-ce-rootless-extras \
+    && rm -rf /var/lib/apt/lists/*
+
 # ─── Non-root User ───────────────────────────────────────────────
 RUN useradd -m -s /bin/bash cloudshell && \
     echo "cloudshell ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/cloudshell && \
-    chmod 440 /etc/sudoers.d/cloudshell
+    chmod 440 /etc/sudoers.d/cloudshell && \
+    usermod -aG sudo cloudshell
 
 # ─── Application ──────────────────────────────────────────────────
 WORKDIR /app

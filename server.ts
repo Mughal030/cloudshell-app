@@ -59,12 +59,16 @@ const serviceInstallStatus: Record<string, ServiceInstallStatus> = {
 }
 
 function updateServiceStatus() {
-  // Docker
-  serviceInstallStatus.docker.installed = existsSync(`${BIN_DIR}/docker`) || checkCommand('docker')
+  // Docker - check both system Docker and rootless Docker
+  const dockerInPath = checkCommand('docker')
+  const dockerInBin = existsSync(`${BIN_DIR}/docker`)
+  const dockerUsr = existsSync('/usr/bin/docker')
+  serviceInstallStatus.docker.installed = dockerInPath || dockerInBin || dockerUsr
   try {
     execSync('docker info 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
     serviceInstallStatus.docker.running = true
   } catch { serviceInstallStatus.docker.running = false }
+  console.log(`[Docker] installed=${serviceInstallStatus.docker.installed} running=${serviceInstallStatus.docker.running} inPath=${dockerInPath} inUsr=${dockerUsr}`)
 }
 
 function checkCommand(cmd: string): boolean {
@@ -175,29 +179,32 @@ setupSudoWrapper()
 const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'python3', 'pip3', 'sudo']
 
 const TOOL_INSTALL_COMMANDS: Record<string, string> = {
-  git: 'which git 2>/dev/null && echo "git already installed" || echo "git: already available"',
-  docker: `echo "Docker: Rootless Docker available at ${BIN_DIR}/docker - run: dockerd-rootless & then docker ps"`,
-  curl: 'which curl 2>/dev/null && echo "curl already installed" || echo "curl: available"',
-  wget: 'which wget 2>/dev/null && echo "wget already installed" || echo "wget: available"',
-  vim: 'which vim 2>/dev/null && echo "vim already installed" || echo "vim: available"',
-  nano: 'which nano 2>/dev/null && echo "nano already installed" || echo "nano: available"',
-  node: 'which node 2>/dev/null && echo "node already installed" || echo "Install via nvm"',
-  npm: 'which npm 2>/dev/null && echo "npm already installed" || echo "Install via nvm"',
-  python3: 'which python3 2>/dev/null && echo "python3 already installed" || echo "python3: available"',
-  pip3: 'which pip3 2>/dev/null && echo "pip3 already installed" || echo "pip3: available"',
-  sudo: 'which sudo 2>/dev/null && echo "sudo wrapper already installed" || echo "sudo wrapper: available"',
+  git: 'echo "git is pre-installed in the container"',
+  docker: 'echo "Docker CLI is pre-installed. Try: docker ps" || echo "To start daemon: dockerd-rootless.sh &"',
+  curl: 'echo "curl is pre-installed in the container"',
+  wget: 'echo "wget is pre-installed in the container"',
+  vim: 'echo "vim is pre-installed in the container"',
+  nano: 'echo "nano is pre-installed in the container"',
+  node: 'echo "Node.js is pre-installed in the container"',
+  npm: 'echo "npm is pre-installed in the container"',
+  python3: 'echo "python3 is pre-installed in the container"',
+  pip3: 'echo "pip3 is pre-installed in the container"',
+  sudo: 'echo "sudo is pre-installed with passwordless access"',
 }
 
 // ─── Helper: check if a tool is installed ────────────────────────
 function checkTool(name: string): { name: string; installed: boolean; version: string; displayName?: string } {
   try {
     if (name === 'docker') {
-      if (existsSync(`${BIN_DIR}/docker`)) {
+      // Check multiple possible Docker locations
+      const dockerPaths = [`${BIN_DIR}/docker`, '/usr/bin/docker', '/usr/local/bin/docker']
+      const dockerFound = dockerPaths.some(p => existsSync(p)) || checkCommand('docker')
+      if (dockerFound) {
         try {
-          const v = execSync(`${BIN_DIR}/docker --version 2>&1`, { encoding: 'utf-8', timeout: 5000 }).trim()
-          return { name, installed: true, version: v, displayName: 'Docker (Rootless)' }
+          const v = execSync('docker --version 2>&1', { encoding: 'utf-8', timeout: 5000 }).trim()
+          return { name, installed: true, version: v, displayName: 'Docker' }
         } catch {
-          return { name, installed: true, version: 'Rootless Docker', displayName: 'Docker (Rootless)' }
+          return { name, installed: true, version: 'Docker CLI', displayName: 'Docker' }
         }
       }
       return { name, installed: false, version: '' }
