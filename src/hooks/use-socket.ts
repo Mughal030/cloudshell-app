@@ -73,6 +73,9 @@ function getOrCreateSocket(): Socket {
     timeout: 30000,                         // Longer timeout for proxy environments
     forceNew: false,                        // reuse singleton
     rememberUpgrade: true,                  // Remember if websocket worked before
+    auth: {                                 // Pass auth token for Socket.IO auth middleware
+      token: typeof window !== 'undefined' ? localStorage.getItem('jasbol-token') : undefined,
+    },
   })
 
   globalSocket = socket

@@ -18,6 +18,9 @@ import {
   Zap,
   SquareTerminal,
   Globe,
+  LogOut,
+  Shield,
+  User,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
@@ -105,6 +108,39 @@ export default function Home() {
   const [editorFile, setEditorFile] = useState<string | null>(null)
   const [editorContent, setEditorContent] = useState<string | null>(null)
   const [creatingTerminal, setCreatingTerminal] = useState(false)
+  const [currentUser, setCurrentUser] = useState<{userId: string; username: string; role: string} | null>(null)
+
+  // Auth check on mount
+  useEffect(() => {
+    const token = localStorage.getItem('jasbol-token')
+    const userStr = localStorage.getItem('jasbol-user')
+    if (!token) {
+      window.location.href = '/login'
+      return
+    }
+    if (userStr) {
+      try {
+        setCurrentUser(JSON.parse(userStr))
+      } catch {}
+    }
+    // Verify token validity
+    fetch('/api/auth/verify', {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(res => {
+      if (!res.ok) {
+        localStorage.removeItem('jasbol-token')
+        localStorage.removeItem('jasbol-user')
+        window.location.href = '/login'
+      }
+    }).catch(() => {})
+  }, [])
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    localStorage.removeItem('jasbol-token')
+    localStorage.removeItem('jasbol-user')
+    window.location.href = '/login'
+  }
 
   // Prevent hydration mismatch - only render theme-dependent UI after mount
   useEffect(() => {
@@ -219,6 +255,32 @@ export default function Home() {
           >
             {mounted ? (theme === 'dark' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />) : <Sun className="h-3.5 w-3.5 opacity-0" />}
           </Button>
+          <Separator orientation="vertical" className="h-5 bg-[#21262d]" />
+          {/* User Info & Logout */}
+          {currentUser && (
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#0d1117] border border-[#21262d]">
+                {currentUser.role === 'admin' ? (
+                  <Shield className="h-3 w-3 text-[#0ea5e9]" />
+                ) : (
+                  <User className="h-3 w-3 text-[#00ff41]" />
+                )}
+                <span className="text-[10px] font-medium text-[#c9d1d9]">{currentUser.username}</span>
+                {currentUser.role === 'admin' && (
+                  <span className="text-[8px] px-1 py-0.5 rounded bg-[#0ea5e9]/20 text-[#0ea5e9] font-bold">ADMIN</span>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-[#8b949e] hover:text-red-400 hover:bg-[#21262d]"
+                onClick={handleLogout}
+                title="Logout"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
         </div>
       </header>
 

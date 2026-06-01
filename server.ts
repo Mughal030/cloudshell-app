@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
 import { join, resolve, relative } from 'path'
 import { execSync } from 'child_process'
+import { verifyToken, getUserById, getUserWorkspaceDir } from './src/lib/auth.js'
 
 // ─── Global Error Handlers ───────────────────────────────────────
 process.on('uncaughtException', (err) => {
@@ -535,6 +536,38 @@ app.prepare().then(() => {
     transports: ['polling', 'websocket'],
     allowUpgrades: true,
     cookie: false,
+  })
+
+  // ─── Socket.IO Auth Middleware ────────────────────────────────────
+  io.use((socket, next) => {
+    const token = socket.handshake.auth?.token || socket.handshake.query?.token as string || socket.handshake.headers?.cookie
+    if (!token) {
+      // Allow connection without auth for now (backward compat), but mark as unauthenticated
+      socket.data.authenticated = false
+      socket.data.user = null
+      console.log(`[Auth] Socket ${socket.id} connected without auth token`)
+      return next()
+    }
+    
+    // Extract token from cookie if needed
+    let authToken = token
+    if (token.includes('jasbol-token=')) {
+      const match = token.match(/jasbol-token=([^;]+)/)
+      if (match) authToken = match[1]
+    }
+
+    const decoded = verifyToken(authToken)
+    if (!decoded) {
+      socket.data.authenticated = false
+      socket.data.user = null
+      console.log(`[Auth] Socket ${socket.id} - invalid token`)
+      return next()
+    }
+
+    socket.data.authenticated = true
+    socket.data.user = decoded
+    console.log(`[Auth] Socket ${socket.id} authenticated as ${decoded.username} (${decoded.role})`)
+    next()
   })
 
   // ─── Socket.io Connection Handler ────────────────────────────────
