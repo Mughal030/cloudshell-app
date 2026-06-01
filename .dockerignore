@@ -16,3 +16,4 @@ upload/
 *.pid
 .env
 bun.lock
+dribbble-inspiration.json

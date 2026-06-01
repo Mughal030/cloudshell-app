@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
 import { join, resolve, relative } from 'path'
 import { execSync } from 'child_process'
-import { verifyToken, getUserById, getUserWorkspaceDir } from './src/lib/auth.js'
+import { verifyToken, getUserById, getUserWorkspaceDir } from './src/lib/auth.ts'
 
 // ─── Global Error Handlers ───────────────────────────────────────
 process.on('uncaughtException', (err) => {
