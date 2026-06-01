@@ -1,66 +1,105 @@
 #!/bin/bash
-set -e
+# ────────────────────────────────────────────────────────────────────
+# CloudShell Terminal IDE - Docker Entrypoint
+# Starts as ROOT to fix permissions, then drops to cloudshell user.
+# This is required for sudo apt-get and Docker to work properly.
+# ────────────────────────────────────────────────────────────────────
 
 echo "=========================================="
 echo "[Entrypoint] CloudShell Terminal IDE starting..."
-echo "[Entrypoint] User: $(whoami)"
+echo "[Entrypoint] Initial user: $(whoami)"
 echo "[Entrypoint] Home: $HOME"
 echo "[Entrypoint] Workspace: ${WORKSPACE_DIR:-/home/cloudshell/workspace}"
 echo "=========================================="
 
-# ─── Create workspace directory ──────────────────────────────────
-WORKSPACE="${WORKSPACE_DIR:-/home/cloudshell/workspace}"
-mkdir -p "$WORKSPACE" 2>/dev/null || true
-echo "[Entrypoint] Workspace directory ready: $WORKSPACE"
+# ─── Fix APT permissions (run as root) ─────────────────────────
+echo "[Entrypoint] Fixing APT directory permissions..."
+mkdir -p /var/lib/apt/lists/partial 2>/dev/null || true
+chown -R root:root /var/lib/apt 2>/dev/null || true
+chmod -R 755 /var/lib/apt 2>/dev/null || true
+mkdir -p /var/cache/apt 2>/dev/null || true
+chown -R root:root /var/cache/apt 2>/dev/null || true
+chmod -R 755 /var/cache/apt 2>/dev/null || true
+mkdir -p /var/lib/dpkg/lock-frontend 2>/dev/null || true
+chown -R root:root /var/lib/dpkg 2>/dev/null || true
+chmod -R 755 /var/lib/dpkg 2>/dev/null || true
 
-# ─── Create .local directories ───────────────────────────────────
-mkdir -p "${HOME}/.local/bin" 2>/dev/null || true
-mkdir -p "${HOME}/.local/lib" 2>/dev/null || true
-mkdir -p "${HOME}/.local/share" 2>/dev/null || true
-mkdir -p "${HOME}/.cache" 2>/dev/null || true
-mkdir -p "${HOME}/bin" 2>/dev/null || true
-echo "[Entrypoint] User directories created"
+# Fix /tmp permissions
+chmod 1777 /tmp 2>/dev/null || true
+chmod 1777 /var/tmp 2>/dev/null || true
 
-# ─── Setup Rootless Docker ──────────────────────────────────────
-# Check if Docker CLI is available
+# Ensure sudoers is correct
+echo "cloudshell ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/cloudshell 2>/dev/null || true
+chmod 440 /etc/sudoers.d/cloudshell 2>/dev/null || true
+echo "[Entrypoint] APT directories and sudoers fixed"
+
+# ─── Fix cloudshell home permissions ───────────────────────────
+mkdir -p /home/cloudshell/workspace 2>/dev/null || true
+mkdir -p /home/cloudshell/.local/bin 2>/dev/null || true
+mkdir -p /home/cloudshell/.local/lib 2>/dev/null || true
+mkdir -p /home/cloudshell/.local/share 2>/dev/null || true
+mkdir -p /home/cloudshell/.cache 2>/dev/null || true
+mkdir -p /home/cloudshell/bin 2>/dev/null || true
+chown -R cloudshell:cloudshell /home/cloudshell 2>/dev/null || true
+echo "[Entrypoint] Cloudshell home directory fixed"
+
+# ─── Create effective sudo wrapper ──────────────────────────────
+WRAPPER_DIR="/home/cloudshell/.local/bin"
+mkdir -p "$WRAPPER_DIR" 2>/dev/null || true
+
+cat > "${WRAPPER_DIR}/sudo" << 'SUDOWRAPPER'
+#!/bin/bash
+# CloudShell sudo wrapper v8 - handles apt and system commands properly
+# First try real sudo (works when entrypoint runs as root)
+if /usr/bin/sudo -n "$@" 2>/dev/null; then
+    exit 0
+fi
+
+# For apt-get commands, fix permissions and retry
+case "$1" in
+    apt|apt-get)
+        shift
+        # Fix apt directories before running
+        /usr/bin/sudo mkdir -p /var/lib/apt/lists/partial 2>/dev/null
+        /usr/bin/sudo chmod -R 755 /var/lib/apt 2>/dev/null
+        /usr/bin/sudo chown -R root:root /var/lib/apt 2>/dev/null
+        /usr/bin/sudo mkdir -p /var/cache/apt 2>/dev/null
+        /usr/bin/sudo chmod -R 755 /var/cache/apt 2>/dev/null
+        /usr/bin/sudo chown -R root:root /var/cache/apt 2>/dev/null
+        # Now try the apt command
+        /usr/bin/sudo "$@" 2>/dev/null && exit 0
+        # If real sudo still fails, try with unshare
+        exec unshare --user --map-root-user "$@"
+        ;;
+    dpkg)
+        shift
+        /usr/bin/sudo "$@" 2>/dev/null && exit 0
+        exec unshare --user --map-root-user "$@"
+        ;;
+    systemctl|service)
+        shift
+        echo "Warning: $1 requires real root access (not available in this container)"
+        exec unshare --user --map-root-user "$@"
+        ;;
+    *)
+        /usr/bin/sudo "$@" 2>/dev/null && exit 0
+        exec unshare --user --map-root-user "$@"
+        ;;
+esac
+SUDOWRAPPER
+chown cloudshell:cloudshell "${WRAPPER_DIR}/sudo" 2>/dev/null || true
+chmod +x "${WRAPPER_DIR}/sudo" 2>/dev/null || true
+echo "[Entrypoint] Enhanced sudo wrapper created"
+
+# ─── Setup Docker ──────────────────────────────────────────────
 if command -v docker &> /dev/null; then
     echo "[Entrypoint] Docker CLI found: $(docker --version 2>/dev/null || echo 'version unknown')"
-
-    # Try to set up rootless Docker if not already set up
-    if [ ! -d "${HOME}/.local/share/docker" ]; then
-        echo "[Entrypoint] Setting up rootless Docker..."
-        # dockerd-rootless-setuptool.sh may not work in all environments
-        # but we try anyway - if it fails, Docker CLI still works for remote hosts
-        dockerd-rootless-setuptool.sh install 2>/dev/null || {
-            echo "[Entrypoint] Rootless Docker setup failed - Docker CLI available for remote use only"
-        }
-    fi
-
-    # Try to start rootless Docker daemon in background (non-blocking)
-    if [ -f "${HOME}/.local/share/docker" ] || [ -f /usr/bin/dockerd-rootless.sh ]; then
-        echo "[Entrypoint] Attempting to start rootless Docker daemon..."
-        (dockerd-rootless.sh --experimental &>/tmp/dockerd-rootless.log &) 2>/dev/null || {
-            echo "[Entrypoint] Could not start rootless Docker daemon"
-        }
-        # Give Docker daemon a few seconds to start
-        sleep 3
-        if docker info &>/dev/null; then
-            echo "[Entrypoint] Docker daemon is running!"
-        else
-            echo "[Entrypoint] Docker daemon not running - CLI available for remote connections"
-        fi
-    fi
 else
-    echo "[Entrypoint] Docker CLI not found - installing..."
-    # Fallback: try to install Docker CLI at runtime if not in image
-    if command -v sudo &> /dev/null; then
-        sudo apt-get update -qq && sudo apt-get install -y -qq docker.io 2>/dev/null || {
-            echo "[Entrypoint] Could not install Docker at runtime"
-        }
-    fi
+    echo "[Entrypoint] Docker CLI not found"
 fi
 
 # ─── Create sample dockerfiles directory ────────────────────────
+WORKSPACE="${WORKSPACE_DIR:-/home/cloudshell/workspace}"
 mkdir -p "${WORKSPACE}/.dockerfiles" 2>/dev/null || true
 if [ ! -f "${WORKSPACE}/.dockerfiles/Dockerfile.app" ]; then
     cat > "${WORKSPACE}/.dockerfiles/Dockerfile.app" << 'DOCKERFILE'
@@ -70,12 +109,13 @@ WORKDIR /app
 COPY . .
 CMD ["/bin/bash"]
 DOCKERFILE
+    chown -R cloudshell:cloudshell "${WORKSPACE}/.dockerfiles" 2>/dev/null || true
     echo "[Entrypoint] Sample Dockerfile created"
 fi
 
 # ─── Create .bashrc with useful aliases ──────────────────────────
-if [ ! -f "${HOME}/.bashrc_cloudshell" ]; then
-    cat > "${HOME}/.bashrc_cloudshell" << 'BASHRC'
+if [ ! -f "/home/cloudshell/.bashrc_cloudshell" ]; then
+    cat > "/home/cloudshell/.bashrc_cloudshell" << 'BASHRC'
 # CloudShell custom bashrc additions
 export PATH="${HOME}/bin:${HOME}/.local/bin:${PATH}"
 export EDITOR=vim
@@ -106,18 +146,29 @@ cloudshell-tools() {
     done
 }
 BASHRC
+    chown cloudshell:cloudshell "/home/cloudshell/.bashrc_cloudshell" 2>/dev/null || true
     echo "[Entrypoint] Custom bashrc created"
 fi
 
 # Append to .bashrc if not already done
-if ! grep -q "bashrc_cloudshell" "${HOME}/.bashrc" 2>/dev/null; then
-    echo "" >> "${HOME}/.bashrc"
-    echo "# CloudShell custom additions" >> "${HOME}/.bashrc"
-    echo "[ -f \"${HOME}/.bashrc_cloudshell\" ] && source \"${HOME}/.bashrc_cloudshell\"" >> "${HOME}/.bashrc"
+if ! grep -q "bashrc_cloudshell" "/home/cloudshell/.bashrc" 2>/dev/null; then
+    echo "" >> "/home/cloudshell/.bashrc"
+    echo "# CloudShell custom additions" >> "/home/cloudshell/.bashrc"
+    echo "[ -f \"\${HOME}/.bashrc_cloudshell\" ] && source \"\${HOME}/.bashrc_cloudshell\"" >> "/home/cloudshell/.bashrc"
 fi
 
-# ─── Execute main process ────────────────────────────────────────
+# ─── NOW DROP TO CLOUDSHELL USER AND START THE SERVER ──────────
 echo "=========================================="
+echo "[Entrypoint] Dropping to cloudshell user..."
 echo "[Entrypoint] Starting server: $*"
 echo "=========================================="
-exec "$@"
+
+# Use gosu or su to drop privileges, then exec the CMD
+if command -v gosu &> /dev/null; then
+    exec gosu cloudshell "$@"
+elif command -v su-exec &> /dev/null; then
+    exec su-exec cloudshell "$@"
+else
+    # Fallback: use su
+    exec su -c "export HOME=/home/cloudshell USER=cloudshell PATH=/home/cloudshell/bin:/home/cloudshell/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin && cd /app && $*" cloudshell
+fi

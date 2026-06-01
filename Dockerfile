@@ -27,6 +27,7 @@ RUN apt-get update && apt-get install -y \
     iptables \
     uidmap \
     dbus-user-session \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Generate UTF-8 locale
@@ -83,8 +84,17 @@ RUN mkdir -p /home/cloudshell/workspace \
     /home/cloudshell/.local/lib \
     /home/cloudshell/.local/share \
     /home/cloudshell/.cache \
+    /home/cloudshell/bin \
     && chown -R cloudshell:cloudshell /home/cloudshell \
     && chown -R cloudshell:cloudshell /app
+
+# ─── Fix APT directories at build time ──────────────────────────
+RUN mkdir -p /var/lib/apt/lists/partial \
+    && chown -R root:root /var/lib/apt \
+    && chmod -R 755 /var/lib/apt \
+    && mkdir -p /var/cache/apt \
+    && chown -R root:root /var/cache/apt \
+    && chmod -R 755 /var/cache/apt
 
 # ─── Environment Variables ───────────────────────────────────────
 ENV PORT=7860 \
@@ -96,14 +106,17 @@ ENV PORT=7860 \
     APP_HOME=/home/cloudshell
 
 # ─── Entrypoint ──────────────────────────────────────────────────
+# IMPORTANT: Entry point runs as ROOT first to fix permissions,
+# then drops to cloudshell user to start the server.
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
 # Expose default port
 EXPOSE 7860
 
-# Switch to non-root user
-USER cloudshell
+# NOTE: We do NOT use USER directive here.
+# The entrypoint starts as root, fixes permissions, then drops to cloudshell.
+# This is required for sudo apt-get and Docker to work properly.
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \

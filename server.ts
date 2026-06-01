@@ -117,6 +117,33 @@ CMD ["/bin/bash"]
 
 ensureWorkspaceDirs()
 
+// ─── Fix APT directories for sudo apt-get ───────────────────────
+function fixAptDirectories() {
+  try {
+    const aptDirs = [
+      '/var/lib/apt/lists',
+      '/var/lib/apt/lists/partial',
+      '/var/cache/apt',
+      '/var/lib/dpkg',
+    ]
+    for (const dir of aptDirs) {
+      try {
+        if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+        execSync(`chown -R root:root ${dir} 2>/dev/null && chmod -R 755 ${dir} 2>/dev/null`, { encoding: 'utf-8', timeout: 3000 })
+      } catch {}
+    }
+    // Create dpkg lock-frontend
+    try {
+      if (!existsSync('/var/lib/dpkg/lock-frontend')) mkdirSync('/var/lib/dpkg/lock-frontend', { recursive: true })
+    } catch {}
+    console.log('[Server] APT directories fixed')
+  } catch (err) {
+    console.warn('[Server] Could not fix APT directories:', err)
+  }
+}
+
+fixAptDirectories()
+
 // ─── Configure Sudo ─────────────────────────────────────────────
 function configureSudo() {
   try {
@@ -161,9 +188,30 @@ function setupSudoWrapper() {
 
     const wrapperScript = [
       '#!/bin/bash',
-      '# CloudShell sudo wrapper v6',
+      '# CloudShell sudo wrapper v7',
+      '# First try real sudo',
       'if /usr/bin/sudo -n "$@" 2>/dev/null; then exit 0; fi',
-      'exec unshare --user --map-root-user "$@"',
+      '#',
+      '# For apt-get commands, fix permissions and retry',
+      'case "$1" in',
+      '  apt|apt-get)',
+      '    shift',
+      '    /usr/bin/sudo mkdir -p /var/lib/apt/lists/partial 2>/dev/null',
+      '    /usr/bin/sudo chmod -R 755 /var/lib/apt 2>/dev/null',
+      '    /usr/bin/sudo chown -R root:root /var/lib/apt 2>/dev/null',
+      '    /usr/bin/sudo "$@" 2>/dev/null && exit 0',
+      '    exec unshare --user --map-root-user "$@"',
+      '    ;;',
+      '  dpkg)',
+      '    shift',
+      '    /usr/bin/sudo "$@" 2>/dev/null && exit 0',
+      '    exec unshare --user --map-root-user "$@"',
+      '    ;;',
+      '  *)',
+      '    /usr/bin/sudo "$@" 2>/dev/null && exit 0',
+      '    exec unshare --user --map-root-user "$@"',
+      '    ;;',
+      'esac',
     ].join('\n')
     writeFileSync(wrapperPath, wrapperScript, 'utf-8')
     execSync(`chmod +x ${wrapperPath}`, { encoding: 'utf-8' })
@@ -174,6 +222,36 @@ function setupSudoWrapper() {
 }
 
 setupSudoWrapper()
+
+// ─── 24/7 Keep-Alive: Self-ping to prevent HF Spaces sleep ─────
+// HF Spaces auto-pauses after 48h inactivity. This keeps it alive.
+const KEEP_ALIVE_INTERVAL = 5 * 60 * 1000 // 5 minutes
+const SELF_PING_URL = `http://localhost:${PORT}/api/health`
+
+function startKeepAlive() {
+  console.log('[KeepAlive] Starting 24/7 self-ping mechanism...')
+  console.log(`[KeepAlive] Will ping ${SELF_PING_URL} every 5 minutes`)
+
+  const pingSelf = () => {
+    try {
+      const http = require('http')
+      http.get(SELF_PING_URL, (res: any) => {
+        const uptime = Math.floor(process.uptime())
+        console.log(`[KeepAlive] Self-ping OK (uptime: ${uptime}s, status: ${res.statusCode})`)
+      }).on('error', (err: any) => {
+        console.warn(`[KeepAlive] Self-ping failed: ${err.message}`)
+      })
+    } catch {}
+  }
+
+  // Start pinging after 30 seconds (give server time to start)
+  setTimeout(() => {
+    pingSelf()
+    setInterval(pingSelf, KEEP_ALIVE_INTERVAL)
+  }, 30000)
+}
+
+startKeepAlive()
 
 // ─── Tool definitions ────────────────────────────────────────────
 const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'python3', 'pip3', 'sudo']
