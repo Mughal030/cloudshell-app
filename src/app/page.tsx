@@ -44,33 +44,44 @@ const XtermTerminal = dynamic(
 
 // Quick install categories - rootless alternatives that work without sudo
 const QUICK_INSTALL = {
+  'AI & CLI Tools': [
+    { name: 'Claude Code', cmd: 'setup-claude-code' },
+    { name: 'TypeScript', cmd: 'npm install -g typescript && echo "TypeScript installed! Run: tsc --version"' },
+    { name: 'Vercel CLI', cmd: 'npm install -g vercel && echo "Vercel CLI installed! Run: vercel"' },
+    { name: 'Netlify CLI', cmd: 'npm install -g netlify-cli && echo "Netlify CLI installed! Run: netlify"' },
+    { name: 'AWS CLI v2', cmd: 'curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip" && cd /tmp && unzip -q awscliv2.zip && ./aws/install -i ~/.local/aws-cli -b ~/.local/bin && echo "AWS CLI installed! Run: aws --version"' },
+    { name: 'GitHub CLI', cmd: 'curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=~/.local/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null && echo "deb [arch=$(dpkg --print-architecture) signed-by=~/.local/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null && sudo apt update && sudo apt install gh -y && echo "GitHub CLI installed! Run: gh auth login"' },
+  ],
   'Dev Tools': [
     { name: 'git', cmd: 'which git 2>/dev/null && echo "git already installed" || echo "git not available (needs root). Try: conda install git"' },
     { name: 'vim', cmd: 'which vim 2>/dev/null && echo "vim already installed" || echo "vim not available (needs root). Try: nano (pre-installed)"' },
     { name: 'nano', cmd: 'which nano 2>/dev/null && echo "nano already installed" || echo "nano not available (needs root)"' },
     { name: 'tmux', cmd: 'which tmux 2>/dev/null && echo "tmux already installed" || echo "tmux not available (needs root). Use terminal tabs instead."' },
     { name: 'htop', cmd: 'which htop 2>/dev/null && echo "htop already installed" || echo "htop not available (needs root). Try: top"' },
+    { name: 'Node.js (nvm)', cmd: 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && source ~/.bashrc && nvm install --lts' },
   ],
   'Languages': [
-    { name: 'Node.js (nvm)', cmd: 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && source ~/.bashrc && nvm install --lts' },
     { name: 'Python pip', cmd: 'pip3 install --upgrade pip 2>/dev/null || python3 -m pip install --upgrade pip' },
     { name: 'Go', cmd: 'curl -fsSL https://go.dev/dl/go1.22.0.linux-amd64.tar.gz | tar -C ~/.local -xzf - && echo "export PATH=$HOME/.local/go/bin:$PATH" >> ~/.bashrc && echo "Go installed! Run: source ~/.bashrc"' },
     { name: 'Rust', cmd: 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env' },
+    { name: 'Bun', cmd: 'curl -fsSL https://bun.sh/install | bash && echo "Bun installed! Run: source ~/.bashrc && bun --version"' },
+    { name: 'Deno', cmd: 'curl -fsSL https://deno.land/install.sh | sh && echo "Deno installed! Run: ~/.deno/bin/deno"' },
   ],
   'Containers': [
-    { name: 'Podman (rootless)', cmd: 'echo "Podman requires root for installation. Alternative: download static binary from github.com/containers/podman/releases"' },
     { name: 'Docker Compose', cmd: 'mkdir -p ~/.local/bin && curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o ~/.local/bin/docker-compose && chmod +x ~/.local/bin/docker-compose && echo "Docker Compose installed to ~/.local/bin/"' },
+    { name: 'kubectl', cmd: 'curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && chmod +x kubectl && mv kubectl ~/.local/bin/ && echo "kubectl installed! Run: kubectl version"' },
   ],
   'Network': [
     { name: 'curl', cmd: 'which curl 2>/dev/null && echo "curl already installed" || echo "curl not available (needs root)"' },
     { name: 'wget', cmd: 'which wget 2>/dev/null && echo "wget already installed" || echo "wget not available (needs root)"' },
-    { name: 'net-tools', cmd: 'which ss 2>/dev/null && echo "ss available" || echo "Use: ss -tulnp (pre-installed) instead of netstat"' },
     { name: 'OpenSSH Client', cmd: 'which ssh 2>/dev/null && echo "ssh already installed" || echo "ssh not available (needs root)"' },
+    { name: 'ngrok', cmd: 'curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc > /dev/null && echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list && sudo apt update && sudo apt install ngrok && echo "ngrok installed! Run: ngrok config add-authtoken YOUR_TOKEN"' },
   ],
   'Databases': [
     { name: 'PostgreSQL Client', cmd: 'pip3 install pgcli 2>/dev/null && echo "pgcli installed via pip" || echo "Install via pip: pip3 install pgcli"' },
     { name: 'MySQL Client', cmd: 'pip3 install mycli 2>/dev/null && echo "mycli installed via pip" || echo "Install via pip: pip3 install mycli"' },
     { name: 'Redis Tools', cmd: 'pip3 install iredis 2>/dev/null && echo "iredis installed via pip" || echo "Install via pip: pip3 install iredis"' },
+    { name: 'SQLite Browser', cmd: 'pip3 install sqlite-web 2>/dev/null && echo "sqlite-web installed via pip" || echo "Install via pip: pip3 install sqlite-web"' },
   ],
 }
 

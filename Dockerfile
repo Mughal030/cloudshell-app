@@ -121,7 +121,15 @@ RUN useradd -m -s /bin/bash cloudshell && \
 # Instead of writing to /usr/lib/node_modules (root-only), npm will
 # install global packages to ~/.npm-global/ which the user owns
 RUN mkdir -p /home/cloudshell/.npm-global \
+    && mkdir -p /home/cloudshell/.npm-global/lib \
+    && mkdir -p /home/cloudshell/.npm-global/bin \
     && chown -R cloudshell:cloudshell /home/cloudshell/.npm-global
+
+# ─── Create .npmrc for cloudshell user at BUILD TIME ────────────────
+# This ensures npm uses the user-writable global prefix even before
+# the entrypoint runs. Critical for `npm install -g` to work.
+RUN echo "prefix=/home/cloudshell/.npm-global" > /home/cloudshell/.npmrc \
+    && chown cloudshell:cloudshell /home/cloudshell/.npmrc
 
 # ─── Application ──────────────────────────────────────────────────
 WORKDIR /app
@@ -171,7 +179,8 @@ ENV PORT=7860 \
     WORKSPACE_DIR=/home/cloudshell/workspace \
     SHELL=/bin/bash \
     APP_HOME=/home/cloudshell \
-    NPM_CONFIG_PREFIX=/home/cloudshell/.npm-global
+    NPM_CONFIG_PREFIX=/home/cloudshell/.npm-global \
+    PATH=/home/cloudshell/bin:/home/cloudshell/.local/bin:/home/cloudshell/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # ─── Entrypoint ──────────────────────────────────────────────────
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh

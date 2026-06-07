@@ -364,6 +364,12 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
       LD_LIBRARY_PATH: LOCAL_LIB,
       NPM_CONFIG_PREFIX: NPM_GLOBAL,
       WORKSPACE_DIR: userWorkspace,
+      // Pass through Claude/Anthropic env vars if set in server env or .bashrc_env
+      ...(process.env.ANTHROPIC_BASE_URL ? { ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL } : {}),
+      ...(process.env.ANTHROPIC_AUTH_TOKEN ? { ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN } : {}),
+      ...(process.env.ANTHROPIC_MODEL ? { ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL } : {}),
+      ...(process.env.CLAUDE_CODE_USE_AUTH_TOKEN ? { CLAUDE_CODE_USE_AUTH_TOKEN: process.env.CLAUDE_CODE_USE_AUTH_TOKEN } : {}),
+      ...(process.env.ANTHROPIC_API_KEY ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } : {}),
     },
   })
 
@@ -373,13 +379,25 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
 
   const welcomeBanner = [
     '',
-    '\x1b[32m╔══════════════════════════════════════════════════════════════╗\x1b[0m',
-    '\x1b[32m║\x1b[0m  \x1b[1;32m☁ CloudShell by Jasbol Hack\x1b[0m                           \x1b[32m║\x1b[0m',
-    '\x1b[32m╠══════════════════════════════════════════════════════════════╣\x1b[0m',
-    userId ? `\x1b[32m║\x1b[0m  \x1b[1;36mUser:\x1b[0m ${userId.split('-')[0]}...  \x1b[1;36mWorkspace:\x1b[0m ${userWorkspace}`.padEnd(62) + '\x1b[32m║\x1b[0m' : '',
-    '\x1b[32m║\x1b[0m  Type \x1b[1;36mcloudshell-test\x1b[0m to test all commands              \x1b[32m║\x1b[0m',
-    '\x1b[32m║\x1b[0m  Type \x1b[1;36mnpm-global-help\x1b[0m for npm install -g help         \x1b[32m║\x1b[0m',
-    '\x1b[32m╚══════════════════════════════════════════════════════════════╝\x1b[0m',
+    '\x1b[32m╔══════════════════════════════════════════════════════════════════╗\x1b[0m',
+    '\x1b[32m║\x1b[0m  \x1b[1;32m☁ CloudShell by Jasbol Hack\x1b[0m                                \x1b[32m║\x1b[0m',
+    '\x1b[32m╠══════════════════════════════════════════════════════════════════╣\x1b[0m',
+    userId ? `\x1b[32m║\x1b[0m  \x1b[1;36mUser:\x1b[0m ${userId.split('-')[0]}...  \x1b[1;36mWorkspace:\x1b[0m ${userWorkspace}`.padEnd(66) + '\x1b[32m║\x1b[0m' : '',
+    '\x1b[32m║\x1b[0m  \x1b[1;33mnpm install -g\x1b[0m works without sudo!                       \x1b[32m║\x1b[0m',
+    '\x1b[32m║\x1b[0m  \x1b[1;36msetup-claude-code\x1b[0m  - Install Claude Code CLI           \x1b[32m║\x1b[0m',
+    '\x1b[32m║\x1b[0m  \x1b[1;36msetup-claude-env\x1b[0m   - Set Claude API credentials       \x1b[32m║\x1b[0m',
+    '\x1b[32m║\x1b[0m  \x1b[1;36mcloudshell-test\x1b[0m    - Test all commands                  \x1b[32m║\x1b[0m',
+    '\x1b[32m║\x1b[0m  \x1b[1;36mnpm-global-help\x1b[0m    - npm install -g help                \x1b[32m║\x1b[0m',
+    '\x1b[32m╚══════════════════════════════════════════════════════════════════╝\x1b[0m',
+    '',
+    '\x1b[33m  Claude Code CLI Quick Setup (Linux - use export, NOT setx):\x1b[0m',
+    '\x1b[2m  1. npm install -g @anthropic-ai/claude-code\x1b[0m',
+    '\x1b[2m  2. export ANTHROPIC_BASE_URL="https://your-endpoint.com/"\x1b[0m',
+    '\x1b[2m  3. export ANTHROPIC_AUTH_TOKEN="sk-your-key"\x1b[0m',
+    '\x1b[2m  4. export ANTHROPIC_MODEL="claude-opus-4-6"\x1b[0m',
+    '\x1b[2m  5. export CLAUDE_CODE_USE_AUTH_TOKEN="true"\x1b[0m',
+    '\x1b[2m  6. claude\x1b[0m',
+    '\x1b[2m  Or: setup-claude-env "https://your-endpoint/" "sk-your-key" "claude-opus-4-6"\x1b[0m',
     '',
   ].filter(Boolean).join('\r\n')
 

@@ -54,12 +54,18 @@ prefix=/home/cloudshell/.npm-global
 NPMRC
 chown cloudshell:cloudshell /home/cloudshell/.npmrc 2>/dev/null || true
 
+# Also create system-wide npmrc as fallback
+cat > /etc/npmrc << 'NPMRC'
+prefix=/home/cloudshell/.npm-global
+NPMRC
+chmod 644 /etc/npmrc 2>/dev/null || true
+
 # Ensure the npm-global/bin is in PATH for all shells
 echo "[Entrypoint] npm global prefix set to ${NPM_GLOBAL_DIR}"
 echo "[Entrypoint] Users can now run: npm install -g <package>"
 
 # ─── Create smart sudo wrapper ──────────────────────────────────
-# In HF Spaces, the container is UNPRIVILEGED - even with sudo,
+# In HF Spaces, the container may be UNPRIVILEGED - even with sudo,
 # the kernel blocks operations like writing to /var/lib/apt/.
 # This wrapper provides real functionality by using alternative methods.
 WRAPPER_DIR="/home/cloudshell/.local/bin"
@@ -67,11 +73,11 @@ mkdir -p "$WRAPPER_DIR" 2>/dev/null || true
 
 cat > "${WRAPPER_DIR}/sudo" << 'SUDOWRAPPER'
 #!/bin/bash
-# CloudShell sudo wrapper v10 - works in unprivileged containers
+# CloudShell sudo wrapper v11 - works in unprivileged containers
 # Tries real sudo first, then provides smart alternatives
 
 # First: try real sudo (works on some platforms)
-/usr/bin/sudo -n "$@" 2>/dev/null && exit 0
+/usr/bin/sudo "$@" 2>/dev/null && exit 0
 
 # Second: for apt-get/apt commands, try with real sudo + permission fixes
 case "$1" in
@@ -79,8 +85,6 @@ case "$1" in
         CMD="$1"; shift
         case "$1" in
             update)
-                /usr/bin/sudo mkdir -p /var/lib/apt/lists/partial 2>/dev/null
-                /usr/bin/sudo chmod -R 777 /var/lib/apt/lists 2>/dev/null
                 /usr/bin/sudo apt-get update "$@" 2>/dev/null && exit 0
                 echo "⚠ apt-get update not available in this container (unprivileged)"
                 echo "  Most packages are pre-installed. For new packages, use:"
@@ -120,6 +124,14 @@ case "$1" in
         npm "$@"
         exit $?
         ;;
+    chown|chmod)
+        # Try real sudo for file permissions
+        /usr/bin/sudo "$@" 2>/dev/null && exit 0
+        # If that fails, try the operation without sudo (may work for user-owned files)
+        "$@" 2>/dev/null && exit 0
+        echo "⚠ Permission change failed - may need root access"
+        exit 1
+        ;;
     docker|dockerd*)
         /usr/bin/sudo "$@" 2>/dev/null && exit 0
         "$@" 2>/dev/null && exit 0
@@ -138,7 +150,7 @@ esac
 SUDOWRAPPER
 chown cloudshell:cloudshell "${WRAPPER_DIR}/sudo" 2>/dev/null || true
 chmod +x "${WRAPPER_DIR}/sudo" 2>/dev/null || true
-echo "[Entrypoint] Smart sudo wrapper v10 created"
+echo "[Entrypoint] Smart sudo wrapper v11 created"
 
 # ─── Setup Docker ──────────────────────────────────────────────
 if command -v docker &> /dev/null; then
@@ -197,6 +209,94 @@ fi
 # Quick install functions (work WITHOUT sudo apt)
 npm-install() { npm install -g "$@"; }
 pip-install() { pip3 install --user "$@" && export PATH="${HOME}/.local/bin:${PATH}"; }
+
+# ─── Claude Code CLI Setup ──────────────────────────────────
+# Install Claude Code: npm install -g @anthropic-ai/claude-code
+# On Linux (NOT Windows setx), use export to set env vars:
+#
+#   export ANTHROPIC_BASE_URL="https://your-api-endpoint.com/"
+#   export ANTHROPIC_AUTH_TOKEN="sk-your-api-key-here"
+#   export ANTHROPIC_MODEL="claude-opus-4-6"
+#   export CLAUDE_CODE_USE_AUTH_TOKEN="true"
+#   claude
+#
+# To persist these across sessions, add them to ~/.bashrc_env:
+#   setup-claude-env "https://your-endpoint/" "sk-your-key" "claude-opus-4-6"
+#
+setup-claude-code() {
+    echo "=== Installing Claude Code CLI ==="
+    npm install -g @anthropic-ai/claude-code
+    echo ""
+    echo "=== Claude Code installed! ==="
+    echo ""
+    echo "Now set your API credentials (Linux uses export, NOT setx):"
+    echo ""
+    echo "  export ANTHROPIC_BASE_URL=\"https://your-api-endpoint.com/\""
+    echo "  export ANTHROPIC_AUTH_TOKEN=\"sk-your-api-key-here\""
+    echo "  export ANTHROPIC_MODEL=\"claude-opus-4-6\""
+    echo "  export CLAUDE_CODE_USE_AUTH_TOKEN=\"true\""
+    echo "  claude"
+    echo ""
+    echo "Or use the helper:"
+    echo "  setup-claude-env \"https://your-endpoint/\" \"sk-your-key\" \"claude-opus-4-6\""
+}
+
+setup-claude-env() {
+    local BASE_URL="${1:-}"
+    local AUTH_TOKEN="${2:-}"
+    local MODEL="${3:-claude-opus-4-6}"
+
+    if [ -z "$BASE_URL" ] || [ -z "$AUTH_TOKEN" ]; then
+        echo "Usage: setup-claude-env <base_url> <auth_token> [model]"
+        echo ""
+        echo "Example:"
+        echo "  setup-claude-env \"https://agentrouter.org/\" \"sk-abc123\" \"claude-opus-4-6\""
+        return 1
+    fi
+
+    # Set for current session
+    export ANTHROPIC_BASE_URL="$BASE_URL"
+    export ANTHROPIC_AUTH_TOKEN="$AUTH_TOKEN"
+    export ANTHROPIC_MODEL="$MODEL"
+    export CLAUDE_CODE_USE_AUTH_TOKEN="true"
+
+    # Persist to ~/.bashrc_env for future sessions
+    cat > "${HOME}/.bashrc_env" << ENVEOF
+# Claude Code CLI Environment Variables
+# Set on $(date)
+export ANTHROPIC_BASE_URL="${BASE_URL}"
+export ANTHROPIC_AUTH_TOKEN="${AUTH_TOKEN}"
+export ANTHROPIC_MODEL="${MODEL}"
+export CLAUDE_CODE_USE_AUTH_TOKEN="true"
+ENVEOF
+
+    echo "✓ Claude Code environment configured!"
+    echo "  ANTHROPIC_BASE_URL=$ANTHROPIC_BASE_URL"
+    echo "  ANTHROPIC_MODEL=$ANTHROPIC_MODEL"
+    echo "  ANTHROPIC_AUTH_TOKEN=****${AUTH_TOKEN: -4}"
+    echo "  CLAUDE_CODE_USE_AUTH_TOKEN=true"
+    echo ""
+    echo "  Saved to ~/.bashrc_env (persists across sessions)"
+    echo "  Run 'claude' to start!"
+}
+
+# ─── General env var helper ──────────────────────────────────
+# On Linux, use 'export' instead of Windows 'setx'
+# To persist an env var: add it to ~/.bashrc_env
+setenv() {
+    if [ -z "$1" ]; then
+        echo "Usage: setenv <VAR_NAME> <value>"
+        echo "  Sets environment variable for current session AND persists it"
+        echo "  Example: setenv MY_VAR \"hello world\""
+        return 1
+    fi
+    local VAR_NAME="$1"
+    local VALUE="${2:-}"
+    export "$VAR_NAME"="$VALUE"
+    # Persist
+    echo "export ${VAR_NAME}=\"${VALUE}\"" >> "${HOME}/.bashrc_env"
+    echo "✓ ${VAR_NAME} set and saved to ~/.bashrc_env"
+}
 
 # Show tool status
 cloudshell-tools() {
@@ -283,20 +383,25 @@ cloudshell-test() {
     echo "--- Development ---"
     echo -n "  node: "; node --version 2>&1
     echo -n "  npm: "; npm --version 2>&1
+    echo -n "  npm prefix: "; npm config get prefix 2>&1
     echo -n "  python3: "; python3 --version 2>&1
     echo -n "  pip3: "; pip3 --version 2>&1 | head -1
     echo ""
 
-    echo "--- Docker ---"
-    echo -n "  docker: "; docker --version 2>&1
-    echo -n "  docker info: "
-    if docker info &>/dev/null 2>&1; then echo "RUNNING"; else echo "NOT RUNNING (CLI only)"; fi
+    echo "--- npm Global Install Test ---"
+    echo "  npm prefix: $(npm config get prefix 2>/dev/null)"
+    echo "  npm global dir: ${HOME}/.npm-global"
+    echo "  To install global packages: npm install -g <package>"
+    echo "  (No sudo needed! Installs to ~/.npm-global/)"
     echo ""
 
-    echo "--- npm global install test ---"
-    echo -n "  npm prefix: "; npm config get prefix 2>&1
-    echo "  To install global packages: npm install -g <package>"
-    echo "  (Installs to ~/.npm-global/ - no sudo needed)"
+    echo "--- Claude Code CLI ---"
+    if command -v claude &>/dev/null; then
+        echo "  ✅ claude: installed"
+    else
+        echo "  ⬜ claude: not installed (run: setup-claude-code)"
+    fi
+    echo ""
 }
 
 # npm global install helper - shows how to install without sudo
@@ -309,7 +414,7 @@ npm-global-help() {
     echo "  Usage:"
     echo "    npm install -g <package>      # Works without sudo!"
     echo "    npm install -g typescript     # Example"
-    echo "    npm install -g @anthropic-ai/claude-code  # Example"
+    echo "    npm install -g @anthropic-ai/claude-code  # Claude Code CLI"
     echo ""
     echo "  Installed global packages:"
     npm list -g --depth=0 2>/dev/null || echo "  (none yet)"
@@ -326,21 +431,41 @@ if ! grep -q "bashrc_cloudshell" "/home/cloudshell/.bashrc" 2>/dev/null; then
     echo "[ -f \"\${HOME}/.bashrc_cloudshell\" ] && source \"\${HOME}/.bashrc_cloudshell\"" >> "/home/cloudshell/.bashrc"
 fi
 
+# Source .bashrc_env if it exists (persistent env vars)
+if ! grep -q "bashrc_env" "/home/cloudshell/.bashrc" 2>/dev/null; then
+    echo "" >> "/home/cloudshell/.bashrc"
+    echo "# Persistent environment variables" >> "/home/cloudshell/.bashrc"
+    echo "[ -f \"\${HOME}/.bashrc_env\" ] && source \"\${HOME}/.bashrc_env\"" >> "/home/cloudshell/.bashrc"
+fi
+
 # ─── Ensure .npmrc exists for cloudshell ───────────────────────
 if [ ! -f "/home/cloudshell/.npmrc" ]; then
     echo "prefix=/home/cloudshell/.npm-global" > /home/cloudshell/.npmrc
     chown cloudshell:cloudshell /home/cloudshell/.npmrc 2>/dev/null || true
 fi
 
+# ─── Ensure .bashrc_env exists ─────────────────────────────────
+if [ ! -f "/home/cloudshell/.bashrc_env" ]; then
+    touch /home/cloudshell/.bashrc_env
+    chown cloudshell:cloudshell /home/cloudshell/.bashrc_env 2>/dev/null || true
+fi
+
 # ─── Ensure auth users directory exists ─────────────────────────
 mkdir -p /home/cloudshell/.jasbol-users 2>/dev/null || true
 chown -R cloudshell:cloudshell /home/cloudshell/.jasbol-users 2>/dev/null || true
+
+# ─── Verify npm global prefix ──────────────────────────────────
+echo "[Entrypoint] Verifying npm configuration..."
+echo "[Entrypoint]   .npmrc content: $(cat /home/cloudshell/.npmrc 2>/dev/null)"
+echo "[Entrypoint]   NPM_CONFIG_PREFIX: ${NPM_CONFIG_PREFIX}"
+echo "[Entrypoint]   PATH: ${PATH}"
 
 # ─── NOW DROP TO CLOUDSHELL USER AND START THE SERVER ──────────
 echo "=========================================="
 echo "[Entrypoint] Dropping to cloudshell user..."
 echo "[Entrypoint] Starting server: $*"
 echo "[Entrypoint] npm global prefix: /home/cloudshell/.npm-global"
+echo "[Entrypoint] Claude Code: run 'setup-claude-code' to install"
 echo "=========================================="
 
 exec gosu cloudshell "$@"
