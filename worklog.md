@@ -132,3 +132,31 @@ Stage Summary:
 - 30+ extra dev tools: pre-installed in Docker image
 - cloudshell-test: Available for full testing from terminal
 - App: https://mughal03-cloudshell-ide.hf.space (RUNNING)
+
+---
+Task ID: 1
+Agent: Main
+Task: Fix EACCES npm install -g, add all terminal commands, per-user workspace isolation, auth on HF server, performance boost
+
+Work Log:
+- Fixed npm install -g EACCES error by configuring NPM_CONFIG_PREFIX=/home/cloudshell/.npm-global in Dockerfile
+- Created .npmrc with prefix=/home/cloudshell/.npm-global for cloudshell user
+- Added ~/.npm-global/bin to PATH in .bashrc_cloudshell
+- Updated sudo wrapper v10 to handle 'sudo npm install -g' specially, redirecting to user's npm-global prefix
+- Added comprehensive terminal command packages to Dockerfile: coreutils, procps, man-db, manpages, info, psmisc, whois, time, openssh-server, gzip, bzip2, xz-utils, tar
+- Implemented per-user workspace isolation in server.ts and server-hf.ts using WORKSPACE_BASE/username directories
+- Updated server-hf.ts with Socket.IO auth middleware (was missing before)
+- All file operations (read/write/list) are now scoped to user's workspace (path traversal protection)
+- Added NPM_CONFIG_PREFIX env var to PTY sessions
+- Added performance optimizations to next.config.ts (compress, poweredByHeader, unoptimized images)
+- Updated docker-entrypoint.sh with npm global prefix setup and npm-global-help command
+- Pushed to GitHub and HF Spaces
+- Verified all auth endpoints working (login, signup, verify)
+- HF Space deployed and running: https://mughal03-cloudshell-ide.hf.space
+
+Stage Summary:
+- npm install -g now works without sudo - installs to ~/.npm-global/
+- All 60+ essential terminal commands available (cat, ls, grep, curl, wget, ssh, tar, zip, etc.)
+- Each user gets isolated workspace at ~/workspaces/<username>
+- Auth system fully working on HF Spaces with admin account (adminmughal03 / adminumair0302)
+- App running and healthy on HF Spaces
