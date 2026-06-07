@@ -34,7 +34,7 @@ process.on('exit', (code) => {
 
 // ─── Configuration ───────────────────────────────────────────────
 const PORT = parseInt(process.env.PORT || '3000', 10)
-const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/home/z/my-project/workspace'
+const DEFAULT_WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/home/z/my-project/workspace'
 const SHELL = process.env.SHELL || '/bin/bash'
 const dev = process.env.NODE_ENV !== 'production'
 
@@ -46,6 +46,19 @@ const LOCAL_LIB = `${APP_HOME}/.local/lib`
 const VENV_BIN = process.env.VENV_BIN || `${APP_HOME}/.venv/bin`
 const BIN_DIR = `${APP_HOME}/bin`
 const CACHE_DIR = `${APP_HOME}/.cache`
+
+// ─── Per-User Workspace ──────────────────────────────────────────
+// Each user gets their own workspace directory under WORKSPACE_BASE
+const WORKSPACE_BASE = process.env.WORKSPACE_BASE || join(APP_HOME, 'workspaces')
+
+function getUserWorkspace(userId: string, username: string): string {
+  const userDir = join(WORKSPACE_BASE, username.toLowerCase())
+  if (!existsSync(userDir)) {
+    mkdirSync(userDir, { recursive: true })
+    console.log(`[Workspace] Created workspace for user ${username}: ${userDir}`)
+  }
+  return userDir
+}
 
 // ─── Service Installation Status ────────────────────────────────
 interface ServiceInstallStatus {
@@ -60,7 +73,6 @@ const serviceInstallStatus: Record<string, ServiceInstallStatus> = {
 }
 
 function updateServiceStatus() {
-  // Docker - check both system Docker and rootless Docker
   const dockerInPath = checkCommand('docker')
   const dockerInBin = existsSync(`${BIN_DIR}/docker`)
   const dockerUsr = existsSync('/usr/bin/docker')
@@ -69,7 +81,6 @@ function updateServiceStatus() {
     execSync('docker info 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
     serviceInstallStatus.docker.running = true
   } catch { serviceInstallStatus.docker.running = false }
-  console.log(`[Docker] installed=${serviceInstallStatus.docker.installed} running=${serviceInstallStatus.docker.running} inPath=${dockerInPath} inUsr=${dockerUsr}`)
 }
 
 function checkCommand(cmd: string): boolean {
@@ -83,36 +94,24 @@ function checkCommand(cmd: string): boolean {
 
 // ─── Ensure workspace directories exist ──────────────────────────
 function ensureWorkspaceDirs() {
-  if (!existsSync(WORKSPACE_DIR)) {
-    mkdirSync(WORKSPACE_DIR, { recursive: true })
+  if (!existsSync(DEFAULT_WORKSPACE_DIR)) {
+    mkdirSync(DEFAULT_WORKSPACE_DIR, { recursive: true })
   }
-  const dockerfilesDir = join(WORKSPACE_DIR, '.dockerfiles')
+  if (!existsSync(WORKSPACE_BASE)) {
+    mkdirSync(WORKSPACE_BASE, { recursive: true })
+  }
+  const dockerfilesDir = join(DEFAULT_WORKSPACE_DIR, '.dockerfiles')
   if (!existsSync(dockerfilesDir)) {
     mkdirSync(dockerfilesDir, { recursive: true })
   }
   const sampleDockerfile = join(dockerfilesDir, 'Dockerfile.app')
   if (!existsSync(sampleDockerfile)) {
-    const template = `FROM ubuntu:22.04
-
-# Install system packages
-RUN apt-get update && apt-get install -y \\
-    curl \\
-    wget \\
-    git \\
-    vim \\
-    nano \\
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
+    writeFileSync(sampleDockerfile, `FROM ubuntu:22.04
+RUN apt-get update && apt-get install -y curl wget git vim nano && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-
-# Copy application files
 COPY . .
-
-# Default command
 CMD ["/bin/bash"]
-`
-    writeFileSync(sampleDockerfile, template, 'utf-8')
+`, 'utf-8')
   }
 }
 
@@ -121,23 +120,13 @@ ensureWorkspaceDirs()
 // ─── Fix APT directories for sudo apt-get ───────────────────────
 function fixAptDirectories() {
   try {
-    const aptDirs = [
-      '/var/lib/apt/lists',
-      '/var/lib/apt/lists/partial',
-      '/var/cache/apt',
-      '/var/lib/dpkg',
-    ]
+    const aptDirs = ['/var/lib/apt/lists', '/var/lib/apt/lists/partial', '/var/cache/apt', '/var/lib/dpkg']
     for (const dir of aptDirs) {
       try {
         if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
         execSync(`chown -R root:root ${dir} 2>/dev/null && chmod -R 755 ${dir} 2>/dev/null`, { encoding: 'utf-8', timeout: 3000 })
       } catch {}
     }
-    // Create dpkg lock-frontend
-    try {
-      if (!existsSync('/var/lib/dpkg/lock-frontend')) mkdirSync('/var/lib/dpkg/lock-frontend', { recursive: true })
-    } catch {}
-    console.log('[Server] APT directories fixed')
   } catch (err) {
     console.warn('[Server] Could not fix APT directories:', err)
   }
@@ -149,21 +138,15 @@ fixAptDirectories()
 function configureSudo() {
   try {
     execSync('/usr/bin/sudo -n true 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
-    console.log('[Server] Passwordless sudo already configured')
     return 'passwordless' as const
   } catch {}
 
   try {
-    execSync(`echo "${APP_USER} ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/${APP_USER}-user && chmod 440 /etc/sudoers.d/${APP_USER}-user && chown root:root /etc/sudoers.d/${APP_USER}-user`, {
-      encoding: 'utf-8',
-      timeout: 5000,
-    })
+    execSync(`echo "${APP_USER} ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/${APP_USER}-user && chmod 440 /etc/sudoers.d/${APP_USER}-user`, { encoding: 'utf-8', timeout: 5000 })
     execSync('/usr/bin/sudo -n true', { encoding: 'utf-8', timeout: 5000 })
-    console.log('[Server] Passwordless sudo configured successfully')
     return 'passwordless' as const
   } catch {}
 
-  console.log('[Server] No real sudo access. Using unshare-based sudo wrapper.')
   return 'wrapper' as const
 }
 
@@ -175,46 +158,40 @@ function setupSudoWrapper() {
   const wrapperPath = `${wrapperDir}/sudo`
 
   try {
-    if (!existsSync(wrapperDir)) {
-      mkdirSync(wrapperDir, { recursive: true })
-    }
-
+    if (!existsSync(wrapperDir)) mkdirSync(wrapperDir, { recursive: true })
     if (existsSync(wrapperPath)) {
       const content = readFileSync(wrapperPath, 'utf-8')
-      if (content.includes('CloudShell sudo wrapper')) {
-        execSync(`chmod +x ${wrapperPath}`, { encoding: 'utf-8' })
-        return
-      }
+      if (content.includes('CloudShell sudo wrapper')) return
     }
 
-    const wrapperScript = [
-      '#!/bin/bash',
-      '# CloudShell sudo wrapper v7',
-      '# First try real sudo',
-      'if /usr/bin/sudo -n "$@" 2>/dev/null; then exit 0; fi',
-      '#',
-      '# For apt-get commands, fix permissions and retry',
-      'case "$1" in',
-      '  apt|apt-get)',
-      '    shift',
-      '    /usr/bin/sudo mkdir -p /var/lib/apt/lists/partial 2>/dev/null',
-      '    /usr/bin/sudo chmod -R 755 /var/lib/apt 2>/dev/null',
-      '    /usr/bin/sudo chown -R root:root /var/lib/apt 2>/dev/null',
-      '    /usr/bin/sudo "$@" 2>/dev/null && exit 0',
-      '    exec unshare --user --map-root-user "$@"',
-      '    ;;',
-      '  dpkg)',
-      '    shift',
-      '    /usr/bin/sudo "$@" 2>/dev/null && exit 0',
-      '    exec unshare --user --map-root-user "$@"',
-      '    ;;',
-      '  *)',
-      '    /usr/bin/sudo "$@" 2>/dev/null && exit 0',
-      '    exec unshare --user --map-root-user "$@"',
-      '    ;;',
-      'esac',
-    ].join('\n')
-    writeFileSync(wrapperPath, wrapperScript, 'utf-8')
+    writeFileSync(wrapperPath, `#!/bin/bash
+# CloudShell sudo wrapper - handles npm install -g specially
+/usr/bin/sudo -n "$@" 2>/dev/null && exit 0
+case "$1" in
+  npm)
+    shift
+    if [[ "$1" == "install" ]] || [[ "$1" == "i" ]]; then
+      shift
+      args=()
+      for arg in "$@"; do [[ "$arg" != "-g" ]] && [[ "$arg" != "--global" ]] && args+=("$arg"); done
+      npm install -g "\${args[@]}"
+      exit $?
+    fi
+    npm "$@"
+    exit $?
+    ;;
+  apt|apt-get)
+    shift
+    /usr/bin/sudo "$@" 2>/dev/null && exit 0
+    echo "⚠ apt not available. Use npm/pip3 instead."
+    exit 1
+    ;;
+  *)
+    /usr/bin/sudo "$@" 2>/dev/null && exit 0
+    exec unshare --user --map-root-user "$@"
+    ;;
+esac
+`, 'utf-8')
     execSync(`chmod +x ${wrapperPath}`, { encoding: 'utf-8' })
     console.log('[Server] Created sudo wrapper at', wrapperPath)
   } catch (err) {
@@ -224,28 +201,20 @@ function setupSudoWrapper() {
 
 setupSudoWrapper()
 
-// ─── 24/7 Keep-Alive: Self-ping to prevent HF Spaces sleep ─────
-// HF Spaces auto-pauses after 48h inactivity. This keeps it alive.
-const KEEP_ALIVE_INTERVAL = 5 * 60 * 1000 // 5 minutes
+// ─── 24/7 Keep-Alive ────────────────────────────────────────────
+const KEEP_ALIVE_INTERVAL = 5 * 60 * 1000
 const SELF_PING_URL = `http://localhost:${PORT}/api/health`
 
 function startKeepAlive() {
-  console.log('[KeepAlive] Starting 24/7 self-ping mechanism...')
-  console.log(`[KeepAlive] Will ping ${SELF_PING_URL} every 5 minutes`)
-
+  console.log('[KeepAlive] Starting 24/7 self-ping...')
   const pingSelf = () => {
     try {
       const http = require('http')
       http.get(SELF_PING_URL, (res: any) => {
-        const uptime = Math.floor(process.uptime())
-        console.log(`[KeepAlive] Self-ping OK (uptime: ${uptime}s, status: ${res.statusCode})`)
-      }).on('error', (err: any) => {
-        console.warn(`[KeepAlive] Self-ping failed: ${err.message}`)
-      })
+        console.log(`[KeepAlive] OK (uptime: ${Math.floor(process.uptime())}s, status: ${res.statusCode})`)
+      }).on('error', () => {})
     } catch {}
   }
-
-  // Start pinging after 30 seconds (give server time to start)
   setTimeout(() => {
     pingSelf()
     setInterval(pingSelf, KEEP_ALIVE_INTERVAL)
@@ -258,24 +227,22 @@ startKeepAlive()
 const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'python3', 'pip3', 'sudo']
 
 const TOOL_INSTALL_COMMANDS: Record<string, string> = {
-  git: 'echo "git is pre-installed in the container"',
-  docker: 'echo "Docker CLI is pre-installed. Try: docker ps" || echo "To start daemon: dockerd-rootless.sh &"',
-  curl: 'echo "curl is pre-installed in the container"',
-  wget: 'echo "wget is pre-installed in the container"',
-  vim: 'echo "vim is pre-installed in the container"',
-  nano: 'echo "nano is pre-installed in the container"',
-  node: 'echo "Node.js is pre-installed in the container"',
-  npm: 'echo "npm is pre-installed in the container"',
-  python3: 'echo "python3 is pre-installed in the container"',
-  pip3: 'echo "pip3 is pre-installed in the container"',
-  sudo: 'echo "sudo is pre-installed with passwordless access"',
+  git: 'echo "git is pre-installed"',
+  docker: 'echo "Docker CLI is pre-installed. Try: docker ps"',
+  curl: 'echo "curl is pre-installed"',
+  wget: 'echo "wget is pre-installed"',
+  vim: 'echo "vim is pre-installed"',
+  nano: 'echo "nano is pre-installed"',
+  node: 'echo "Node.js is pre-installed"',
+  npm: 'echo "npm is pre-installed (global prefix: ~/.npm-global)"',
+  python3: 'echo "python3 is pre-installed"',
+  pip3: 'echo "pip3 is pre-installed"',
+  sudo: 'echo "sudo is available (passwordless)"',
 }
 
-// ─── Helper: check if a tool is installed ────────────────────────
 function checkTool(name: string): { name: string; installed: boolean; version: string; displayName?: string } {
   try {
     if (name === 'docker') {
-      // Check multiple possible Docker locations
       const dockerPaths = [`${BIN_DIR}/docker`, '/usr/bin/docker', '/usr/local/bin/docker']
       const dockerFound = dockerPaths.some(p => existsSync(p)) || checkCommand('docker')
       if (dockerFound) {
@@ -288,21 +255,10 @@ function checkTool(name: string): { name: string; installed: boolean; version: s
       }
       return { name, installed: false, version: '' }
     }
-
-    const whichOutput = execSync(`which ${name} 2>/dev/null || echo "not-found"`, {
-      encoding: 'utf-8',
-      timeout: 5000,
-    }).trim()
-
-    if (whichOutput.includes('not-found')) {
-      return { name, installed: false, version: '' }
-    }
-
+    const whichOutput = execSync(`which ${name} 2>/dev/null || echo "not-found"`, { encoding: 'utf-8', timeout: 5000 }).trim()
+    if (whichOutput.includes('not-found')) return { name, installed: false, version: '' }
     try {
-      const versionOutput = execSync(`${name} --version 2>&1`, {
-        encoding: 'utf-8',
-        timeout: 5000,
-      }).trim()
+      const versionOutput = execSync(`${name} --version 2>&1`, { encoding: 'utf-8', timeout: 5000 }).trim()
       return { name, installed: true, version: versionOutput.split('\n')[0].trim() }
     } catch {
       return { name, installed: true, version: 'installed' }
@@ -312,13 +268,11 @@ function checkTool(name: string): { name: string; installed: boolean; version: s
   }
 }
 
-// ─── Helper: safely resolve path within workspace ────────────────
-function resolveWorkspacePath(inputPath: string): string | null {
-  const target = inputPath
-    ? resolve(WORKSPACE_DIR, inputPath)
-    : WORKSPACE_DIR
-  const rel = relative(WORKSPACE_DIR, target)
-  if (rel.startsWith('..') || resolve(WORKSPACE_DIR, inputPath) !== target) {
+// ─── Helper: safely resolve path within a workspace ──────────────
+function resolveWorkspacePath(inputPath: string, workspaceDir: string): string | null {
+  const target = inputPath ? resolve(workspaceDir, inputPath) : workspaceDir
+  const rel = relative(workspaceDir, target)
+  if (rel.startsWith('..') || resolve(workspaceDir, inputPath) !== target) {
     return null
   }
   return target
@@ -329,27 +283,14 @@ function listDirectory(dirPath: string): { name: string; type: 'file' | 'directo
   try {
     const entries = readdirSync(dirPath, { withFileTypes: true })
     return entries
-      .filter((entry) => {
-        if (entry.name.startsWith('.') && entry.name !== '.dockerfiles') return false
-        return true
-      })
+      .filter((entry) => !entry.name.startsWith('.') || entry.name === '.dockerfiles')
       .map((entry) => {
         const fullPath = join(dirPath, entry.name)
         try {
           const stats = statSync(fullPath)
-          return {
-            name: entry.name,
-            type: entry.isDirectory() ? ('directory' as const) : ('file' as const),
-            size: stats.size,
-            modified: stats.mtime.toISOString(),
-          }
+          return { name: entry.name, type: (entry.isDirectory() ? 'directory' : 'file') as 'file' | 'directory', size: stats.size, modified: stats.mtime.toISOString() }
         } catch {
-          return {
-            name: entry.name,
-            type: (entry.isDirectory() ? 'directory' : 'file') as 'file' | 'directory',
-            size: 0,
-            modified: '',
-          }
+          return { name: entry.name, type: (entry.isDirectory() ? 'directory' : 'file') as 'file' | 'directory', size: 0, modified: '' }
         }
       })
   } catch {
@@ -364,10 +305,14 @@ interface TerminalSession {
   socketId: string
   cols: number
   rows: number
+  userId: string | null
+  workspaceDir: string
 }
 
 const sessions = new Map<string, TerminalSession>()
 const socketSessions = new Map<string, Set<string>>()
+// Track authenticated user per socket
+const socketUsers = new Map<string, { userId: string; username: string; role: string; workspaceDir: string } | null>()
 
 function cleanupSocketSessions(socketId: string) {
   const sessionIds = socketSessions.get(socketId)
@@ -381,16 +326,19 @@ function cleanupSocketSessions(socketId: string) {
     }
     socketSessions.delete(socketId)
   }
+  socketUsers.delete(socketId)
 }
 
-function createPtySession(sessionId: string, socketId: string, cols: number, rows: number, socket: any) {
-  console.log(`[Terminal] Creating PTY session ${sessionId} (${cols}x${rows})`)
+function createPtySession(sessionId: string, socketId: string, cols: number, rows: number, socket: any, userWorkspace: string, userId: string | null) {
+  console.log(`[Terminal] Creating PTY session ${sessionId} (${cols}x${rows}) workspace=${userWorkspace}`)
+
+  const NPM_GLOBAL = join(APP_HOME, '.npm-global')
 
   const HARDENED_PATH = [
     BIN_DIR,
     LOCAL_BIN,
+    `${NPM_GLOBAL}/bin`,
     VENV_BIN,
-    `${APP_HOME}/.npm-global/bin`,
     `${APP_HOME}/.bun/bin`,
     '/usr/local/sbin', '/usr/local/bin',
     '/usr/sbin', '/usr/bin', '/sbin', '/bin',
@@ -400,7 +348,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     name: 'xterm-256color',
     cols,
     rows,
-    cwd: WORKSPACE_DIR,
+    cwd: userWorkspace,
     env: {
       ...process.env,
       PATH: HARDENED_PATH,
@@ -414,38 +362,27 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
       DOCKER_HOST: `unix:///run/user/${process.getuid()}/docker.sock`,
       PIP_BREAK_SYSTEM_PACKAGES: '1',
       LD_LIBRARY_PATH: LOCAL_LIB,
+      NPM_CONFIG_PREFIX: NPM_GLOBAL,
+      WORKSPACE_DIR: userWorkspace,
     },
   })
 
-  const session: TerminalSession = { id: sessionId, pty, socketId, cols, rows }
+  const session: TerminalSession = { id: sessionId, pty, socketId, cols, rows, userId, workspaceDir: userWorkspace }
   sessions.set(sessionId, session)
   socketSessions.get(socketId)?.add(sessionId)
-
-  let sudoInfo: string[]
-  if (sudoMode === 'passwordless') {
-    sudoInfo = [
-      '\x1b[32m║\x1b[0m  \x1b[1;32mSudo: Available (passwordless)\x1b[0m                          \x1b[32m║\x1b[0m',
-      '\x1b[32m║\x1b[0m  \x1b[1;36msudo <command>\x1b[0m to run as root                      \x1b[32m║\x1b[0m',
-    ]
-  } else {
-    sudoInfo = [
-      '\x1b[32m║\x1b[0m  \x1b[1;33mSudo: Limited (unprivileged container)\x1b[0m                \x1b[32m║\x1b[0m',
-      '\x1b[32m║\x1b[0m  \x1b[1;33mapt-get\x1b[0m: Not available (use \x1b[36mnpm/pip3\x1b[0m instead)    \x1b[32m║\x1b[0m',
-      '\x1b[32m║\x1b[0m  Type \x1b[1;36mcloudshell-test\x1b[0m to test all tools              \x1b[32m║\x1b[0m',
-    ]
-  }
 
   const welcomeBanner = [
     '',
     '\x1b[32m╔══════════════════════════════════════════════════════════════╗\x1b[0m',
-    '\x1b[32m║\x1b[0m  \x1b[1;32m☁ CloudShell\x1b[0m                                             \x1b[32m║\x1b[0m',
+    '\x1b[32m║\x1b[0m  \x1b[1;32m☁ CloudShell by Jasbol Hack\x1b[0m                           \x1b[32m║\x1b[0m',
     '\x1b[32m╠══════════════════════════════════════════════════════════════╣\x1b[0m',
-    ...sudoInfo,
-    '\x1b[32m║\x1b[0m  Type \x1b[1;36mcloudshell-tools\x1b[0m to see installed tools            \x1b[32m║\x1b[0m',
+    userId ? `\x1b[32m║\x1b[0m  \x1b[1;36mUser:\x1b[0m ${userId.split('-')[0]}...  \x1b[1;36mWorkspace:\x1b[0m ${userWorkspace}`.padEnd(62) + '\x1b[32m║\x1b[0m' : '',
     '\x1b[32m║\x1b[0m  Type \x1b[1;36mcloudshell-test\x1b[0m to test all commands              \x1b[32m║\x1b[0m',
+    '\x1b[32m║\x1b[0m  Type \x1b[1;36mnpm-global-help\x1b[0m for npm install -g help         \x1b[32m║\x1b[0m',
     '\x1b[32m╚══════════════════════════════════════════════════════════════╝\x1b[0m',
     '',
-  ].join('\r\n')
+  ].filter(Boolean).join('\r\n')
+
   try {
     socket.emit('terminal:output', { sessionId, data: welcomeBanner + '\r\n' })
   } catch {}
@@ -470,8 +407,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     setTimeout(() => {
       if (!socket.connected) return
       try {
-        createPtySession(sessionId, socketId, cols, rows, socket)
-        console.log(`[Terminal] Restarted PTY for session ${sessionId}`)
+        createPtySession(sessionId, socketId, cols, rows, socket, userWorkspace, userId)
       } catch (restartErr) {
         console.error(`[Terminal] Failed to restart PTY:`, restartErr)
       }
@@ -487,27 +423,18 @@ const handle = app.getRequestHandler()
 
 app.prepare().then(() => {
   console.log('[Server] Next.js prepared')
-
-  // Update service install status
   updateServiceStatus()
+  setInterval(updateServiceStatus, 15000)
 
-  // Periodically update service status (every 15s)
-  setInterval(() => {
-    updateServiceStatus()
-  }, 15000)
-
-  // ─── Main HTTP Server (Next.js + Socket.IO on SAME port) ────────
   const mainServer = createServer((req, res) => {
     const url = req.url || '/'
 
-    // Health check endpoint
     if (url === '/api/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ ok: true, uptime: process.uptime() }))
       return
     }
 
-    // Service installation status endpoint
     if (url === '/api/services') {
       updateServiceStatus()
       res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -515,17 +442,11 @@ app.prepare().then(() => {
       return
     }
 
-    // Default: Next.js handler
     handle(req, res)
   })
 
-  // ─── Attach Socket.IO to the SAME server as Next.js ───────────
   const io = new SocketIOServer(mainServer, {
-    cors: {
-      origin: true,
-      methods: ['GET', 'POST'],
-      credentials: true,
-    },
+    cors: { origin: true, methods: ['GET', 'POST'], credentials: true },
     path: '/socket.io/',
     pingInterval: 15000,
     pingTimeout: 30000,
@@ -538,18 +459,18 @@ app.prepare().then(() => {
     cookie: false,
   })
 
-  // ─── Socket.IO Auth Middleware ────────────────────────────────────
+  // ─── Socket.IO Auth Middleware ────────────────────────────────
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token as string || socket.handshake.headers?.cookie
+
     if (!token) {
-      // Allow connection without auth for now (backward compat), but mark as unauthenticated
       socket.data.authenticated = false
       socket.data.user = null
-      console.log(`[Auth] Socket ${socket.id} connected without auth token`)
+      socket.data.workspaceDir = DEFAULT_WORKSPACE_DIR
+      console.log(`[Auth] Socket ${socket.id} connected without auth token - using default workspace`)
       return next()
     }
-    
-    // Extract token from cookie if needed
+
     let authToken = token
     if (token.includes('jasbol-token=')) {
       const match = token.match(/jasbol-token=([^;]+)/)
@@ -560,38 +481,52 @@ app.prepare().then(() => {
     if (!decoded) {
       socket.data.authenticated = false
       socket.data.user = null
+      socket.data.workspaceDir = DEFAULT_WORKSPACE_DIR
       console.log(`[Auth] Socket ${socket.id} - invalid token`)
       return next()
     }
 
+    // Get user's workspace directory
+    const user = getUserById(decoded.userId)
+    const workspaceDir = user ? getUserWorkspaceDir(user) : DEFAULT_WORKSPACE_DIR
+
     socket.data.authenticated = true
     socket.data.user = decoded
-    console.log(`[Auth] Socket ${socket.id} authenticated as ${decoded.username} (${decoded.role})`)
+    socket.data.workspaceDir = workspaceDir
+    console.log(`[Auth] Socket ${socket.id} authenticated as ${decoded.username} (${decoded.role}) workspace=${workspaceDir}`)
     next()
   })
 
-  // ─── Socket.io Connection Handler ────────────────────────────────
+  // ─── Socket.io Connection Handler ────────────────────────────
   io.on('connection', (socket) => {
-    const transport = socket.conn.transport.name
-    console.log(`[Terminal] Client connected: ${socket.id} via ${transport}`)
+    console.log(`[Terminal] Client connected: ${socket.id} via ${socket.conn.transport.name}`)
     socketSessions.set(socket.id, new Set())
 
-    // Log transport upgrades for debugging
-    socket.conn.on('upgrade', (newTransport) => {
-      console.log(`[Terminal] Transport upgrade for ${socket.id}: ${transport} -> ${newTransport.name}`)
-    })
+    // Store user info for this socket
+    const userInfo = socket.data.authenticated && socket.data.user
+      ? { userId: socket.data.user.userId, username: socket.data.user.username, role: socket.data.user.role, workspaceDir: socket.data.workspaceDir }
+      : null
+    socketUsers.set(socket.id, userInfo)
 
-    socket.emit('terminal:connected', { sudoMode })
+    // Determine workspace for this connection
+    const userWorkspace = socket.data.workspaceDir || DEFAULT_WORKSPACE_DIR
 
-    // Terminal: Create
+    // Ensure user workspace exists
+    if (!existsSync(userWorkspace)) {
+      mkdirSync(userWorkspace, { recursive: true })
+    }
+
+    socket.emit('terminal:connected', { sudoMode, workspace: userWorkspace })
+
+    // Terminal: Create (with user-specific workspace)
     socket.on('terminal:create', (data?: { cols?: number; rows?: number }) => {
       try {
         const sessionId = uuidv4()
         const cols = data?.cols || 80
         const rows = data?.rows || 24
-        createPtySession(sessionId, socket.id, cols, rows, socket)
-        socket.emit('terminal:created', { sessionId })
-        console.log(`[Terminal] Session created: ${sessionId}`)
+        createPtySession(sessionId, socket.id, cols, rows, socket, userWorkspace, userInfo?.userId || null)
+        socket.emit('terminal:created', { sessionId, workspace: userWorkspace })
+        console.log(`[Terminal] Session created: ${sessionId} in workspace: ${userWorkspace}`)
       } catch (err) {
         console.error('[Terminal] Error creating session:', err)
         socket.emit('terminal:created', { sessionId: null, error: String(err) })
@@ -600,93 +535,80 @@ app.prepare().then(() => {
 
     // Terminal: Input
     socket.on('terminal:input', (data: { sessionId: string; data: string }) => {
-      const { sessionId, data: inputData } = data
-      const session = sessions.get(sessionId)
+      const session = sessions.get(data.sessionId)
       if (session) {
-        try {
-          session.pty.write(inputData)
-        } catch (err) {
-          console.error(`[Terminal] Error writing to PTY:`, err)
-        }
+        try { session.pty.write(data.data) } catch (err) { console.error('[Terminal] Error writing to PTY:', err) }
       }
     })
 
     // Terminal: Resize
     socket.on('terminal:resize', (data: { sessionId: string; cols: number; rows: number }) => {
-      const { sessionId, cols, rows } = data
-      const session = sessions.get(sessionId)
+      const session = sessions.get(data.sessionId)
       if (session) {
-        try {
-          session.pty.resize(cols, rows)
-        } catch (err) {
-          console.warn(`[Terminal] Error resizing PTY:`, err)
-        }
+        try { session.pty.resize(data.cols, data.rows) } catch (err) { console.warn('[Terminal] Error resizing PTY:', err) }
       }
     })
 
     // Terminal: Destroy
     socket.on('terminal:destroy', (data: { sessionId: string }) => {
-      const { sessionId } = data
-      const session = sessions.get(sessionId)
+      const session = sessions.get(data.sessionId)
       if (session) {
         try {
           session.pty.kill()
-          sessions.delete(sessionId)
-          socketSessions.get(socket.id)?.delete(sessionId)
-          socket.emit('terminal:destroyed', { sessionId })
+          sessions.delete(data.sessionId)
+          socketSessions.get(socket.id)?.delete(data.sessionId)
+          socket.emit('terminal:destroyed', { sessionId: data.sessionId })
         } catch (err) {
-          socket.emit('terminal:destroyed', { sessionId, error: String(err) })
+          socket.emit('terminal:destroyed', { sessionId: data.sessionId, error: String(err) })
         }
       }
     })
 
-    // File: Read
+    // File: Read (scoped to user workspace)
     socket.on('file:read', (data: { path: string }) => {
-      const { path: inputPath } = data
-      const resolvedPath = resolveWorkspacePath(inputPath)
+      const resolvedPath = resolveWorkspacePath(data.path, userWorkspace)
       if (!resolvedPath) {
-        socket.emit('file:content', { path: inputPath, content: null, error: 'Path traversal not allowed' })
+        socket.emit('file:content', { path: data.path, content: null, error: 'Path traversal not allowed' })
         return
       }
       try {
         if (!existsSync(resolvedPath)) {
-          socket.emit('file:content', { path: inputPath, content: null, error: 'File not found' })
+          socket.emit('file:content', { path: data.path, content: null, error: 'File not found' })
           return
         }
         const stat = statSync(resolvedPath)
         if (stat.isDirectory()) {
-          socket.emit('file:content', { path: inputPath, content: null, error: 'Path is a directory' })
+          socket.emit('file:content', { path: data.path, content: null, error: 'Path is a directory' })
           return
         }
         const content = readFileSync(resolvedPath, 'utf-8')
-        socket.emit('file:content', { path: inputPath, content, error: null })
+        socket.emit('file:content', { path: data.path, content, error: null })
       } catch (err) {
-        socket.emit('file:content', { path: inputPath, content: null, error: String(err) })
+        socket.emit('file:content', { path: data.path, content: null, error: String(err) })
       }
     })
 
-    // File: Write
+    // File: Write (scoped to user workspace)
     socket.on('file:write', (data: { path: string; content: string }) => {
-      const { path: inputPath, content } = data
-      const resolvedPath = resolveWorkspacePath(inputPath)
+      const resolvedPath = resolveWorkspacePath(data.path, userWorkspace)
       if (!resolvedPath) {
-        socket.emit('file:written', { path: inputPath, error: 'Path traversal not allowed' })
+        socket.emit('file:written', { path: data.path, error: 'Path traversal not allowed' })
         return
       }
       try {
         const parentDir = resolve(resolvedPath, '..')
         if (!existsSync(parentDir)) mkdirSync(parentDir, { recursive: true })
-        writeFileSync(resolvedPath, content, 'utf-8')
-        socket.emit('file:written', { path: inputPath, error: null })
+        writeFileSync(resolvedPath, data.content, 'utf-8')
+        socket.emit('file:written', { path: data.path, error: null })
       } catch (err) {
-        socket.emit('file:written', { path: inputPath, error: String(err) })
+        socket.emit('file:written', { path: data.path, error: String(err) })
       }
     })
 
-    // File: List
+    // File: List (scoped to user workspace)
     socket.on('file:list', (data?: { path?: string }) => {
       const inputPath = data?.path || ''
-      const resolvedPath = resolveWorkspacePath(inputPath)
+      const resolvedPath = resolveWorkspacePath(inputPath, userWorkspace)
       if (!resolvedPath) {
         socket.emit('file:listing', { path: inputPath, files: [], error: 'Path traversal not allowed' })
         return
@@ -711,8 +633,7 @@ app.prepare().then(() => {
     // Tools: Check
     socket.on('tools:check', () => {
       try {
-        const toolsStatus = TOOLS.map(checkTool)
-        socket.emit('tools:status', toolsStatus)
+        socket.emit('tools:status', TOOLS.map(checkTool))
       } catch (err) {
         console.error('[Tools] Error checking tools:', err)
         socket.emit('tools:status', [])
@@ -721,37 +642,33 @@ app.prepare().then(() => {
 
     // Tools: Install
     socket.on('tools:install', (data: { tool: string }) => {
-      const { tool } = data
-      const command = TOOL_INSTALL_COMMANDS[tool] || `echo "Install ${tool}: use npm/pip3/bun"`
-      socket.emit('tools:install-command', { tool, command })
+      const command = TOOL_INSTALL_COMMANDS[data.tool] || `echo "Install ${data.tool}: use npm/pip3"`
+      socket.emit('tools:install-command', { tool: data.tool, command })
     })
 
-    // Services: Status (for the Services sidebar tab)
+    // Services: Status
     socket.on('openoutreach:status', () => {
       updateServiceStatus()
       socket.emit('openoutreach:status', { started: false, services: serviceInstallStatus })
     })
 
-    // Services: Start (placeholder - keeps frontend happy)
     socket.on('openoutreach:start', async () => {
       socket.emit('openoutreach:status', { started: false, services: serviceInstallStatus })
     })
 
-    // Services: Start daemon (placeholder - keeps frontend happy)
     socket.on('openoutreach:start-daemon', () => {
       socket.emit('openoutreach:status', { started: false, services: serviceInstallStatus })
     })
 
     // Session Restore
     socket.on('restore-session', (data: { sessionId: string }) => {
-      const { sessionId } = data
-      const session = sessions.get(sessionId)
+      const session = sessions.get(data.sessionId)
       if (session) {
         session.socketId = socket.id
-        socketSessions.get(socket.id)?.add(sessionId)
-        socket.emit('terminal:restored', { sessionId, success: true })
+        socketSessions.get(socket.id)?.add(data.sessionId)
+        socket.emit('terminal:restored', { sessionId: data.sessionId, success: true })
       } else {
-        socket.emit('terminal:restored', { sessionId, success: false })
+        socket.emit('terminal:restored', { sessionId: data.sessionId, success: false })
       }
     })
 
@@ -760,7 +677,7 @@ app.prepare().then(() => {
     })
 
     socket.on('disconnect', (reason) => {
-      console.log(`[Terminal] Client disconnected: ${socket.id} (${reason}, transport was: ${socket.conn.transport.name})`)
+      console.log(`[Terminal] Client disconnected: ${socket.id} (${reason})`)
     })
 
     socket.on('error', (error) => {
@@ -768,12 +685,13 @@ app.prepare().then(() => {
     })
   })
 
-  // ─── Start server ───────────────────────────────────────────────
+  // ─── Start server ───────────────────────────────────────────
   mainServer.listen(PORT, () => {
     console.log(`[Server] CloudShell ready!`)
     console.log(`[Server]   Web + Terminal: http://localhost:${PORT}`)
     console.log(`[Server]   Socket.IO path: /socket.io/`)
-    console.log(`[Server]   Workspace:      ${WORKSPACE_DIR}`)
+    console.log(`[Server]   Default Workspace: ${DEFAULT_WORKSPACE_DIR}`)
+    console.log(`[Server]   User Workspaces: ${WORKSPACE_BASE}`)
   })
 
   mainServer.on('error', (err: any) => {

@@ -11,7 +11,14 @@ const nextConfig: NextConfig = {
   // Ensure static files are served correctly
   assetPrefix: undefined,
   // Handle WebSocket connections in production
-  serverExternalPackages: ["node-pty", "socket.io"],
+  serverExternalPackages: ["node-pty", "socket.io", "bcryptjs", "jsonwebtoken"],
+  // Performance optimizations
+  poweredByHeader: false,
+  compress: true,
+  // Optimize images
+  images: {
+    unoptimized: true, // Skip image optimization for faster builds in Docker
+  },
 };
 
 export default nextConfig;

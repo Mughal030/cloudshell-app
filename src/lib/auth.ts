@@ -9,6 +9,12 @@ const JWT_EXPIRES_IN = '7d'
 const USERS_DIR = process.env.USERS_DIR || join(process.env.APP_HOME || process.env.HOME || '/home/z', '.jasbol-users')
 const USERS_FILE = join(USERS_DIR, 'users.json')
 
+// ─── Workspace Base ───────────────────────────────────────────────
+// User workspaces are stored under WORKSPACE_BASE/username
+// In Docker: /home/cloudshell/workspaces/username
+// In Z.ai dev: /home/z/my-project/workspaces/username
+const WORKSPACE_BASE = process.env.WORKSPACE_BASE || join(process.env.APP_HOME || process.env.HOME || '/home/z', 'workspaces')
+
 // ─── Types ────────────────────────────────────────────────────────
 export interface User {
   id: string
@@ -46,9 +52,11 @@ function loadUsers(): User[] {
       role: 'admin',
       createdAt: new Date().toISOString(),
       lastLogin: new Date().toISOString(),
-      workspaceDir: 'admin-workspace',
+      workspaceDir: 'adminmughal03',
     }
     saveUsers([adminUser])
+    // Create admin workspace
+    ensureWorkspace(adminUser.workspaceDir)
     return [adminUser]
   }
   try {
@@ -65,9 +73,13 @@ function loadUsers(): User[] {
         role: 'admin',
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString(),
-        workspaceDir: 'admin-workspace',
+        workspaceDir: 'adminmughal03',
       })
       saveUsers(users)
+    }
+    // Ensure all user workspaces exist
+    for (const user of users) {
+      ensureWorkspace(user.workspaceDir)
     }
     return users
   } catch {
@@ -78,6 +90,13 @@ function loadUsers(): User[] {
 function saveUsers(users: User[]) {
   ensureUsersDir()
   writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf-8')
+}
+
+function ensureWorkspace(workspaceDir: string) {
+  const fullPath = join(WORKSPACE_BASE, workspaceDir)
+  if (!existsSync(fullPath)) {
+    mkdirSync(fullPath, { recursive: true })
+  }
 }
 
 // ─── Auth Functions ───────────────────────────────────────────────
@@ -118,18 +137,14 @@ export function signUp(username: string, email: string, password: string): { suc
     role: 'user',
     createdAt: new Date().toISOString(),
     lastLogin: new Date().toISOString(),
-    workspaceDir: `workspace-${username.toLowerCase()}`,
+    workspaceDir: username.toLowerCase(),
   }
 
   users.push(newUser)
   saveUsers(users)
 
   // Create user workspace directory
-  const workspaceBase = process.env.WORKSPACE_DIR || join(process.env.APP_HOME || process.env.HOME || '/home/z', 'workspace')
-  const userWorkspace = join(workspaceBase, '..', newUser.workspaceDir)
-  if (!existsSync(userWorkspace)) {
-    mkdirSync(userWorkspace, { recursive: true })
-  }
+  ensureWorkspace(newUser.workspaceDir)
 
   return { success: true, user: newUser }
 }
@@ -204,6 +219,5 @@ export function deleteUser(userId: string): { success: boolean; error?: string }
 }
 
 export function getUserWorkspaceDir(user: User): string {
-  const workspaceBase = process.env.WORKSPACE_DIR || join(process.env.APP_HOME || process.env.HOME || '/home/z', 'workspace')
-  return join(workspaceBase, '..', user.workspaceDir)
+  return join(WORKSPACE_BASE, user.workspaceDir)
 }

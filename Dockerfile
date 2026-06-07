@@ -7,58 +7,84 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ─── System Dependencies (COMPREHENSIVE - everything a dev needs) ─
+# ─── System Dependencies (COMPREHENSIVE - ALL essential terminal commands) ──
 RUN apt-get update && apt-get install -y \
+    # ── Core file & directory commands ──
+    coreutils \
+    # ── Package managers & download ──
     curl \
     wget \
+    # ── Version control ──
     git \
+    # ── Build tools ──
     build-essential \
-    python3 \
-    python3-pip \
-    python3-venv \
-    bash \
-    sudo \
-    locales \
-    vim \
-    nano \
-    ca-certificates \
-    gnupg \
-    lsb-release \
-    iptables \
-    uidmap \
-    dbus-user-session \
-    gosu \
-    # Additional dev tools pre-installed so sudo apt rarely needed
-    htop \
-    tree \
-    less \
-    zip \
-    unzip \
-    net-tools \
-    iputils-ping \
-    openssh-client \
-    rsync \
-    strace \
-    ltrace \
-    jq \
-    file \
-    diffutils \
-    patch \
     make \
     cmake \
     autoconf \
     automake \
     libtool \
     pkg-config \
-    software-properties-common \
-    apt-utils \
+    patch \
+    # ── Language runtimes ──
+    python3 \
+    python3-pip \
+    python3-venv \
+    python3-dev \
+    # ── Shell & system ──
+    bash \
+    sudo \
+    gosu \
+    locales \
+    # ── Text editors ──
+    vim \
+    nano \
+    # ── Security & certs ──
+    ca-certificates \
+    gnupg \
     gpg \
     gpg-agent \
-    # Language runtimes
-    python3-dev \
-    # Network tools
+    lsb-release \
+    # ── Docker deps ──
+    iptables \
+    uidmap \
+    dbus-user-session \
+    # ── Process & system monitoring ──
+    htop \
+    procps \
+    # ── File viewing & text processing ──
+    tree \
+    less \
+    jq \
+    file \
+    diffutils \
+    # ── Compression & archiving ──
+    zip \
+    unzip \
+    gzip \
+    bzip2 \
+    xz-utils \
+    tar \
+    # ── Network tools ──
+    net-tools \
+    iputils-ping \
+    openssh-client \
+    openssh-server \
+    rsync \
     netcat \
     dnsutils \
+    # ── System admin ──
+    strace \
+    ltrace \
+    software-properties-common \
+    apt-utils \
+    # ── Man pages & help ──
+    man-db \
+    manpages \
+    info \
+    # ── Additional utilities ──
+    psmisc \
+    whois \
+    time \
     && rm -rf /var/lib/apt/lists/*
 
 # Generate UTF-8 locale
@@ -84,11 +110,18 @@ RUN install -m 0755 -d /etc/apt/keyrings \
     && apt-get install -y docker-ce-cli docker-ce-rootless-extras \
     && rm -rf /var/lib/apt/lists/*
 
-# ─── Non-root User ───────────────────────────────────────────────
+# ─── Non-root User with npm global prefix ───────────────────────────
 RUN useradd -m -s /bin/bash cloudshell && \
     echo "cloudshell ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/cloudshell && \
     chmod 440 /etc/sudoers.d/cloudshell && \
     usermod -aG sudo cloudshell
+
+# ─── Configure npm global directory for cloudshell user ─────────────
+# This fixes EACCES errors when running `npm install -g` as non-root user
+# Instead of writing to /usr/lib/node_modules (root-only), npm will
+# install global packages to ~/.npm-global/ which the user owns
+RUN mkdir -p /home/cloudshell/.npm-global \
+    && chown -R cloudshell:cloudshell /home/cloudshell/.npm-global
 
 # ─── Application ──────────────────────────────────────────────────
 WORKDIR /app
@@ -115,6 +148,10 @@ RUN mkdir -p /home/cloudshell/workspace \
     /home/cloudshell/.local/share \
     /home/cloudshell/.cache \
     /home/cloudshell/bin \
+    /home/cloudshell/.npm-global \
+    /home/cloudshell/.npm-global/lib \
+    /home/cloudshell/.npm-global/bin \
+    /home/cloudshell/.jasbol-users \
     && chown -R cloudshell:cloudshell /home/cloudshell \
     && chown -R cloudshell:cloudshell /app
 
@@ -133,7 +170,8 @@ ENV PORT=7860 \
     USER=cloudshell \
     WORKSPACE_DIR=/home/cloudshell/workspace \
     SHELL=/bin/bash \
-    APP_HOME=/home/cloudshell
+    APP_HOME=/home/cloudshell \
+    NPM_CONFIG_PREFIX=/home/cloudshell/.npm-global
 
 # ─── Entrypoint ──────────────────────────────────────────────────
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
