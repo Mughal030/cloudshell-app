@@ -1,0 +1,204 @@
+#!/bin/bash
+# OpenOutreach CLI Wrapper
+# Usage:
+#   openoutreach start     - Start Django admin + all background services
+#   openoutreach daemon    - Run the outreach daemon (interactive onboarding)
+#   openoutreach admin     - Start only Django admin server
+#   openoutreach onboard   - Run onboarding wizard
+#   openoutreach status    - Show service status
+#   openoutreach stop      - Stop all services
+#   openoutreach migrate   - Run Django migrations
+#   openoutreach shell     - Django shell
+
+OO_DIR="/home/z/openoutreach-source"
+OO_VENV="$OO_DIR/.venv"
+PYTHON="$OO_VENV/bin/python"
+export DJANGO_SETTINGS_MODULE="linkedin.django_settings"
+export DISPLAY=":99"
+export PLAYWRIGHT_BROWSERS_PATH="/home/z/.cache/ms-playwright"
+export LD_LIBRARY_PATH="/home/z/.local/lib"
+export PATH="$OO_VENV/bin:/home/z/.local/bin:/usr/local/bin:/usr/bin:/bin"
+
+activate_venv() {
+    source "$OO_VENV/bin/activate"
+}
+
+start_xvfb() {
+    if [ -f /tmp/.X99-lock ]; then
+        echo "[OK] Xvfb already running"
+    else
+        /usr/bin/Xvfb :99 -screen 0 1920x1080x24 &
+        sleep 1
+        echo "[OK] Xvfb started on :99"
+    fi
+}
+
+start_x11vnc() {
+    if ss -tlnp 2>/dev/null | grep -q ':5900'; then
+        echo "[OK] x11vnc already running on port 5900"
+    else
+        LD_LIBRARY_PATH=/home/z/.local/lib /home/z/.local/bin/x11vnc -display :99 -forever -shared -nopw -rfbport 5900 &
+        sleep 2
+        if ss -tlnp 2>/dev/null | grep -q ':5900'; then
+            echo "[OK] x11vnc started on port 5900"
+        else
+            echo "[WARN] x11vnc may have failed to start"
+        fi
+    fi
+}
+
+start_websockify() {
+    if ss -tlnp 2>/dev/null | grep -q ':6080'; then
+        echo "[OK] websockify already running on port 6080"
+    else
+        /home/z/.venv/bin/websockify --web /home/z/.local/share/noVNC-1.5.0 6080 localhost:5900 &
+        sleep 2
+        if ss -tlnp 2>/dev/null | grep -q ':6080'; then
+            echo "[OK] websockify (noVNC) started on port 6080"
+        else
+            echo "[WARN] websockify may have failed to start"
+        fi
+    fi
+}
+
+start_django() {
+    if ss -tlnp 2>/dev/null | grep -q ':8000'; then
+        echo "[OK] Django already running on port 8000"
+    else
+        cd "$OO_DIR"
+        $PYTHON manage.py runserver 0.0.0.0:8000 &
+        sleep 3
+        if ss -tlnp 2>/dev/null | grep -q ':8000'; then
+            echo "[OK] Django admin started on port 8000"
+        else
+            echo "[WARN] Django may have failed to start"
+        fi
+    fi
+}
+
+case "${1:-help}" in
+    start)
+        echo "========================================="
+        echo "  Starting OpenOutreach Services"
+        echo "========================================="
+        start_xvfb
+        start_x11vnc
+        start_websockify
+        start_django
+        echo ""
+        echo "========================================="
+        echo "  All services started!"
+        echo "========================================="
+        echo "  Django Admin:  http://localhost:8000/admin/"
+        echo "  noVNC:         http://localhost:6080/vnc.html"
+        echo ""
+        echo "  Login: admin / admin"
+        echo "========================================="
+        ;;
+
+    daemon)
+        echo "Starting OpenOutreach daemon with interactive onboarding..."
+        start_xvfb
+        cd "$OO_DIR"
+        activate_venv
+        $PYTHON manage.py rundaemon
+        ;;
+
+    admin)
+        start_xvfb
+        start_django
+        ;;
+
+    onboard)
+        cd "$OO_DIR"
+        activate_venv
+        $PYTHON manage.py onboard
+        ;;
+
+    onboard-ni)
+        cd "$OO_DIR"
+        activate_venv
+        shift
+        $PYTHON manage.py onboard --non-interactive "$@"
+        ;;
+
+    status)
+        echo "OpenOutreach Service Status:"
+        echo "----------------------------"
+        if [ -f /tmp/.X99-lock ]; then
+            echo "  Xvfb:       RUNNING"
+        else
+            echo "  Xvfb:       STOPPED"
+        fi
+        if ss -tlnp 2>/dev/null | grep -q ':5900'; then
+            echo "  x11vnc:     RUNNING (port 5900)"
+        else
+            echo "  x11vnc:     STOPPED"
+        fi
+        if ss -tlnp 2>/dev/null | grep -q ':6080'; then
+            echo "  websockify:  RUNNING (port 6080)"
+        else
+            echo "  websockify:  STOPPED"
+        fi
+        if ss -tlnp 2>/dev/null | grep -q ':8000'; then
+            echo "  Django:     RUNNING (port 8000)"
+        else
+            echo "  Django:     STOPPED"
+        fi
+        ;;
+
+    stop)
+        echo "Stopping OpenOutreach services..."
+        pkill -f "manage.py runserver" 2>/dev/null && echo "  Stopped Django" || echo "  Django not running"
+        pkill -f "websockify.*6080" 2>/dev/null && echo "  Stopped websockify" || echo "  websockify not running"
+        pkill -f "x11vnc.*:99" 2>/dev/null && echo "  Stopped x11vnc" || echo "  x11vnc not running"
+        echo "Done."
+        ;;
+
+    migrate)
+        cd "$OO_DIR"
+        activate_venv
+        $PYTHON manage.py migrate --noinput
+        ;;
+
+    shell)
+        cd "$OO_DIR"
+        activate_venv
+        $PYTHON manage.py shell
+        ;;
+
+    createsuperuser)
+        cd "$OO_DIR"
+        activate_venv
+        $PYTHON manage.py createsuperuser
+        ;;
+
+    help|--help|-h)
+        echo "OpenOutreach CLI - LinkedIn Lead Generation Tool"
+        echo ""
+        echo "Usage: openoutreach <command>"
+        echo ""
+        echo "Commands:"
+        echo "  start           Start all services (Xvfb, VNC, Django admin)"
+        echo "  daemon          Run the outreach daemon (with interactive onboarding)"
+        echo "  admin           Start only Django admin server"
+        echo "  onboard         Run onboarding wizard (LinkedIn, API key, etc.)"
+        echo "  status          Show service status"
+        echo "  stop            Stop all services"
+        echo "  migrate         Run Django migrations"
+        echo "  shell           Open Django shell"
+        echo "  createsuperuser Create a new Django admin user"
+        echo ""
+        echo "Quick Start:"
+        echo "  1. openoutreach start       # Start all services"
+        echo "  2. Open Django Admin at http://localhost:8000/admin/"
+        echo "  3. Configure in Admin: LinkedIn profile, LLM API key, Campaign"
+        echo "  4. openoutreach daemon      # Start finding leads!"
+        ;;
+
+    *)
+        echo "Unknown command: $1"
+        echo "Run 'openoutreach help' for usage."
+        exit 1
+        ;;
+esac

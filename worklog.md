@@ -160,3 +160,34 @@ Stage Summary:
 - Each user gets isolated workspace at ~/workspaces/<username>
 - Auth system fully working on HF Spaces with admin account (adminmughal03 / adminumair0302)
 - App running and healthy on HF Spaces
+---
+Task ID: 1-6
+Agent: main
+Task: Fix npm EACCES error, add Claude Code CLI support, update Quick Install, deploy to HF
+
+Work Log:
+- Fixed npm global install EACCES: Created .npmrc at Dockerfile build time with prefix=/home/cloudshell/.npm-global
+- Added PATH env var to Dockerfile with ~/.npm-global/bin included at the front
+- Created /etc/npmrc as system-wide fallback for npm global prefix
+- Added setup-claude-code helper function to install Claude Code CLI via npm
+- Added setup-claude-env helper to configure ANTHROPIC_* env vars using Linux export (NOT Windows setx)
+- Added .bashrc_env for persistent environment variables across sessions
+- Added setenv() helper for general env var persistence
+- Updated welcome banner with Claude Code setup instructions showing export commands
+- Updated Quick Install panel: Added AI & CLI Tools category (Claude Code, TypeScript, Vercel, Netlify, AWS CLI, GitHub CLI)
+- Added more tools: Bun, Deno, kubectl, ngrok, SQLite Browser
+- Improved sudo wrapper v11: better chown/chmod handling
+- Pass through ANTHROPIC_* env vars from server process to terminal PTY sessions
+- Updated both server.ts and server-hf.ts with Claude Code support
+- Cleaned git history to remove large binary files blocking HF push
+- Regenerated logo and favicon images via z-ai-generate
+- Created README.md with HF Space metadata
+- Pushed to GitHub and HF Spaces
+- Verified app is running and healthy at https://mughal03-cloudshell-ide.hf.space
+
+Stage Summary:
+- npm install -g now works without sudo (prefix: ~/.npm-global)
+- Claude Code CLI can be installed and configured in the terminal
+- Linux export commands work for ANTHROPIC_* env vars (not Windows setx)
+- setup-claude-env persists env vars to ~/.bashrc_env across sessions
+- HF Space rebuilt and running successfully
