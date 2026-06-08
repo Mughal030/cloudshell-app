@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Eye, EyeOff, Shield, Lock, User, ArrowRight, Fingerprint, Zap } from 'lucide-react'
+import { Eye, EyeOff, Lock, User, ArrowRight, Fingerprint, Zap } from 'lucide-react'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -111,22 +112,17 @@ export default function LoginPage() {
 
           {/* Header */}
           <div className="p-8 pb-4 text-center">
-            {/* 3D Logo */}
+            {/* Jasbol Logo */}
             <div className="mx-auto w-20 h-20 mb-4 relative">
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#00E5C0]/20 to-[#6366F1]/20 border border-[#00E5C0]/30"
+              <Image src="/jasbol-hack-logo.png" alt="Jasbol Hack" width={80} height={80} className="rounded-2xl" priority
                 style={{
-                  transform: 'perspective(200px) rotateX(5deg) rotateY(-5deg)',
-                  boxShadow: '0 10px 30px rgba(0,229,192,0.15)',
+                  filter: 'drop-shadow(0 0 12px rgba(0,229,192,0.3)) drop-shadow(0 0 24px rgba(99,102,241,0.15))',
                 }}
-              >
-                <div className="flex items-center justify-center h-full">
-                  <Shield className="w-10 h-10 text-[var(--nx-accent-teal)]" />
-                </div>
-              </div>
+              />
             </div>
 
             <h1 className="text-2xl font-bold mb-1">
-              <span className="bg-gradient-to-r from-[#00E5C0] to-[#6366F1] bg-clip-text text-transparent">Nexus</span> <span className="text-white">Eclipse</span>
+              <span className="bg-gradient-to-r from-[#00E5C0] to-[#6366F1] bg-clip-text text-transparent">Jasbol</span> <span className="text-white">Hack</span>
             </h1>
             <p className="text-[var(--nx-text-secondary)] text-sm">Secure Access Terminal</p>
 

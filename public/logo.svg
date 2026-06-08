@@ -1,8 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0d1117;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#161b22;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#0F1117;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#161B22;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00E5C0;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6366F1;stop-opacity:1" />
     </linearGradient>
     <linearGradient id="metal" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#c0c0c0;stop-opacity:1" />
@@ -10,19 +14,28 @@
       <stop offset="100%" style="stop-color:#a0a0a0;stop-opacity:1" />
     </linearGradient>
     <filter id="glow">
-      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
+      <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+      <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="innerGlow">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
-  <rect width="100" height="100" rx="18" fill="url(#bg)" stroke="#00ff41" stroke-width="2" stroke-opacity="0.5"/>
+  <!-- Background -->
+  <rect width="100" height="100" rx="20" fill="url(#bg)" stroke="url(#accent)" stroke-width="1.5" stroke-opacity="0.5"/>
+  <!-- Hexagon Shield -->
+  <polygon points="50,12 82,30 82,68 50,86 18,68 18,30" fill="none" stroke="url(#accent)" stroke-width="1.2" stroke-opacity="0.35" filter="url(#innerGlow)"/>
   <!-- JH Monogram -->
-  <text x="50" y="65" font-family="Arial Black, Arial, sans-serif" font-size="48" font-weight="900" fill="url(#metal)" text-anchor="middle" filter="url(#glow)">JH</text>
-  <!-- Circuit accent lines -->
-  <line x1="15" y1="80" x2="35" y2="80" stroke="#00ff41" stroke-width="1.5" stroke-opacity="0.6"/>
-  <circle cx="35" cy="80" r="2" fill="#00ff41" fill-opacity="0.8"/>
-  <line x1="65" y1="80" x2="85" y2="80" stroke="#00ff41" stroke-width="1.5" stroke-opacity="0.6"/>
-  <circle cx="65" cy="80" r="2" fill="#00ff41" fill-opacity="0.8"/>
+  <text x="50" y="62" font-family="Arial Black, Impact, sans-serif" font-size="38" font-weight="900" fill="url(#accent)" text-anchor="middle" filter="url(#glow)" letter-spacing="-2">JH</text>
+  <!-- Circuit Lines -->
+  <line x1="22" y1="76" x2="38" y2="76" stroke="#00E5C0" stroke-width="1" stroke-opacity="0.5"/>
+  <circle cx="38" cy="76" r="1.5" fill="#00E5C0" fill-opacity="0.7"/>
+  <line x1="62" y1="76" x2="78" y2="76" stroke="#6366F1" stroke-width="1" stroke-opacity="0.5"/>
+  <circle cx="62" cy="76" r="1.5" fill="#6366F1" fill-opacity="0.7"/>
+  <!-- Corner Accents -->
+  <line x1="8" y1="25" x2="14" y2="25" stroke="#00E5C0" stroke-width="0.8" stroke-opacity="0.4"/>
+  <line x1="8" y1="25" x2="8" y2="31" stroke="#00E5C0" stroke-width="0.8" stroke-opacity="0.4"/>
+  <line x1="92" y1="25" x2="86" y2="25" stroke="#6366F1" stroke-width="0.8" stroke-opacity="0.4"/>
+  <line x1="92" y1="25" x2="92" y2="31" stroke="#6366F1" stroke-width="0.8" stroke-opacity="0.4"/>
 </svg>

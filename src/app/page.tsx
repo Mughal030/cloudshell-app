@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
+import Image from 'next/image'
 import {
   Terminal, Sun, Moon, Plus, X, ChevronLeft, ChevronRight,
   Wifi, WifiOff, Wrench, FolderTree, Container, Zap,
@@ -130,12 +131,10 @@ export default function Home() {
       <header className="flex items-center justify-between px-4 h-11 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/90 backdrop-blur-md shrink-0 nx-panel-glow">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-gradient-to-br from-[#00E5C0] to-[#6366F1] flex items-center justify-center">
-              <Terminal className="w-4 h-4 text-white" />
-            </div>
+            <Image src="/jasbol-hack-logo.png" alt="Jasbol Hack" width={28} height={28} className="rounded-md" priority />
             <h1 className="text-sm font-bold tracking-wide">
-              <span className="bg-gradient-to-r from-[#00E5C0] to-[#6366F1] bg-clip-text text-transparent">Nexus</span>
-              <span className="text-[var(--nx-text)] ml-0.5">Eclipse</span>
+              <span className="bg-gradient-to-r from-[#00E5C0] to-[#6366F1] bg-clip-text text-transparent">Jasbol</span>
+              <span className="text-[var(--nx-text)] ml-0.5">Hack</span>
             </h1>
           </div>
           <Separator orientation="vertical" className="h-5 bg-[var(--nx-border)]" />
@@ -351,7 +350,7 @@ export default function Home() {
           <div className="flex items-center gap-1">
             {mounted && connected ? <Wifi className="h-2.5 w-2.5 text-[var(--nx-success)]" /> : <WifiOff className="h-2.5 w-2.5 text-[var(--nx-error)]" />}
           </div>
-          <span className="text-[var(--nx-text-dim)]">Nexus Eclipse</span>
+          <span className="text-[var(--nx-text-dim)]">Jasbol Hack</span>
         </div>
       </footer>
     </div>
