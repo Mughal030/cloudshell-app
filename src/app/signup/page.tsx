@@ -35,7 +35,7 @@ export default function SignupPage() {
   }
 
   const strength = getPasswordStrength()
-  const strengthColors = ['#ff5252', '#ff9800', '#ffc107', '#00e676', '#00d4ff']
+  const strengthColors = ['var(--nx-error)', 'var(--nx-warning)', 'var(--nx-warning)', 'var(--nx-success)', 'var(--nx-accent-teal)']
   const strengthLabels = ['Very Weak', 'Weak', 'Fair', 'Strong', 'Very Strong']
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,7 +77,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#060918] flex items-center justify-center overflow-hidden relative py-8" onMouseMove={handleMouseMove}>
+    <div className="min-h-screen bg-[#080A12] flex items-center justify-center overflow-hidden relative py-8" onMouseMove={handleMouseMove}>
       {/* Animated 3D Background */}
       <div className="absolute inset-0 overflow-hidden">
         {/* Floating 3D Shapes */}
@@ -90,26 +90,26 @@ export default function SignupPage() {
               top: `${(i * 19) % 100}%`,
               width: `${15 + (i % 5) * 12}px`,
               height: `${15 + (i % 5) * 12}px`,
-              border: `1px solid ${['#00d4ff', '#ffc107', '#a855f7', '#00e676'][i % 4]}`,
+              border: `1px solid ${['#6366F1', '#00E5C0', '#C084FC', '#34D399'][i % 4]}`,
               borderRadius: i % 3 === 0 ? '4px' : i % 3 === 1 ? '50%' : '30%',
               transform: `perspective(500px) rotateX(${mousePos.y * 25 + i * 18}deg) rotateY(${mousePos.x * 25 + i * 14}deg)`,
-              animation: `jh-float ${10 + (i % 6) * 2}s ease-in-out infinite ${i * 0.3}s`,
+              animation: `nx-float ${10 + (i % 6) * 2}s ease-in-out infinite ${i * 0.3}s`,
               transition: 'transform 0.3s ease-out',
             }}
           />
         ))}
 
         {/* Gradient Orbs */}
-        <div className="absolute top-1/3 left-1/5 w-[500px] h-[500px] bg-[#ffc107]/[0.03] rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-1/3 right-1/5 w-[500px] h-[500px] bg-[#00d4ff]/[0.04] rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s' }} />
-        <div className="absolute top-2/3 left-1/2 w-80 h-80 bg-[#a855f7]/[0.04] rounded-full blur-3xl animate-pulse" style={{ animationDelay: '3s' }} />
+        <div className="absolute top-1/3 left-1/5 w-[500px] h-[500px] bg-[#6366F1]/[0.04] rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-1/3 right-1/5 w-[500px] h-[500px] bg-[#00E5C0]/[0.04] rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1.5s' }} />
+        <div className="absolute top-2/3 left-1/2 w-80 h-80 bg-[#C084FC]/[0.04] rounded-full blur-3xl animate-pulse" style={{ animationDelay: '3s' }} />
 
         {/* Grid Lines */}
         <div className="absolute inset-0 opacity-[0.02]"
           style={{
             backgroundImage: `
-              linear-gradient(rgba(255,193,7,0.4) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,193,7,0.4) 1px, transparent 1px)
+              linear-gradient(rgba(99,102,241,0.4) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(99,102,241,0.4) 1px, transparent 1px)
             `,
             backgroundSize: '50px 50px',
           }}
@@ -125,58 +125,58 @@ export default function SignupPage() {
         }}
       >
         {/* Card */}
-        <div className="relative bg-[#0a0e23]/80 backdrop-blur-xl border border-[#1e2a5a]/60 rounded-2xl shadow-2xl overflow-hidden jh-gradient-border"
+        <div className="relative bg-[var(--nx-bg-secondary)]/80 backdrop-blur-xl border border-[var(--nx-border)]/60 rounded-2xl shadow-2xl overflow-hidden nx-gradient-border"
           style={{
             boxShadow: `
-              0 0 40px rgba(255,193,7,0.06),
-              0 0 80px rgba(0,212,255,0.03),
+              0 0 40px rgba(99,102,241,0.06),
+              0 0 80px rgba(0,229,192,0.03),
               0 25px 50px rgba(0,0,0,0.5),
               inset 0 1px 0 rgba(255,255,255,0.04)
             `,
           }}
         >
-          {/* Top Glow Bar */}
-          <div className="h-1 bg-gradient-to-r from-[#ffc107] via-[#a855f7] to-[#00d4ff] animate-pulse" />
+          {/* Top Glow Bar — indigo→teal flow */}
+          <div className="h-1 bg-gradient-to-r from-[#6366F1] via-[#00E5C0] to-[#6366F1] animate-pulse" />
 
           {/* Header */}
           <div className="p-8 pb-4 text-center">
             {/* 3D Logo */}
             <div className="mx-auto w-20 h-20 mb-4 relative">
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#ffc107]/20 to-[#00d4ff]/15 border border-[#ffc107]/30"
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#6366F1]/20 to-[#00E5C0]/15 border border-[#6366F1]/30"
                 style={{
                   transform: 'perspective(200px) rotateX(5deg) rotateY(5deg)',
-                  boxShadow: '0 10px 30px rgba(255,193,7,0.15)',
+                  boxShadow: '0 10px 30px rgba(99,102,241,0.15)',
                 }}
               >
                 <div className="flex items-center justify-center h-full">
-                  <UserPlus className="w-10 h-10 text-[#ffc107]" />
+                  <UserPlus className="w-10 h-10 text-[#6366F1]" />
                 </div>
               </div>
             </div>
 
-            <h1 className="text-2xl font-bold text-white mb-1">
-              <span className="text-[#ffc107]">Join</span> Jasbol Hack
+            <h1 className="text-2xl font-bold mb-1">
+              <span className="bg-gradient-to-r from-[#6366F1] to-[#00E5C0] bg-clip-text text-transparent">Join</span> <span className="bg-gradient-to-r from-[#00E5C0] to-[#6366F1] bg-clip-text text-transparent">Nexus</span> <span className="text-white">Eclipse</span>
             </h1>
-            <p className="text-[#6b7ba0] text-sm">Create your secure account</p>
+            <p className="text-[var(--nx-text-secondary)] text-sm">Create your secure account</p>
 
             {/* Features */}
-            <div className="flex items-center justify-center gap-4 mt-3 text-[10px] text-[#6b7ba0]">
-              <span className="flex items-center gap-1"><Check className="w-3 h-3 text-[#00d4ff]" />Isolated Workspace</span>
-              <span className="flex items-center gap-1"><Check className="w-3 h-3 text-[#00d4ff]" />End-to-End Encrypted</span>
+            <div className="flex items-center justify-center gap-4 mt-3 text-[10px] text-[var(--nx-text-secondary)]">
+              <span className="flex items-center gap-1"><Check className="w-3 h-3 text-[#6366F1]" />Isolated Workspace</span>
+              <span className="flex items-center gap-1"><Check className="w-3 h-3 text-[#00E5C0]" />End-to-End Encrypted</span>
             </div>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="px-8 pb-8">
             {error && (
-              <div className="mb-4 p-3 rounded-lg bg-[#ff5252]/10 border border-[#ff5252]/20 text-[#ff5252] text-sm flex items-center gap-2">
-                <div className="w-1 h-1 rounded-full bg-[#ff5252] animate-ping" />
+              <div className="mb-4 p-3 rounded-lg bg-[var(--nx-error)]/10 border border-[var(--nx-error)]/20 text-[var(--nx-error)] text-sm flex items-center gap-2">
+                <div className="w-1 h-1 rounded-full bg-[var(--nx-error)] animate-ping" />
                 {error}
               </div>
             )}
 
             {success && (
-              <div className="mb-4 p-3 rounded-lg bg-[#00d4ff]/10 border border-[#00d4ff]/20 text-[#00d4ff] text-sm flex items-center gap-2">
+              <div className="mb-4 p-3 rounded-lg bg-[#6366F1]/10 border border-[#6366F1]/20 text-[#6366F1] text-sm flex items-center gap-2">
                 <Sparkles className="w-4 h-4" />
                 {success}
               </div>
@@ -184,16 +184,16 @@ export default function SignupPage() {
 
             {/* Username Field */}
             <div className="mb-4">
-              <label className="block text-xs font-medium text-[#6b7ba0] mb-1.5 uppercase tracking-wider">Username</label>
+              <label className="block text-xs font-medium text-[var(--nx-text-secondary)] mb-1.5 uppercase tracking-wider">Username</label>
               <div className="relative group">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#3d4a6e] group-focus-within:text-[#ffc107] transition-colors">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] group-focus-within:text-[#6366F1] transition-colors">
                   <User className="w-4 h-4" />
                 </div>
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-[#0f1430] border border-[#1e2a5a] rounded-xl text-white text-sm placeholder-[#3d4a6e] focus:outline-none focus:border-[#ffc107]/50 focus:ring-1 focus:ring-[#ffc107]/20 transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] rounded-xl text-[var(--nx-text)] text-sm placeholder-[var(--nx-text-dim)] focus:outline-none focus:border-[#6366F1]/50 focus:ring-1 focus:ring-[#6366F1]/20 transition-all"
                   placeholder="Choose a username"
                   required
                   autoComplete="username"
@@ -203,16 +203,16 @@ export default function SignupPage() {
 
             {/* Email Field */}
             <div className="mb-4">
-              <label className="block text-xs font-medium text-[#6b7ba0] mb-1.5 uppercase tracking-wider">Email</label>
+              <label className="block text-xs font-medium text-[var(--nx-text-secondary)] mb-1.5 uppercase tracking-wider">Email</label>
               <div className="relative group">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#3d4a6e] group-focus-within:text-[#ffc107] transition-colors">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] group-focus-within:text-[#6366F1] transition-colors">
                   <Mail className="w-4 h-4" />
                 </div>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-[#0f1430] border border-[#1e2a5a] rounded-xl text-white text-sm placeholder-[#3d4a6e] focus:outline-none focus:border-[#ffc107]/50 focus:ring-1 focus:ring-[#ffc107]/20 transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] rounded-xl text-[var(--nx-text)] text-sm placeholder-[var(--nx-text-dim)] focus:outline-none focus:border-[#6366F1]/50 focus:ring-1 focus:ring-[#6366F1]/20 transition-all"
                   placeholder="your@email.com"
                   required
                   autoComplete="email"
@@ -222,16 +222,16 @@ export default function SignupPage() {
 
             {/* Password Field */}
             <div className="mb-3">
-              <label className="block text-xs font-medium text-[#6b7ba0] mb-1.5 uppercase tracking-wider">Password</label>
+              <label className="block text-xs font-medium text-[var(--nx-text-secondary)] mb-1.5 uppercase tracking-wider">Password</label>
               <div className="relative group">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#3d4a6e] group-focus-within:text-[#ffc107] transition-colors">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] group-focus-within:text-[#6366F1] transition-colors">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-3 bg-[#0f1430] border border-[#1e2a5a] rounded-xl text-white text-sm placeholder-[#3d4a6e] focus:outline-none focus:border-[#ffc107]/50 focus:ring-1 focus:ring-[#ffc107]/20 transition-all"
+                  className="w-full pl-10 pr-12 py-3 bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] rounded-xl text-[var(--nx-text)] text-sm placeholder-[var(--nx-text-dim)] focus:outline-none focus:border-[#6366F1]/50 focus:ring-1 focus:ring-[#6366F1]/20 transition-all"
                   placeholder="Create a strong password"
                   required
                   autoComplete="new-password"
@@ -239,7 +239,7 @@ export default function SignupPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#3d4a6e] hover:text-[#ffc107] transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] hover:text-[#6366F1] transition-colors"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -253,12 +253,12 @@ export default function SignupPage() {
                         key={i}
                         className="h-1 flex-1 rounded-full transition-all duration-300"
                         style={{
-                          backgroundColor: i < strength ? strengthColors[strength - 1] : '#1e2a5a',
+                          backgroundColor: i < strength ? strengthColors[strength - 1] : 'var(--nx-border)',
                         }}
                       />
                     ))}
                   </div>
-                  <span className="text-[10px]" style={{ color: strengthColors[strength - 1] || '#3d4a6e' }}>
+                  <span className="text-[10px]" style={{ color: strengthColors[strength - 1] || 'var(--nx-text-dim)' }}>
                     {strengthLabels[strength - 1] || 'Too short'}
                   </span>
                 </div>
@@ -267,16 +267,16 @@ export default function SignupPage() {
 
             {/* Confirm Password */}
             <div className="mb-6">
-              <label className="block text-xs font-medium text-[#6b7ba0] mb-1.5 uppercase tracking-wider">Confirm Password</label>
+              <label className="block text-xs font-medium text-[var(--nx-text-secondary)] mb-1.5 uppercase tracking-wider">Confirm Password</label>
               <div className="relative group">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[#3d4a6e] group-focus-within:text-[#ffc107] transition-colors">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] group-focus-within:text-[#6366F1] transition-colors">
                   <Shield className="w-4 h-4" />
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-[#0f1430] border border-[#1e2a5a] rounded-xl text-white text-sm placeholder-[#3d4a6e] focus:outline-none focus:border-[#ffc107]/50 focus:ring-1 focus:ring-[#ffc107]/20 transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] rounded-xl text-[var(--nx-text)] text-sm placeholder-[var(--nx-text-dim)] focus:outline-none focus:border-[#6366F1]/50 focus:ring-1 focus:ring-[#6366F1]/20 transition-all"
                   placeholder="Confirm your password"
                   required
                   autoComplete="new-password"
@@ -284,29 +284,29 @@ export default function SignupPage() {
                 {confirmPassword && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     {password === confirmPassword ? (
-                      <Check className="w-4 h-4 text-[#00d4ff]" />
+                      <Check className="w-4 h-4 text-[var(--nx-accent-teal)]" />
                     ) : (
-                      <div className="w-2 h-2 rounded-full bg-[#ff5252]" />
+                      <div className="w-2 h-2 rounded-full bg-[var(--nx-error)]" />
                     )}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Signup Button */}
+            {/* Signup Button — indigo→teal gradient */}
             <button
               type="submit"
               disabled={loading}
               className="w-full py-3.5 rounded-xl font-semibold text-sm relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
-                background: 'linear-gradient(135deg, #ffc107, #00d4ff)',
-                boxShadow: '0 4px 15px rgba(255,193,7,0.3), 0 0 30px rgba(255,193,7,0.1)',
+                background: 'linear-gradient(135deg, #6366F1, #00E5C0)',
+                boxShadow: '0 4px 15px rgba(99,102,241,0.3), 0 0 30px rgba(99,102,241,0.1)',
               }}
             >
-              <span className="relative z-10 flex items-center justify-center gap-2 text-[#0a0e23] font-bold">
+              <span className="relative z-10 flex items-center justify-center gap-2 text-[#080A12] font-bold">
                 {loading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-[#0a0e23]/30 border-t-[#0a0e23] rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-[#080A12]/30 border-t-[#080A12] rounded-full animate-spin" />
                     Creating Account...
                   </>
                 ) : (
@@ -322,9 +322,9 @@ export default function SignupPage() {
 
             {/* Divider */}
             <div className="flex items-center gap-3 mt-6 mb-4">
-              <div className="flex-1 h-px bg-[#1e2a5a]" />
-              <span className="text-[10px] text-[#3d4a6e] uppercase tracking-wider">Already have an account?</span>
-              <div className="flex-1 h-px bg-[#1e2a5a]" />
+              <div className="flex-1 h-px bg-[var(--nx-border)]" />
+              <span className="text-[10px] text-[var(--nx-text-dim)] uppercase tracking-wider">Already have an account?</span>
+              <div className="flex-1 h-px bg-[var(--nx-border)]" />
             </div>
 
             {/* Login Link */}
@@ -332,7 +332,7 @@ export default function SignupPage() {
               <button
                 type="button"
                 onClick={() => router.push('/login')}
-                className="text-[#ffc107] text-sm font-medium hover:underline inline-flex items-center gap-1"
+                className="text-[#6366F1] text-sm font-medium hover:underline inline-flex items-center gap-1"
               >
                 <ArrowRight className="w-3 h-3 rotate-180" />
                 Sign In Instead
@@ -342,7 +342,7 @@ export default function SignupPage() {
         </div>
 
         {/* 3D Shadow */}
-        <div className="absolute -bottom-4 left-4 right-4 h-8 bg-[#ffc107]/5 blur-xl rounded-full" />
+        <div className="absolute -bottom-4 left-4 right-4 h-8 bg-[#6366F1]/5 blur-xl rounded-full" />
       </div>
     </div>
   )

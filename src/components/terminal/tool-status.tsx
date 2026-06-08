@@ -33,14 +33,14 @@ export function ToolStatus({ tools, checkTools, onInstall, sendCommandToTerminal
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#1e2a5a]/50">
-        <span className="text-xs font-medium text-[#6b7ba0]">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--nx-border)]/50">
+        <span className="text-xs font-medium text-[var(--nx-text-secondary)]">
           {loading && tools.length === 0 ? 'Checking...' : `${installedCount}/${tools.length} installed`}
         </span>
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-[#6b7ba0] hover:text-[#00d4ff] transition-colors"
+          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
           onClick={checkTools}
           disabled={loading}
         >
@@ -54,19 +54,19 @@ export function ToolStatus({ tools, checkTools, onInstall, sendCommandToTerminal
           {tools.map((tool) => (
             <div
               key={tool.name}
-              className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[#1a2048]/60 transition-colors group"
+              className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--nx-bg-hover)]/60 transition-colors group"
             >
               {tool.installed ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-[#00e676] shrink-0" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-[var(--nx-success)] shrink-0" />
               ) : (
-                <XCircle className="h-3.5 w-3.5 text-[#ff5252]/60 shrink-0" />
+                <XCircle className="h-3.5 w-3.5 text-[var(--nx-error)]/60 shrink-0" />
               )}
               <div className="flex-1 min-w-0">
-                <span className="text-xs font-medium text-[#c8d6e5]">
+                <span className="text-xs font-medium text-[var(--nx-text)]">
                   {tool.displayName || tool.name}
                 </span>
                 {tool.installed && tool.version && (
-                  <span className="text-[10px] text-[#3d4a6e] ml-1.5 truncate">
+                  <span className="text-[10px] text-[var(--nx-text-dim)] ml-1.5 truncate">
                     {tool.version.split('\n')[0]}
                   </span>
                 )}
@@ -75,7 +75,7 @@ export function ToolStatus({ tools, checkTools, onInstall, sendCommandToTerminal
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-5 px-1.5 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity text-[#ffc107] hover:text-[#ffe57f] hover:bg-[#ffc107]/10"
+                  className="h-5 px-1.5 text-[10px] opacity-0 group-hover:opacity-100 transition-opacity text-[var(--nx-warning)] hover:text-[var(--nx-warning)] hover:bg-[var(--nx-warning)]/10"
                   onClick={() => handleInstall(tool.name)}
                 >
                   <Download className="h-3 w-3 mr-0.5" />
@@ -83,20 +83,20 @@ export function ToolStatus({ tools, checkTools, onInstall, sendCommandToTerminal
                 </Button>
               )}
               {tool.installed && (
-                <Badge variant="secondary" className="h-4 px-1 text-[9px] bg-[#00e676]/10 text-[#00e676] border-[#00e676]/20">
+                <Badge variant="secondary" className="h-4 px-1 text-[9px] bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20">
                   OK
                 </Badge>
               )}
             </div>
           ))}
           {tools.length === 0 && loading && (
-            <div className="text-center text-[#6b7ba0] text-xs py-6">
+            <div className="text-center text-[var(--nx-text-secondary)] text-xs py-6">
               <RefreshCw className="h-4 w-4 mx-auto mb-2 animate-spin" />
               Checking installed tools...
             </div>
           )}
           {tools.length === 0 && !loading && (
-            <div className="text-center text-[#3d4a6e] text-xs py-6">
+            <div className="text-center text-[var(--nx-text-dim)] text-xs py-6">
               Click refresh to check tools
             </div>
           )}

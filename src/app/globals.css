@@ -3,16 +3,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ============================================
-   JASBOL HACK — Classic Modern Theme
-   Midnight depths + Cyan energy + Gold warmth
-   ============================================ */
+/* ================================================================
+   NEXUS ECLIPSE — Professional Dark Theme System
+   ────────────────────────────────────────────────
+   Primary:    #0F1117  Deep obsidian
+   Secondary:  #161B22  Carbon steel
+   Accent:     #00E5C0 → #6366F1  Teal-to-Indigo gradient
+   Success:    #34D399  Emerald
+   Error:      #F87171  Coral red
+   Keywords:   #A5B4FC  Soft indigo
+   Strings:    #7DD3FC  Sky blue
+   ================================================================ */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,73 +55,165 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ──────────────────────────────────────────────
+   LIGHT MODE — Ivory / Navy
+   ────────────────────────────────────────────── */
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
+  /* Core surfaces */
+  --nx-bg-primary: #FAFAF8;
+  --nx-bg-secondary: #F0EDE6;
+  --nx-bg-surface: #E8E4DC;
+  --nx-bg-hover: #DDD8CE;
+  --nx-bg-active: #D0CBBF;
+  /* Borders */
+  --nx-border: #C8C2B4;
+  --nx-border-focus: #6366F1;
+  /* Text */
+  --nx-text: #1A1A2E;
+  --nx-text-secondary: #4A4A5A;
+  --nx-text-muted: #8A8A9A;
+  --nx-text-dim: #B0B0BC;
+  /* Accents */
+  --nx-accent: #6366F1;
+  --nx-accent-teal: #00B89C;
+  --nx-accent-glow: rgba(99, 102, 241, 0.15);
+  --nx-success: #059669;
+  --nx-error: #DC2626;
+  --nx-warning: #D97706;
+  /* Syntax */
+  --nx-keyword: #4338CA;
+  --nx-string: #0369A1;
+  --nx-number: #7C3AED;
+  --nx-comment: #9CA3AF;
+  --nx-function: #4F46E5;
+  --nx-variable: #0E7490;
+  /* Command Intelligence */
+  --nx-cmd-installed: #059669;
+  --nx-cmd-known: #4338CA;
+  --nx-cmd-unknown: #9CA3AF;
+  --nx-cmd-unknown-danger: #DC2626;
+  --nx-cmd-flag: #6366F1;
+  /* UI */
+  --nx-cursor: #6366F1;
+  --nx-selection: rgba(99, 102, 241, 0.18);
+  --nx-scrollbar: rgba(99, 102, 241, 0.2);
+  --nx-scrollbar-hover: rgba(99, 102, 241, 0.4);
+  /* Gradient */
+  --nx-gradient-accent: linear-gradient(135deg, #00B89C, #6366F1);
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  /* shadcn compatibility */
+  --background: #FAFAF8;
+  --foreground: #1A1A2E;
+  --card: #F0EDE6;
+  --card-foreground: #1A1A2E;
+  --popover: #F0EDE6;
+  --popover-foreground: #1A1A2E;
+  --primary: #6366F1;
+  --primary-foreground: #FFFFFF;
+  --secondary: #E8E4DC;
+  --secondary-foreground: #1A1A2E;
+  --muted: #E8E4DC;
+  --muted-foreground: #6B7280;
+  --accent: #E8E4DC;
+  --accent-foreground: #1A1A2E;
+  --destructive: #DC2626;
+  --border: #C8C2B4;
+  --input: #C8C2B4;
+  --ring: #6366F1;
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: #F0EDE6;
+  --sidebar-foreground: #1A1A2E;
+  --sidebar-primary: #6366F1;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #E8E4DC;
+  --sidebar-accent-foreground: #1A1A2E;
+  --sidebar-border: #C8C2B4;
+  --sidebar-ring: #6366F1;
+}
+
+/* ──────────────────────────────────────────────
+   DARK MODE — Nexus Eclipse (default)
+   ────────────────────────────────────────────── */
+.dark {
+  /* Core surfaces */
+  --nx-bg-primary: #0F1117;
+  --nx-bg-secondary: #161B22;
+  --nx-bg-surface: #1C2333;
+  --nx-bg-hover: #242D3D;
+  --nx-bg-active: #2A3450;
+  /* Borders */
+  --nx-border: #2A3142;
+  --nx-border-focus: #6366F1;
+  /* Text */
+  --nx-text: #E2E8F0;
+  --nx-text-secondary: #94A3B8;
+  --nx-text-muted: #64748B;
+  --nx-text-dim: #475569;
+  /* Accents */
+  --nx-accent: #6366F1;
+  --nx-accent-teal: #00E5C0;
+  --nx-accent-glow: rgba(0, 229, 192, 0.12);
+  --nx-success: #34D399;
+  --nx-error: #F87171;
+  --nx-warning: #FBBF24;
+  /* Syntax */
+  --nx-keyword: #A5B4FC;
+  --nx-string: #7DD3FC;
+  --nx-number: #C084FC;
+  --nx-comment: #64748B;
+  --nx-function: #818CF8;
+  --nx-variable: #67E8F9;
+  /* Command Intelligence */
+  --nx-cmd-installed: #00E5C0;
+  --nx-cmd-known: #A5B4FC;
+  --nx-cmd-unknown: #64748B;
+  --nx-cmd-unknown-danger: #F87171;
+  --nx-cmd-flag: #818CF8;
+  /* UI */
+  --nx-cursor: #00E5C0;
+  --nx-selection: rgba(99, 102, 241, 0.25);
+  --nx-scrollbar: rgba(0, 229, 192, 0.12);
+  --nx-scrollbar-hover: rgba(0, 229, 192, 0.28);
+  /* Gradient */
+  --nx-gradient-accent: linear-gradient(135deg, #00E5C0, #6366F1);
+
+  /* shadcn compatibility */
+  --background: #0F1117;
+  --foreground: #E2E8F0;
+  --card: #161B22;
+  --card-foreground: #E2E8F0;
+  --popover: #161B22;
+  --popover-foreground: #E2E8F0;
+  --primary: #6366F1;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1C2333;
+  --secondary-foreground: #E2E8F0;
+  --muted: #1C2333;
+  --muted-foreground: #94A3B8;
+  --accent: #1C2333;
+  --accent-foreground: #E2E8F0;
+  --destructive: #F87171;
+  --border: #2A3142;
+  --input: #2A3142;
+  --ring: #6366F1;
+  --chart-1: #A5B4FC;
+  --chart-2: #34D399;
+  --chart-3: #FBBF24;
+  --chart-4: #F87171;
+  --chart-5: #C084FC;
+  --sidebar: #161B22;
+  --sidebar-foreground: #E2E8F0;
+  --sidebar-primary: #6366F1;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #1C2333;
+  --sidebar-accent-foreground: #E2E8F0;
+  --sidebar-border: #2A3142;
+  --sidebar-ring: #6366F1;
 }
 
 @layer base {
@@ -123,102 +222,276 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-inter), system-ui, sans-serif;
   }
 }
 
-/* ============================================
-   Custom Theme Utilities & Animations
-   ============================================ */
-
-/* Subtle ambient glow for panels */
-.jh-glow-cyan {
-  box-shadow: 0 0 20px rgba(0, 212, 255, 0.06), 0 0 40px rgba(0, 212, 255, 0.03);
+/* ================================================================
+   NEXUS ECLIPSE — Command Intelligence Token Classes
+   Applied dynamically by JS on each keystroke via tokenization
+   ================================================================ */
+.cmd-installed {
+  color: var(--nx-cmd-installed);
+  text-shadow: 0 0 8px var(--nx-accent-glow);
+  font-weight: 600;
 }
-.jh-glow-gold {
-  box-shadow: 0 0 20px rgba(255, 193, 7, 0.06), 0 0 40px rgba(255, 193, 7, 0.03);
+.cmd-known {
+  color: var(--nx-cmd-known);
+  font-weight: 500;
 }
-
-/* Glass card effect */
-.jh-glass {
-  background: rgba(13, 17, 35, 0.7);
-  backdrop-filter: blur(16px) saturate(180%);
-  border: 1px solid rgba(0, 212, 255, 0.08);
+.cmd-unknown {
+  color: var(--nx-cmd-unknown);
 }
-
-/* Shimmer animation for buttons */
-@keyframes jh-shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
+.cmd-unknown-danger {
+  color: var(--nx-cmd-unknown-danger);
 }
-.jh-shimmer-btn {
-  background-size: 200% 100%;
-  animation: jh-shimmer 3s ease-in-out infinite;
+.cmd-flag {
+  color: var(--nx-cmd-flag);
 }
-
-/* Floating animation for background elements */
-@keyframes jh-float {
-  0%, 100% { transform: perspective(600px) translateY(0px) rotateX(0deg) rotateY(0deg); }
-  25% { transform: perspective(600px) translateY(-18px) rotateX(3deg) rotateY(6deg); }
-  50% { transform: perspective(600px) translateY(-30px) rotateX(-2deg) rotateY(12deg); }
-  75% { transform: perspective(600px) translateY(-12px) rotateX(4deg) rotateY(3deg); }
+.cmd-subcmd {
+  color: var(--nx-accent);
+  font-weight: 500;
 }
-
-/* Pulse ring animation for connection status */
-@keyframes jh-pulse-ring {
-  0% { transform: scale(0.8); opacity: 0.8; }
-  100% { transform: scale(2.2); opacity: 0; }
+.cmd-string {
+  color: var(--nx-string);
 }
-.jh-pulse-ring::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(0, 212, 255, 0.6);
-  animation: jh-pulse-ring 1.5s ease-out infinite;
+.cmd-keyword {
+  color: var(--nx-keyword);
+}
+.cmd-number {
+  color: var(--nx-number);
+}
+.cmd-pipe {
+  color: var(--nx-text-muted);
+  font-weight: 700;
+}
+.cmd-operator {
+  color: var(--nx-text-secondary);
 }
 
-/* Gradient border animation */
-@keyframes jh-border-flow {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+/* ================================================================
+   NEXUS ECLIPSE — Custom Component Styles
+   ================================================================ */
+
+/* Pulsing cursor effect */
+.nx-cursor-pulse {
+  animation: nx-cursor-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
-.jh-gradient-border {
+@keyframes nx-cursor-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Status indicator pulse */
+.nx-status-pulse {
+  animation: nx-status-pulse 2s ease-in-out infinite;
+}
+@keyframes nx-status-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--nx-accent-glow); }
+  50% { box-shadow: 0 0 0 4px var(--nx-accent-glow); }
+}
+
+/* Panel entrance animation */
+.nx-panel-enter {
+  animation: nx-panel-slide 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes nx-panel-slide {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Smooth hover lift for interactive items */
+.nx-hover-lift {
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nx-hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Glow border on focus */
+.nx-glow-focus:focus-within {
+  box-shadow: 0 0 0 2px var(--nx-accent-glow), 0 0 12px var(--nx-accent-glow);
+  border-color: var(--nx-border-focus);
+}
+
+/* Animated gradient border */
+.nx-gradient-border {
   position: relative;
 }
-.jh-gradient-border::before {
+.nx-gradient-border::before {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, #00d4ff, #ffc107, #a855f7, #00d4ff);
+  background: linear-gradient(135deg, #00E5C0, #6366F1, #A5B4FC, #00E5C0);
   background-size: 300% 300%;
-  animation: jh-border-flow 4s ease infinite;
+  animation: nx-border-flow 6s ease infinite;
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
 }
-
-/* Terminal cursor blink */
-@keyframes jh-cursor-blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+@keyframes nx-border-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
-/* Scrollbar styling for the app */
+/* 3D floating shapes for auth pages */
+@keyframes nx-float {
+  0%, 100% { transform: perspective(600px) translateY(0px) rotateX(0deg) rotateY(0deg); }
+  25% { transform: perspective(600px) translateY(-20px) rotateX(3deg) rotateY(8deg); }
+  50% { transform: perspective(600px) translateY(-35px) rotateX(-2deg) rotateY(14deg); }
+  75% { transform: perspective(600px) translateY(-14px) rotateX(5deg) rotateY(4deg); }
+}
+
+/* Shimmer for buttons */
+@keyframes nx-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.nx-shimmer {
+  background-size: 200% 100%;
+  animation: nx-shimmer 3s ease-in-out infinite;
+}
+
+/* Subtle ambient panel glow */
+.nx-panel-glow {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 0 24px rgba(0, 229, 192, 0.02);
+}
+:root .nx-panel-glow {
+  box-shadow: inset 0 1px 0 rgba(0,0,0,0.03), 0 0 24px rgba(99, 102, 241, 0.04);
+}
+
+/* Tab active underline */
+.nx-tab-active {
+  position: relative;
+}
+.nx-tab-active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #00E5C0, #6366F1);
+  border-radius: 2px 2px 0 0;
+}
+
+/* Custom scrollbar — matches theme */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(10, 14, 35, 0.5);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 212, 255, 0.15);
-  border-radius: 3px;
+  background: var(--nx-scrollbar);
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 212, 255, 0.3);
+  background: var(--nx-scrollbar-hover);
 }
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Light mode scrollbar */
+:root::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.18);
+}
+:root::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.35);
+}
+
+/* ──────────────────────────────────────────────
+   Tab Suggestion Dropdown
+   ────────────────────────────────────────────── */
+.nx-suggest-dropdown {
+  position: absolute;
+  z-index: 50;
+  background: var(--nx-bg-secondary);
+  border: 1px solid var(--nx-border);
+  border-radius: 8px;
+  padding: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  font-family: var(--font-jetbrains), monospace;
+  font-size: 13px;
+}
+.nx-suggest-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.nx-suggest-item:hover,
+.nx-suggest-item.active {
+  background: var(--nx-bg-hover);
+}
+.nx-suggest-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.nx-suggest-icon.installed { background: rgba(0, 229, 192, 0.15); color: #00E5C0; }
+.nx-suggest-icon.known { background: rgba(165, 180, 252, 0.15); color: #A5B4FC; }
+.nx-suggest-icon.unknown { background: rgba(100, 116, 139, 0.15); color: #64748B; }
+.nx-suggest-name { color: var(--nx-text); }
+.nx-suggest-desc { color: var(--nx-text-muted); font-size: 11px; margin-left: auto; }
+
+/* ──────────────────────────────────────────────
+   Package Sidebar
+   ────────────────────────────────────────────── */
+.nx-pkg-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: default;
+}
+.nx-pkg-item:hover {
+  background: var(--nx-bg-hover);
+  transform: translateX(2px);
+}
+.nx-pkg-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.nx-pkg-icon.npm { background: rgba(203, 56, 56, 0.15); color: #CB3837; }
+.nx-pkg-icon.pip { background: rgba(55, 118, 171, 0.15); color: #3776AB; }
+.nx-pkg-icon.system { background: rgba(165, 180, 252, 0.15); color: #A5B4FC; }
+.nx-pkg-icon.lang { background: rgba(0, 229, 192, 0.12); color: #00E5C0; }
+.nx-pkg-icon.devops { background: rgba(251, 191, 36, 0.12); color: #FBBF24; }
+
+/* Status bar environment indicator */
+.nx-env-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  animation: nx-status-pulse 2s ease-in-out infinite;
+}
+.nx-env-dot.node { background: #34D399; }
+.nx-env-dot.python { background: #7DD3FC; }
+.nx-env-dot.docker { background: #FBBF24; }

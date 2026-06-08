@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -13,177 +13,334 @@ interface XtermTerminalProps {
   sendInput: (sessionId: string, data: string) => void
   resizeTerminal: (sessionId: string, cols: number, rows: number) => void
   isActive: boolean
+  installedPackages?: Set<string>
 }
 
-// ============================================
-// Package Name Detection & Highlighting
-// ============================================
+/* ================================================================
+   NEXUS ECLIPSE — Command Intelligence Engine
+   ================================================================ */
 
-// Known package manager commands (the word after this triggers package detection)
-const PKG_COMMANDS = new Set([
+// Package manager commands
+const PKG_MANAGERS = new Set([
   'npm', 'npx', 'yarn', 'pnpm', 'bun', 'deno',
-  'pip', 'pip3', 'pipx', 'conda', 'mamba',
-  'gem', 'cargo', 'go', 'apt', 'apt-get', 'dnf', 'yum', 'pacman', 'snap', 'flatpak',
-  'brew', 'port',
-  'gh', 'vercel', 'netlify',
+  'pip', 'pip3', 'pipx', 'conda', 'mamba', 'uv',
+  'gem', 'cargo', 'go', 'apt', 'apt-get', 'dnf', 'yum',
+  'pacman', 'snap', 'flatpak', 'brew', 'port',
+  'gh', 'vercel', 'netlify', 'supabase',
 ])
 
-// Sub-commands that precede a package name
+// Sub-commands that precede package names
 const INSTALL_SUBCOMMANDS = new Set([
   'install', 'i', 'add', 'ci', 'update', 'upgrade',
-  'uninstall', 'remove', 'rm', 'un',
-  'install-package', 'get', 'require',
+  'uninstall', 'remove', 'rm', 'un', 'delete',
+  'install-package', 'get', 'require', 'init',
 ])
 
-// Pre-installed packages (known to exist in the Docker image)
-const PREINSTALLED_PACKAGES = new Set([
+// Core Linux / system commands — always "known"
+const CORE_COMMANDS = new Set([
+  'ls', 'cd', 'pwd', 'mkdir', 'rmdir', 'cp', 'mv', 'rm', 'touch',
+  'cat', 'less', 'more', 'head', 'tail', 'wc', 'sort', 'uniq',
+  'grep', 'find', 'sed', 'awk', 'tr', 'cut', 'tee', 'xargs',
+  'echo', 'printf', 'read', 'source', 'export', 'alias', 'unalias',
+  'chmod', 'chown', 'chgrp', 'ln', 'stat', 'file', 'du', 'df',
+  'ps', 'top', 'htop', 'kill', 'killall', 'nohup', 'nice', 'renice',
+  'bg', 'fg', 'jobs', 'disown', 'wait', 'sleep', 'time', 'timeout',
+  'ssh', 'scp', 'rsync', 'curl', 'wget', 'ping', 'netstat', 'ss',
+  'tar', 'gzip', 'gunzip', 'zip', 'unzip', 'bzip2', 'xz',
+  'git', 'docker', 'docker-compose', 'kubectl', 'helm', 'terraform',
+  'bash', 'sh', 'zsh', 'dash', 'env', 'which', 'type', 'command',
+  'man', 'info', 'help', 'history', 'clear', 'reset', 'exit',
+  'true', 'false', 'test', 'expr', 'let', 'seq', 'date', 'cal',
+  'crontab', 'at', 'batch', 'systemctl', 'service', 'journalctl',
+  'whoami', 'hostname', 'uname', 'id', 'groups', 'su', 'sudo',
+])
+
+// Pre-installed packages (known to exist in the HF Spaces Docker image)
+const KNOWN_PACKAGES = new Set([
   // System tools
-  'bash', 'sh', 'zsh', 'dash', 'curl', 'wget', 'git', 'ssh', 'scp', 'rsync',
-  'nano', 'vim', 'vi', 'emacs', 'sed', 'awk', 'grep', 'find', 'tar', 'gzip',
-  'unzip', 'zip', 'cat', 'less', 'more', 'head', 'tail', 'sort', 'uniq',
-  'wc', 'diff', 'patch', 'make', 'cmake', 'gcc', 'g++', 'python3', 'python',
-  'pip3', 'pip', 'node', 'npm', 'npx', 'yarn', 'pnpm',
-  'jq', 'htop', 'top', 'ps', 'kill', 'nohup', 'screen', 'tmux',
-  'ls', 'cp', 'mv', 'rm', 'mkdir', 'rmdir', 'chmod', 'chown', 'ln',
-  'echo', 'printf', 'tee', 'xargs', 'env', 'export', 'source',
-  'docker', 'docker-compose', 'kubectl',
-  // Python packages (commonly pre-installed)
-  'setuptools', 'wheel', 'pip', 'virtualenv', 'requests', 'flask', 'django',
-  'numpy', 'pandas', 'scipy', 'matplotlib', 'pillow', 'openai', 'anthropic',
-  'httpx', 'aiohttp', 'fastapi', 'uvicorn', 'pydantic', 'click', 'rich',
-  'boto3', 'google-cloud', 'azure', 'sqlalchemy', 'redis', 'celery',
+  'bash', 'sh', 'curl', 'wget', 'git', 'ssh', 'scp', 'rsync',
+  'nano', 'vim', 'vi', 'sed', 'awk', 'grep', 'find', 'tar', 'gzip',
+  'unzip', 'cat', 'less', 'head', 'tail', 'sort', 'wc', 'diff',
+  'make', 'cmake', 'gcc', 'g++', 'python3', 'python', 'node', 'npm', 'npx',
+  'jq', 'htop', 'top', 'ps', 'docker', 'docker-compose',
+  // Python packages (commonly pre-installed or available)
+  'pip', 'setuptools', 'wheel', 'virtualenv', 'venv',
+  'requests', 'flask', 'django', 'fastapi', 'uvicorn',
+  'numpy', 'pandas', 'scipy', 'matplotlib', 'pillow',
+  'openai', 'anthropic', 'httpx', 'aiohttp', 'pydantic',
+  'click', 'rich', 'boto3', 'sqlalchemy', 'redis', 'celery',
+  'torch', 'tensorflow', 'keras', 'scikit-learn', 'transformers',
   // Node.js packages (commonly installed globally)
-  'typescript', 'ts-node', 'eslint', 'prettier', 'webpack', 'vite', 'next',
-  'react', 'vue', 'svelte', 'express', 'fastify', 'prisma',
-  '@anthropic-ai/claude-code', '@vercel/cli', 'netlify-cli',
-  'create-react-app', 'create-next-app', 'nodemon', 'pm2',
-  'tailwindcss', 'postcss', 'autoprefixer',
+  'typescript', 'ts-node', 'tslib', 'eslint', 'prettier',
+  'webpack', 'vite', 'next', 'react', 'react-dom', 'vue',
+  'express', 'fastify', 'prisma', '@prisma/client',
+  '@anthropic-ai/claude-code', 'nodemon', 'pm2', 'serve',
+  'tailwindcss', 'postcss', 'autoprefixer', 'sass',
+  'create-react-app', 'create-next-app', 'nx',
   // Languages & Runtimes
   'go', 'rust', 'cargo', 'ruby', 'gem', 'java', 'javac',
-  'bun', 'deno', 'clang', 'swift',
+  'bun', 'deno', 'clang', 'swift', 'kotlinc',
   // DevOps & Cloud
   'terraform', 'ansible', 'vault', 'consul', 'helm',
-  'aws', 'gcloud', 'az',
+  'aws', 'gcloud', 'az', 'vercel', 'netlify', 'supabase',
   // Databases
   'mysql', 'psql', 'postgres', 'mongosh', 'redis-cli', 'sqlite3',
   // Build tools
   'gradle', 'maven', 'ant', 'bazel', 'ninja',
 ])
 
-// ANSI color codes for highlighting
-const ANSI = {
-  cyan:     '\x1b[38;5;51m',   // Bright cyan for known packages
-  gold:     '\x1b[38;5;220m',  // Gold for manually-installed packages
-  green:    '\x1b[38;5;82m',   // Green for package commands
-  magenta:  '\x1b[38;5;213m',  // Magenta for install sub-commands
-  blue:     '\x1b[38;5;117m',  // Blue for flags/options
-  dim:      '\x1b[38;5;60m',   // Dim blue for unknown packages
-  reset:    '\x1b[0m',
-  bold:     '\x1b[1m',
+// Token types for the tokenizer
+type TokenType =
+  | 'pkg-manager'   // npm, pip, yarn
+  | 'subcmd'        // install, add, remove
+  | 'installed-pkg' // known AND verified installed
+  | 'known-pkg'     // in our dictionary but not verified
+  | 'unknown-pkg'   // not in dictionary
+  | 'flag'          // --save-dev, -g
+  | 'pipe'          // |, ||
+  | 'redirect'      // >, >>, <
+  | 'operator'      // &&, ;
+  | 'string'        // "..." or '...'
+  | 'variable'      // $VAR, ${VAR}
+  | 'comment'       // # ...
+  | 'core-cmd'      // ls, cd, grep
+  | 'path'          // ./foo, /usr/bin, ~/...
+  | 'normal'
+
+interface Token {
+  text: string
+  type: TokenType
 }
 
-// Parse a command line and detect package names
-function detectPackageSegments(line: string): Array<{ text: string; type: 'normal' | 'pkgcmd' | 'subcmd' | 'known-pkg' | 'unknown-pkg' | 'flag' }> {
-  const tokens = line.trim().split(/\s+/)
-  if (tokens.length === 0) return [{ text: line, type: 'normal' }]
+// ANSI escape codes matching the Nexus Eclipse palette
+const ANSI = {
+  installed: '\x1b[38;5;80m',   // Vibrant teal #00E5C0
+  known:     '\x1b[38;5;147m',  // Soft indigo #A5B4FC
+  unknown:   '\x1b[38;5;102m',  // Gray #64748B
+  danger:    '\x1b[38;5;210m',  // Coral #F87171
+  flag:      '\x1b[38;5;111m',  // Lavender #818CF8
+  pkgmgr:    '\x1b[38;5;80m',   // Teal (same as installed but bold)
+  subcmd:    '\x1b[38;5;111m',  // Indigo #818CF8
+  core:      '\x1b[38;5;147m',  // Indigo #A5B4FC
+  string:    '\x1b[38;5;117m',  // Sky #7DD3FC
+  variable:  '\x1b[38;5;123m',  // Cyan #67E8F9
+  comment:   '\x1b[38;5;102m',  // Gray #64748B
+  pipe:      '\x1b[38;5;188m',  // Light gray
+  path:      '\x1b[38;5;188m',  // Light gray
+  reset:     '\x1b[0m',
+  bold:      '\x1b[1m',
+  dim:       '\x1b[2m',
+}
 
-  const segments: Array<{ text: string; type: 'normal' | 'pkgcmd' | 'subcmd' | 'known-pkg' | 'unknown-pkg' | 'flag' }> = []
-
-  let isPackageContext = false
-  let pastSubcommand = false
+/**
+ * Tokenize a command line and classify each token.
+ * This is the heart of the command intelligence engine.
+ */
+function tokenizeLine(line: string, installedPkgs: Set<string>): Token[] {
+  const tokens: Token[] = []
+  let remaining = line
   let pos = 0
 
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i]
-    const startIdx = line.indexOf(token, pos)
-    // Add whitespace before this token
-    if (startIdx > pos) {
-      segments.push({ text: line.substring(pos, startIdx), type: 'normal' })
+  // State machine context
+  let inPackageContext = false
+  let pastSubcommand = false
+
+  while (remaining.length > 0) {
+    // Match whitespace
+    const wsMatch = remaining.match(/^(\s+)/)
+    if (wsMatch) {
+      tokens.push({ text: wsMatch[1], type: 'normal' })
+      remaining = remaining.slice(wsMatch[1].length)
+      pos += wsMatch[1].length
+      continue
     }
 
-    if (i === 0) {
-      // First token — check if it's a package manager
-      if (PKG_COMMANDS.has(token)) {
-        segments.push({ text: token, type: 'pkgcmd' })
-        isPackageContext = true
-      } else {
-        segments.push({ text: token, type: 'normal' })
-      }
-    } else if (isPackageContext && !pastSubcommand && INSTALL_SUBCOMMANDS.has(token)) {
-      // Install sub-command
-      segments.push({ text: token, type: 'subcmd' })
-      pastSubcommand = true
-    } else if (isPackageContext && pastSubcommand) {
-      // After subcommand — these are package names or flags
-      if (token.startsWith('-')) {
-        segments.push({ text: token, type: 'flag' })
-      } else if (token.startsWith('@') || /^[a-zA-Z0-9@._\-/]+$/.test(token)) {
-        // Looks like a package name
-        const pkgName = token.startsWith('@') ? token : token.replace(/[=<>].*$/, '').split('@')[0]
-        if (PREINSTALLED_PACKAGES.has(pkgName) || PREINSTALLED_PACKAGES.has(token)) {
-          segments.push({ text: token, type: 'known-pkg' })
+    // Match comments
+    if (remaining.startsWith('#')) {
+      tokens.push({ text: remaining, type: 'comment' })
+      break
+    }
+
+    // Match strings (double or single quoted)
+    const strMatch = remaining.match(/^(["'])((?:\\.|(?!\1)[^\\])*)\1/)
+    if (strMatch) {
+      tokens.push({ text: strMatch[0], type: 'string' })
+      remaining = remaining.slice(strMatch[0].length)
+      pos += strMatch[0].length
+      continue
+    }
+
+    // Match variables $VAR or ${VAR}
+    const varMatch = remaining.match(/^\$\{[^}]+\}|\$[A-Za-z_][A-Za-z0-9_]*/)
+    if (varMatch) {
+      tokens.push({ text: varMatch[0], type: 'variable' })
+      remaining = remaining.slice(varMatch[0].length)
+      pos += varMatch[0].length
+      continue
+    }
+
+    // Match pipes and operators
+    if (remaining.startsWith('||')) {
+      tokens.push({ text: '||', type: 'pipe' })
+      remaining = remaining.slice(2); pos += 2; continue
+    }
+    if (remaining.startsWith('|')) {
+      // Pipe resets context — new command after pipe
+      tokens.push({ text: '|', type: 'pipe' })
+      remaining = remaining.slice(1); pos += 1
+      inPackageContext = false; pastSubcommand = false
+      continue
+    }
+    if (remaining.startsWith('&&')) {
+      tokens.push({ text: '&&', type: 'operator' })
+      remaining = remaining.slice(2); pos += 2
+      inPackageContext = false; pastSubcommand = false
+      continue
+    }
+    if (remaining.startsWith(';')) {
+      tokens.push({ text: ';', type: 'operator' })
+      remaining = remaining.slice(1); pos += 1
+      inPackageContext = false; pastSubcommand = false
+      continue
+    }
+
+    // Match redirects
+    const redirMatch = remaining.match(/^(>>|>|<)/)
+    if (redirMatch) {
+      tokens.push({ text: redirMatch[0], type: 'redirect' })
+      remaining = remaining.slice(redirMatch[0].length)
+      pos += redirMatch[0].length
+      continue
+    }
+
+    // Match flags/options
+    const flagMatch = remaining.match(/^(?:-[A-Za-z](?:\s|$)|--[\w-]+(?:=[^\s]*)?)/)
+    if (flagMatch) {
+      tokens.push({ text: flagMatch[0], type: 'flag' })
+      remaining = remaining.slice(flagMatch[0].length)
+      pos += flagMatch[0].length
+      continue
+    }
+
+    // Match paths (./foo, /usr/bin, ~/..., ../...)
+    const pathMatch = remaining.match(/^(?:\.\/|\/|~\/|\.\.\/)[^\s]*/)
+    if (pathMatch) {
+      tokens.push({ text: pathMatch[0], type: 'path' })
+      remaining = remaining.slice(pathMatch[0].length)
+      pos += pathMatch[0].length
+      continue
+    }
+
+    // Match a word token
+    const wordMatch = remaining.match(/^([^\s|&;><"']+)/)
+    if (wordMatch) {
+      const word = wordMatch[1]
+      let type: TokenType = 'normal'
+
+      if (!inPackageContext && CORE_COMMANDS.has(word)) {
+        type = 'core-cmd'
+        // Some core commands start a package context (like 'sudo npm install')
+      } else if (!inPackageContext && PKG_MANAGERS.has(word)) {
+        type = 'pkg-manager'
+        inPackageContext = true
+      } else if (inPackageContext && !pastSubcommand && INSTALL_SUBCOMMANDS.has(word)) {
+        type = 'subcmd'
+        pastSubcommand = true
+      } else if (inPackageContext && pastSubcommand) {
+        // This is a package name — classify it
+        const pkgName = word.startsWith('@') ? word : word.replace(/[=<>@].*$/, '')
+        if (installedPkgs.has(pkgName) || installedPkgs.has(word)) {
+          type = 'installed-pkg'
+        } else if (KNOWN_PACKAGES.has(pkgName) || KNOWN_PACKAGES.has(word)) {
+          type = 'known-pkg'
         } else {
-          segments.push({ text: token, type: 'unknown-pkg' })
+          type = 'unknown-pkg'
         }
-      } else {
-        segments.push({ text: token, type: 'normal' })
-      }
-    } else if (isPackageContext && !pastSubcommand) {
-      // Before subcommand (e.g., npm run, npm test)
-      if (INSTALL_SUBCOMMANDS.has(token)) {
-        segments.push({ text: token, type: 'subcmd' })
-        pastSubcommand = true
-      } else if (token.startsWith('-')) {
-        segments.push({ text: token, type: 'flag' })
-      } else {
-        // npm <command> without install — treat subsequent tokens as package-like
-        pastSubcommand = true
-        if (token.startsWith('-')) {
-          segments.push({ text: token, type: 'flag' })
+      } else if (inPackageContext && !pastSubcommand) {
+        // Still before subcommand
+        if (INSTALL_SUBCOMMANDS.has(word)) {
+          type = 'subcmd'
+          pastSubcommand = true
+        } else if (word.startsWith('-')) {
+          type = 'flag'
         } else {
-          const pkgName = token.replace(/[=<>].*$/, '').split('@')[0]
-          if (PREINSTALLED_PACKAGES.has(pkgName) || PREINSTALLED_PACKAGES.has(token)) {
-            segments.push({ text: token, type: 'known-pkg' })
+          // Some package managers don't require install subcommand (e.g., npx, deno)
+          pastSubcommand = true
+          const pkgName = word.replace(/[=<>@].*$/, '')
+          if (installedPkgs.has(pkgName) || installedPkgs.has(word)) {
+            type = 'installed-pkg'
+          } else if (KNOWN_PACKAGES.has(pkgName) || KNOWN_PACKAGES.has(word)) {
+            type = 'known-pkg'
           } else {
-            segments.push({ text: token, type: 'unknown-pkg' })
+            type = 'unknown-pkg'
           }
         }
+      } else {
+        // Not in package context — check if it's a core command
+        if (CORE_COMMANDS.has(word)) {
+          type = 'core-cmd'
+        }
       }
-    } else {
-      segments.push({ text: token, type: 'normal' })
+
+      tokens.push({ text: word, type })
+      remaining = remaining.slice(word.length)
+      pos += word.length
+      continue
     }
 
-    pos = startIdx + token.length
+    // Fallback: consume one character
+    tokens.push({ text: remaining[0], type: 'normal' })
+    remaining = remaining.slice(1)
+    pos += 1
   }
 
-  // Add any trailing whitespace
-  if (pos < line.length) {
-    segments.push({ text: line.substring(pos), type: 'normal' })
-  }
-
-  return segments
+  return tokens
 }
 
-// Color a detected command line with ANSI codes for the PTY to render
-function colorizeLine(line: string): string {
-  const segments = detectPackageSegments(line)
-  return segments.map(seg => {
-    switch (seg.type) {
-      case 'pkgcmd':
-        return `${ANSI.green}${ANSI.bold}${seg.text}${ANSI.reset}`
+/**
+ * Apply ANSI color codes to tokens for xterm rendering.
+ * This creates the beautiful colored command display.
+ */
+function colorizeTokens(tokens: Token[]): string {
+  return tokens.map(t => {
+    switch (t.type) {
+      case 'pkg-manager':
+        return `${ANSI.bold}${ANSI.pkgmgr}${t.text}${ANSI.reset}`
       case 'subcmd':
-        return `${ANSI.magenta}${seg.text}${ANSI.reset}`
+        return `${ANSI.subcmd}${t.text}${ANSI.reset}`
+      case 'installed-pkg':
+        return `${ANSI.bold}${ANSI.installed}${t.text}${ANSI.reset}`
       case 'known-pkg':
-        return `${ANSI.cyan}${ANSI.bold}${seg.text}${ANSI.reset}`
+        return `${ANSI.known}${t.text}${ANSI.reset}`
       case 'unknown-pkg':
-        return `${ANSI.gold}${seg.text}${ANSI.reset}`
+        return `${ANSI.unknown}${t.text}${ANSI.reset}`
       case 'flag':
-        return `${ANSI.blue}${seg.text}${ANSI.reset}`
+        return `${ANSI.flag}${t.text}${ANSI.reset}`
+      case 'core-cmd':
+        return `${ANSI.bold}${ANSI.core}${t.text}${ANSI.reset}`
+      case 'string':
+        return `${ANSI.string}${t.text}${ANSI.reset}`
+      case 'variable':
+        return `${ANSI.variable}${t.text}${ANSI.reset}`
+      case 'comment':
+        return `${ANSI.dim}${ANSI.comment}${t.text}${ANSI.reset}`
+      case 'pipe':
+        return `${ANSI.bold}${ANSI.pipe}${t.text}${ANSI.reset}`
+      case 'redirect':
+        return `${ANSI.pipe}${t.text}${ANSI.reset}`
+      case 'operator':
+        return `${ANSI.pipe}${t.text}${ANSI.reset}`
+      case 'path':
+        return `${ANSI.dim}${t.text}${ANSI.reset}`
       default:
-        return seg.text
+        return t.text
     }
   }).join('')
 }
+
+// ──────────────────────────────────────────────
+// XtermTerminal Component
+// ──────────────────────────────────────────────
 
 export function XtermTerminal({
   sessionId,
@@ -192,6 +349,7 @@ export function XtermTerminal({
   sendInput,
   resizeTerminal,
   isActive,
+  installedPackages = new Set(),
 }: XtermTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -201,11 +359,16 @@ export function XtermTerminal({
   const resizeTerminalRef = useRef(resizeTerminal)
   const initDoneRef = useRef(false)
 
-  // Input line tracking for package highlighting
+  // Input line tracking for command intelligence
   const currentLineRef = useRef('')
-  const cursorPosRef = useRef(0)
+  const inputActiveRef = useRef(false)
 
-  // Keep refs updated without triggering re-renders or effect re-runs
+  // Suggestion state
+  const [suggestions, setSuggestions] = useState<{name: string; type: string; desc: string}[]>([])
+  const [selectedSuggestion, setSelectedSuggestion] = useState(0)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+
+  // Keep refs updated
   useEffect(() => {
     sessionIdRef.current = sessionId
     sendInputRef.current = sendInput
@@ -218,43 +381,42 @@ export function XtermTerminal({
     if (initDoneRef.current) return
     initDoneRef.current = true
 
-    console.log('[XtermTerminal] Initializing terminal for session:', sessionId)
-
     const term = new Terminal({
       cursorBlink: true,
       cursorStyle: 'block',
       fontSize: 14,
+      lineHeight: 1.45,
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace",
       theme: {
-        // Classic Modern Theme - Midnight Cyan
-        background: '#0a0e23',
-        foreground: '#c8d6e5',
-        cursor: '#00d4ff',
-        cursorAccent: '#0a0e23',
-        selectionBackground: '#1a3a6a',
-        selectionForeground: '#ffffff',
-        // ANSI 16-color palette — refined for the new theme
-        black: '#0a0e23',
-        red: '#ff5252',
-        green: '#00e676',
-        yellow: '#ffc107',
-        blue: '#448aff',
-        magenta: '#a855f7',
-        cyan: '#00d4ff',
-        white: '#c8d6e5',
-        brightBlack: '#3d4a6e',
-        brightRed: '#ff8a80',
-        brightGreen: '#69f0ae',
-        brightYellow: '#ffe57f',
-        brightBlue: '#82b1ff',
-        brightMagenta: '#d2a8ff',
-        brightCyan: '#84ffff',
-        brightWhite: '#f0f4ff',
+        // ─── Nexus Eclipse Dark (default) ───
+        background: '#0F1117',
+        foreground: '#E2E8F0',
+        cursor: '#00E5C0',
+        cursorAccent: '#0F1117',
+        selectionBackground: 'rgba(99, 102, 241, 0.30)',
+        selectionForeground: '#FFFFFF',
+        black: '#0F1117',
+        red: '#F87171',
+        green: '#34D399',
+        yellow: '#FBBF24',
+        blue: '#818CF8',
+        magenta: '#C084FC',
+        cyan: '#00E5C0',
+        white: '#E2E8F0',
+        brightBlack: '#475569',
+        brightRed: '#FCA5A5',
+        brightGreen: '#6EE7B7',
+        brightYellow: '#FDE68A',
+        brightBlue: '#A5B4FC',
+        brightMagenta: '#D8B4FE',
+        brightCyan: '#5EEAD4',
+        brightWhite: '#F1F5F9',
       },
       allowTransparency: true,
-      scrollback: 5000,
+      scrollback: 10000, // Extended scrollback persistence
       convertEol: true,
       allowProposedApi: true,
+      windowsMode: false,
     })
 
     const fitAddon = new FitAddon()
@@ -268,49 +430,100 @@ export function XtermTerminal({
     termRef.current = term
     fitAddonRef.current = fitAddon
 
-    // Handle terminal input - forward keystrokes to PTY via socket
-    // With package name highlighting: we track the current line and
-    // when Enter is pressed, we inject colored output before the PTY echo
+    // ─── Input Handler with Command Intelligence ───
     const dataDisposable = term.onData((data: string) => {
       const sid = sessionIdRef.current
       const sendFn = sendInputRef.current
 
       if (data === '\r') {
-        // Enter pressed — colorize the current line and show it before PTY echo
+        // Enter pressed — colorize the current line before PTY echo
         const line = currentLineRef.current
-        if (line.trim() && PKG_COMMANDS.has(line.trim().split(/\s+/)[0])) {
-          // This is a package command — show highlighted version
-          const colored = colorizeLine(line)
-          // Move cursor to start of line, clear it, write colored version
-          term.write(`\r\x1b[2K${colored}\r\n`)
+        if (line.trim().length > 0) {
+          const isPkgCmd = line.trim().split(/\s+/).some(w => PKG_MANAGERS.has(w))
+          const isCoreCmd = CORE_COMMANDS.has(line.trim().split(/\s+/)[0])
+          if (isPkgCmd || isCoreCmd) {
+            const tokens = tokenizeLine(line, installedPackages)
+            const colored = colorizeTokens(tokens)
+            // Clear current line and write highlighted version
+            term.write(`\r\x1b[2K${colored}\r\n`)
+          }
         }
         currentLineRef.current = ''
-        cursorPosRef.current = 0
+        inputActiveRef.current = false
+        setShowSuggestions(false)
       } else if (data === '\x7f' || data === '\b') {
         // Backspace
         if (currentLineRef.current.length > 0) {
           currentLineRef.current = currentLineRef.current.slice(0, -1)
-          cursorPosRef.current = Math.max(0, cursorPosRef.current - 1)
         }
+        setShowSuggestions(false)
       } else if (data === '\x03') {
         // Ctrl+C
         currentLineRef.current = ''
-        cursorPosRef.current = 0
+        inputActiveRef.current = false
+        setShowSuggestions(false)
       } else if (data === '\x15') {
-        // Ctrl+U (clear line)
+        // Ctrl+U — clear line
         currentLineRef.current = ''
-        cursorPosRef.current = 0
+      } else if (data === '\x17') {
+        // Ctrl+W — delete word
+        currentLineRef.current = currentLineRef.current.replace(/\s*\S+\s*$/, '')
+      } else if (data === '\t') {
+        // Tab — handle completion
+        // For now, we pass tab to PTY for shell completion
+        // Suggestions are shown but PTY handles actual completion
       } else if (data.length === 1 && data.charCodeAt(0) >= 32) {
         // Regular printable character
         currentLineRef.current += data
-        cursorPosRef.current += 1
+        inputActiveRef.current = true
+
+        // Generate suggestions based on current input
+        const words = currentLineRef.current.trim().split(/\s+/)
+        const lastWord = words[words.length - 1] || ''
+        if (lastWord.length >= 2 && words.length <= 2) {
+          const matches: {name: string; type: string; desc: string}[] = []
+          // Check core commands
+          CORE_COMMANDS.forEach(cmd => {
+            if (cmd.startsWith(lastWord) && cmd !== lastWord) {
+              matches.push({ name: cmd, type: 'known', desc: 'system' })
+            }
+          })
+          // Check package managers
+          PKG_MANAGERS.forEach(cmd => {
+            if (cmd.startsWith(lastWord) && cmd !== lastWord) {
+              matches.push({ name: cmd, type: 'installed', desc: 'pkg-mgr' })
+            }
+          })
+          // Check known packages
+          KNOWN_PACKAGES.forEach(pkg => {
+            if (pkg.startsWith(lastWord) && pkg !== lastWord && matches.length < 8) {
+              const isInstalled = installedPackages.has(pkg)
+              matches.push({
+                name: pkg,
+                type: isInstalled ? 'installed' : 'known',
+                desc: isInstalled ? 'installed' : 'available'
+              })
+            }
+          })
+          setSuggestions(matches.slice(0, 8))
+          setSelectedSuggestion(0)
+          setShowSuggestions(matches.length > 0)
+        } else {
+          setShowSuggestions(false)
+        }
       } else if (data.startsWith('\x1b[')) {
-        // Arrow keys / escape sequences — don't track, just pass through
-        // For simplicity, we reset line tracking on complex sequences
-      } else if (data === '\t') {
-        // Tab completion — add to line
-        currentLineRef.current += data
-        cursorPosRef.current += 1
+        // Arrow keys — for suggestion navigation
+        if (data === '\x1b[A' && showSuggestions) {
+          // Up arrow — previous suggestion
+          setSelectedSuggestion(prev => Math.max(0, prev - 1))
+          return // Don't forward to PTY
+        }
+        if (data === '\x1b[B' && showSuggestions) {
+          // Down arrow — next suggestion
+          setSelectedSuggestion(prev => Math.min(suggestions.length - 1, prev + 1))
+          return // Don't forward to PTY
+        }
+        // For other escape sequences, reset tracking
       }
 
       // Always forward raw data to PTY
@@ -319,7 +532,7 @@ export function XtermTerminal({
       }
     })
 
-    // Handle resize with ResizeObserver
+    // Handle resize
     const resizeObserver = new ResizeObserver(() => {
       try {
         fitAddon.fit()
@@ -327,7 +540,7 @@ export function XtermTerminal({
           resizeTerminalRef.current(sessionIdRef.current, term.cols, term.rows)
         }
       } catch {
-        // ignore resize errors when terminal is not visible
+        // ignore
       }
     })
 
@@ -335,29 +548,13 @@ export function XtermTerminal({
       resizeObserver.observe(containerRef.current)
     }
 
-    // Initial fit with delay to ensure DOM is ready
+    // Initial fit
     const fitTimers: ReturnType<typeof setTimeout>[] = []
-
     fitTimers.push(setTimeout(() => {
-      try {
-        fitAddon.fit()
-        if (term.cols && term.rows) {
-          resizeTerminalRef.current(sessionIdRef.current, term.cols, term.rows)
-        }
-      } catch {
-        // ignore
-      }
+      try { fitAddon.fit(); if (term.cols && term.rows) resizeTerminalRef.current(sessionIdRef.current, term.cols, term.rows) } catch {}
     }, 100))
-
     fitTimers.push(setTimeout(() => {
-      try {
-        fitAddon.fit()
-        if (term.cols && term.rows) {
-          resizeTerminalRef.current(sessionIdRef.current, term.cols, term.rows)
-        }
-      } catch {
-        // ignore
-      }
+      try { fitAddon.fit(); if (term.cols && term.rows) resizeTerminalRef.current(sessionIdRef.current, term.cols, term.rows) } catch {}
     }, 500))
 
     return () => {
@@ -369,39 +566,33 @@ export function XtermTerminal({
       fitAddonRef.current = null
       initDoneRef.current = false
     }
-  }, [sessionId]) // Re-init if sessionId changes
+  }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Subscribe to output for this session
+  // Subscribe to output
   useEffect(() => {
     const unsubscribe = onOutput(sessionId, (data: string) => {
       if (termRef.current) {
         termRef.current.write(data)
       }
     })
-
     return unsubscribe
   }, [sessionId, onOutput])
 
-  // Subscribe to clear-buffer events for this session
-  // When the PTY is about to restart, clear the terminal state
-  // to prevent buffered keystrokes from bleeding into the new session
+  // Subscribe to clear-buffer
   useEffect(() => {
     const unsubscribe = onClearBuffer(sessionId, () => {
       if (termRef.current) {
-        // Clear the terminal buffer and reset state machine
-        // This prevents "phantom" keystrokes from the old session
-        // appearing in the newly restarted shell
         termRef.current.clear()
         termRef.current.reset()
         currentLineRef.current = ''
-        cursorPosRef.current = 0
+        inputActiveRef.current = false
+        setShowSuggestions(false)
       }
     })
-
     return unsubscribe
   }, [sessionId, onClearBuffer])
 
-  // Handle visibility changes - refit when becoming active
+  // Handle visibility changes
   useEffect(() => {
     if (isActive && fitAddonRef.current && termRef.current) {
       const timer = setTimeout(() => {
@@ -413,9 +604,7 @@ export function XtermTerminal({
             }
             termRef.current.focus()
           }
-        } catch {
-          // ignore fit errors
-        }
+        } catch {}
       }, 50)
       return () => clearTimeout(timer)
     }

@@ -102,20 +102,20 @@ export function FileManager({ listFiles, onFileOpen, connected }: FileManagerPro
   return (
     <div className="flex flex-col h-full">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[#1e2a5a]/50 text-xs overflow-x-auto whitespace-nowrap">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[var(--nx-border)]/50 text-xs overflow-x-auto whitespace-nowrap">
         <Button
           variant="ghost"
           size="icon"
-          className="h-5 w-5 shrink-0 text-[#6b7ba0] hover:text-[#00d4ff] transition-colors"
+          className="h-5 w-5 shrink-0 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
           onClick={handleNavigateHome}
         >
           <Home className="h-3 w-3" />
         </Button>
         {breadcrumbs.map((part, i) => (
           <span key={i} className="flex items-center gap-1 shrink-0">
-            <ChevronRight className="h-3 w-3 text-[#3d4a6e]" />
+            <ChevronRight className="h-3 w-3 text-[var(--nx-text-dim)]" />
             <button
-              className="text-[#6b7ba0] hover:text-[#c8d6e5] transition-colors"
+              className="text-[var(--nx-text-secondary)] hover:text-[var(--nx-text)] transition-colors"
               onClick={() => {
                 const path = breadcrumbs.slice(0, i + 1).join('/')
                 loadFiles(path)
@@ -128,11 +128,11 @@ export function FileManager({ listFiles, onFileOpen, connected }: FileManagerPro
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[#1e2a5a]/50">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[var(--nx-border)]/50">
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-[#6b7ba0] hover:text-[#00d4ff] transition-colors"
+          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
           onClick={() => loadFiles(currentPath || undefined)}
           disabled={loading}
         >
@@ -141,7 +141,7 @@ export function FileManager({ listFiles, onFileOpen, connected }: FileManagerPro
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-[#6b7ba0] hover:text-[#00d4ff] transition-colors"
+          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
           onClick={() => { setShowNewFile(true); setShowNewFolder(false) }}
           title="New File"
         >
@@ -150,7 +150,7 @@ export function FileManager({ listFiles, onFileOpen, connected }: FileManagerPro
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-[#6b7ba0] hover:text-[#00d4ff] transition-colors"
+          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
           onClick={() => { setShowNewFolder(true); setShowNewFile(false) }}
           title="New Folder"
         >
@@ -160,7 +160,7 @@ export function FileManager({ listFiles, onFileOpen, connected }: FileManagerPro
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 text-xs text-[#6b7ba0] hover:text-[#c8d6e5] transition-colors"
+            className="h-6 text-xs text-[var(--nx-text-secondary)] hover:text-[var(--nx-text)] transition-colors"
             onClick={handleNavigateUp}
           >
             Up
@@ -170,20 +170,20 @@ export function FileManager({ listFiles, onFileOpen, connected }: FileManagerPro
 
       {/* New item input */}
       {(showNewFile || showNewFolder) && (
-        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[#1e2a5a]/50">
-          {showNewFile ? <File className="h-3.5 w-3.5 text-[#6b7ba0]" /> : <Folder className="h-3.5 w-3.5 text-[#6b7ba0]" />}
+        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[var(--nx-border)]/50">
+          {showNewFile ? <File className="h-3.5 w-3.5 text-[var(--nx-text-secondary)]" /> : <Folder className="h-3.5 w-3.5 text-[var(--nx-text-secondary)]" />}
           <Input
             value={newItemName}
             onChange={(e) => setNewItemName(e.target.value)}
             placeholder={showNewFile ? 'filename.ext' : 'folder-name'}
-            className="h-6 text-xs bg-[#0a0e23] border-[#1e2a5a] text-[#c8d6e5] focus:border-[#00d4ff] placeholder-[#3d4a6e]"
+            className="h-6 text-xs bg-[var(--nx-bg-primary)] border-[var(--nx-border)] text-[var(--nx-text)] focus:border-[var(--nx-accent-teal)] placeholder-[var(--nx-text-dim)]"
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleCreateItem()
               if (e.key === 'Escape') { setShowNewFile(false); setShowNewFolder(false); setNewItemName('') }
             }}
             autoFocus
           />
-          <Button size="sm" className="h-6 text-xs bg-[#00d4ff]/20 hover:bg-[#00d4ff]/30 text-[#00d4ff] border border-[#00d4ff]/30" onClick={handleCreateItem}>OK</Button>
+          <Button size="sm" className="h-6 text-xs bg-[var(--nx-accent-teal)]/20 hover:bg-[var(--nx-accent-teal)]/30 text-[var(--nx-accent-teal)] border border-[var(--nx-accent-teal)]/30" onClick={handleCreateItem}>OK</Button>
         </div>
       )}
 
@@ -191,7 +191,7 @@ export function FileManager({ listFiles, onFileOpen, connected }: FileManagerPro
       <ScrollArea className="flex-1">
         <div className="py-1">
           {files.length === 0 && !loading && (
-            <div className="text-center text-[#3d4a6e] text-xs py-4">
+            <div className="text-center text-[var(--nx-text-dim)] text-xs py-4">
               Empty directory
             </div>
           )}
@@ -203,7 +203,7 @@ export function FileManager({ listFiles, onFileOpen, connected }: FileManagerPro
             .map((file) => (
               <button
                 key={file.name}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[#1a2048]/60 transition-colors group"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--nx-bg-hover)]/60 transition-colors group"
                 onClick={() => {
                   if (file.type === 'directory') {
                     handleDirectoryClick(file.name)
@@ -213,12 +213,12 @@ export function FileManager({ listFiles, onFileOpen, connected }: FileManagerPro
                 }}
               >
                 {file.type === 'directory' ? (
-                  <Folder className="h-3.5 w-3.5 text-[#ffc107] shrink-0" />
+                  <Folder className="h-3.5 w-3.5 text-[var(--nx-warning)] shrink-0" />
                 ) : (
-                  <File className="h-3.5 w-3.5 text-[#6b7ba0] shrink-0" />
+                  <File className="h-3.5 w-3.5 text-[var(--nx-text-secondary)] shrink-0" />
                 )}
-                <span className="truncate flex-1 text-left text-[#c8d6e5]">{file.name}</span>
-                <span className="text-[#3d4a6e] text-[10px] shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="truncate flex-1 text-left text-[var(--nx-text)]">{file.name}</span>
+                <span className="text-[var(--nx-text-dim)] text-[10px] shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                   {formatSize(file.size)}
                 </span>
               </button>

@@ -3,24 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import {
-  Terminal,
-  Sun,
-  Moon,
-  Plus,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Wifi,
-  WifiOff,
-  Wrench,
-  FolderTree,
-  Container,
-  Zap,
-  SquareTerminal,
-  Globe,
-  LogOut,
-  Shield,
-  User,
+  Terminal, Sun, Moon, Plus, X, ChevronLeft, ChevronRight,
+  Wifi, WifiOff, Wrench, FolderTree, Container, Zap,
+  SquareTerminal, Globe, LogOut, Shield, User, Package,
+  Cpu, Database, Cloud, Code2, Sparkles,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
@@ -35,279 +21,159 @@ import { ToolStatus } from '@/components/terminal/tool-status'
 import { DockerPanel } from '@/components/terminal/docker-panel'
 import { OpenOutreachPanel } from '@/components/terminal/openoutreach-panel'
 import { CodeEditor } from '@/components/terminal/code-editor'
+import { PackageSidebar } from '@/components/terminal/package-sidebar'
 
-// Dynamic import xterm.js with SSR disabled — it accesses window/DOM APIs during init
 const XtermTerminal = dynamic(
   () => import('@/components/terminal/xterm-terminal').then(mod => ({ default: mod.XtermTerminal })),
-  { ssr: false, loading: () => <div className="w-full h-full bg-[#0a0e23]" /> }
+  { ssr: false, loading: () => <div className="w-full h-full bg-[#0F1117]" /> }
 )
 
-// Quick install categories - rootless alternatives that work without sudo
 const QUICK_INSTALL = {
   'AI & CLI Tools': [
-    { name: 'Claude Code', cmd: 'setup-claude-code' },
-    { name: 'TypeScript', cmd: 'npm install -g typescript && echo "TypeScript installed! Run: tsc --version"' },
-    { name: 'Vercel CLI', cmd: 'npm install -g vercel && echo "Vercel CLI installed! Run: vercel"' },
-    { name: 'Netlify CLI', cmd: 'npm install -g netlify-cli && echo "Netlify CLI installed! Run: netlify"' },
-    { name: 'AWS CLI v2', cmd: 'curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip" && cd /tmp && unzip -q awscliv2.zip && ./aws/install -i ~/.local/aws-cli -b ~/.local/bin && echo "AWS CLI installed! Run: aws --version"' },
-    { name: 'GitHub CLI', cmd: 'curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=~/.local/share/keyrings/githubcli-archive-keyring.gpg 2>/dev/null && echo "deb [arch=$(dpkg --print-architecture) signed-by=~/.local/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null && sudo apt update && sudo apt install gh -y && echo "GitHub CLI installed! Run: gh auth login"' },
+    { name: 'Claude Code', cmd: 'setup-claude-code', icon: 'sparkles' },
+    { name: 'TypeScript', cmd: 'npm install -g typescript && echo "TypeScript installed!"', icon: 'code' },
+    { name: 'Vercel CLI', cmd: 'npm install -g vercel', icon: 'cloud' },
+    { name: 'Netlify CLI', cmd: 'npm install -g netlify-cli', icon: 'cloud' },
+    { name: 'AWS CLI v2', cmd: 'curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip" && cd /tmp && unzip -q awscliv2.zip && ./aws/install -i ~/.local/aws-cli -b ~/.local/bin', icon: 'cloud' },
+    { name: 'GitHub CLI', cmd: 'sudo apt update && sudo apt install gh -y', icon: 'code' },
   ],
   'Dev Tools': [
-    { name: 'git', cmd: 'which git 2>/dev/null && echo "git already installed" || echo "git not available (needs root). Try: conda install git"' },
-    { name: 'vim', cmd: 'which vim 2>/dev/null && echo "vim already installed" || echo "vim not available (needs root). Try: nano (pre-installed)"' },
-    { name: 'nano', cmd: 'which nano 2>/dev/null && echo "nano already installed" || echo "nano not available (needs root)"' },
-    { name: 'tmux', cmd: 'which tmux 2>/dev/null && echo "tmux already installed" || echo "tmux not available (needs root). Use terminal tabs instead."' },
-    { name: 'htop', cmd: 'which htop 2>/dev/null && echo "htop already installed" || echo "htop not available (needs root). Try: top"' },
-    { name: 'Node.js (nvm)', cmd: 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && source ~/.bashrc && nvm install --lts' },
-  ],
-  'Languages': [
-    { name: 'Python pip', cmd: 'pip3 install --upgrade pip 2>/dev/null || python3 -m pip install --upgrade pip' },
-    { name: 'Go', cmd: 'curl -fsSL https://go.dev/dl/go1.22.0.linux-amd64.tar.gz | tar -C ~/.local -xzf - && echo "export PATH=$HOME/.local/go/bin:$PATH" >> ~/.bashrc && echo "Go installed! Run: source ~/.bashrc"' },
-    { name: 'Rust', cmd: 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env' },
-    { name: 'Bun', cmd: 'curl -fsSL https://bun.sh/install | bash && echo "Bun installed! Run: source ~/.bashrc && bun --version"' },
-    { name: 'Deno', cmd: 'curl -fsSL https://deno.land/install.sh | sh && echo "Deno installed! Run: ~/.deno/bin/deno"' },
-  ],
-  'Containers': [
-    { name: 'Docker Compose', cmd: 'mkdir -p ~/.local/bin && curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o ~/.local/bin/docker-compose && chmod +x ~/.local/bin/docker-compose && echo "Docker Compose installed to ~/.local/bin/"' },
-    { name: 'kubectl', cmd: 'curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && chmod +x kubectl && mv kubectl ~/.local/bin/ && echo "kubectl installed! Run: kubectl version"' },
-  ],
-  'Network': [
-    { name: 'curl', cmd: 'which curl 2>/dev/null && echo "curl already installed" || echo "curl not available (needs root)"' },
-    { name: 'wget', cmd: 'which wget 2>/dev/null && echo "wget already installed" || echo "wget not available (needs root)"' },
-    { name: 'OpenSSH Client', cmd: 'which ssh 2>/dev/null && echo "ssh already installed" || echo "ssh not available (needs root)"' },
-    { name: 'ngrok', cmd: 'curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc > /dev/null && echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list && sudo apt update && sudo apt install ngrok && echo "ngrok installed! Run: ngrok config add-authtoken YOUR_TOKEN"' },
+    { name: 'Node.js (nvm)', cmd: 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && source ~/.bashrc && nvm install --lts', icon: 'node' },
+    { name: 'Rust', cmd: 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env', icon: 'lang' },
+    { name: 'Bun', cmd: 'curl -fsSL https://bun.sh/install | bash && source ~/.bashrc', icon: 'node' },
+    { name: 'Deno', cmd: 'curl -fsSL https://deno.land/install.sh | sh', icon: 'lang' },
+    { name: 'Go', cmd: 'curl -fsSL https://go.dev/dl/go1.22.0.linux-amd64.tar.gz | tar -C ~/.local -xzf - && echo "export PATH=$HOME/.local/go/bin:$PATH" >> ~/.bashrc', icon: 'lang' },
   ],
   'Databases': [
-    { name: 'PostgreSQL Client', cmd: 'pip3 install pgcli 2>/dev/null && echo "pgcli installed via pip" || echo "Install via pip: pip3 install pgcli"' },
-    { name: 'MySQL Client', cmd: 'pip3 install mycli 2>/dev/null && echo "mycli installed via pip" || echo "Install via pip: pip3 install mycli"' },
-    { name: 'Redis Tools', cmd: 'pip3 install iredis 2>/dev/null && echo "iredis installed via pip" || echo "Install via pip: pip3 install iredis"' },
-    { name: 'SQLite Browser', cmd: 'pip3 install sqlite-web 2>/dev/null && echo "sqlite-web installed via pip" || echo "Install via pip: pip3 install sqlite-web"' },
+    { name: 'PostgreSQL Client', cmd: 'pip3 install pgcli', icon: 'db' },
+    { name: 'MySQL Client', cmd: 'pip3 install mycli', icon: 'db' },
+    { name: 'Redis Tools', cmd: 'pip3 install iredis', icon: 'db' },
+    { name: 'SQLite Browser', cmd: 'pip3 install sqlite-web', icon: 'db' },
   ],
-}
-
-// Theme color constants
-const C = {
-  bg:        '#0a0e23',  // Deep midnight blue
-  bgPanel:   '#0f1430',  // Panel background
-  bgSurface: '#141938',  // Surface/elevated
-  bgHover:   '#1a2048',  // Hover state
-  bgActive:  '#1e2555',  // Active/selected
-  border:    '#1e2a5a',  // Subtle blue border
-  borderHi:  '#2a3a7a',  // Highlighted border
-  text:      '#c8d6e5',  // Primary text
-  textMuted: '#6b7ba0',  // Muted/secondary text
-  textDim:   '#3d4a6e',  // Dim/hint text
-  cyan:      '#00d4ff',  // Primary accent - Electric cyan
-  gold:      '#ffc107',  // Secondary accent - Warm gold
-  purple:    '#a855f7',  // Tertiary accent - Royal purple
-  green:     '#00e676',  // Success - Vibrant green
-  red:       '#ff5252',  // Error/Danger
-  blue:      '#448aff',  // Info blue
 }
 
 export default function Home() {
   const {
-    socket,
-    connected,
-    tools,
-    sessions,
-    activeSessionId,
-    setActiveSessionId,
-    latency,
-    createTerminal,
-    destroyTerminal,
-    sendInput,
-    resizeTerminal,
-    onOutput,
-    onClearBuffer,
-    checkTools,
-    installTool,
-    readFile,
-    writeFile,
-    listFiles,
-    sendCommandToTerminal,
-    ooStatus,
-    checkOoStatus,
-    startOoServices,
-    startOoDaemon,
+    socket, connected, tools, sessions, activeSessionId, setActiveSessionId,
+    latency, createTerminal, destroyTerminal, sendInput, resizeTerminal,
+    onOutput, onClearBuffer, checkTools, installTool, readFile, writeFile,
+    listFiles, sendCommandToTerminal, ooStatus, checkOoStatus, startOoServices, startOoDaemon,
   } = useSocket()
 
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [sidebarTab, setSidebarTab] = useState('services')
+  const [sidebarTab, setSidebarTab] = useState('packages')
   const [editorFile, setEditorFile] = useState<string | null>(null)
   const [editorContent, setEditorContent] = useState<string | null>(null)
   const [creatingTerminal, setCreatingTerminal] = useState(false)
   const [currentUser, setCurrentUser] = useState<{userId: string; username: string; role: string} | null>(null)
+  const [installedPkgs, setInstalledPkgs] = useState<Set<string>>(new Set())
 
-  // Auth check on mount
+  // Build installed packages set from tools data
+  useEffect(() => {
+    const pkgs = new Set<string>()
+    tools.forEach(t => { if (t.installed) pkgs.add(t.name) })
+    // Also add common known installed tools
+    ;['node', 'npm', 'npx', 'python3', 'pip3', 'git', 'curl', 'wget', 'bash', 'vim', 'nano',
+      'docker', 'ssh', 'scp', 'rsync', 'make', 'gcc', 'jq'].forEach(c => pkgs.add(c))
+    setInstalledPkgs(pkgs)
+  }, [tools])
+
   useEffect(() => {
     const token = localStorage.getItem('jasbol-token')
     const userStr = localStorage.getItem('jasbol-user')
-    if (!token) {
-      window.location.href = '/login'
-      return
-    }
-    if (userStr) {
-      try {
-        setCurrentUser(JSON.parse(userStr))
-      } catch {}
-    }
-    // Verify token validity
-    fetch('/api/auth/verify', {
-      headers: { Authorization: `Bearer ${token}` }
-    }).then(res => {
-      if (!res.ok) {
-        localStorage.removeItem('jasbol-token')
-        localStorage.removeItem('jasbol-user')
-        window.location.href = '/login'
-      }
+    if (!token) { window.location.href = '/login'; return }
+    if (userStr) { try { setCurrentUser(JSON.parse(userStr)) } catch {} }
+    fetch('/api/auth/verify', { headers: { Authorization: `Bearer ${token}` } }).then(res => {
+      if (!res.ok) { localStorage.removeItem('jasbol-token'); localStorage.removeItem('jasbol-user'); window.location.href = '/login' }
     }).catch(() => {})
   }, [])
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
-    localStorage.removeItem('jasbol-token')
-    localStorage.removeItem('jasbol-user')
+    localStorage.removeItem('jasbol-token'); localStorage.removeItem('jasbol-user')
     window.location.href = '/login'
   }
 
-  // Prevent hydration mismatch - only render theme-dependent UI after mount
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  useEffect(() => { setMounted(true) }, [])
 
-  // Auto-create first terminal on connect (with delay to ensure stable connection)
   useEffect(() => {
     if (mounted && connected && sessions.length === 0) {
-      const timer = setTimeout(() => {
-        if (connected && sessions.length === 0) {
-          createTerminal().catch(console.error)
-        }
-      }, 1500)  // Wait 1.5s to ensure connection is stable before creating terminal
+      const timer = setTimeout(() => { if (connected && sessions.length === 0) createTerminal().catch(console.error) }, 1500)
       return () => clearTimeout(timer)
     }
   }, [mounted, connected, sessions.length, createTerminal])
 
   const handleNewTerminal = async () => {
     setCreatingTerminal(true)
-    try {
-      await createTerminal()
-    } catch (err) {
-      console.error('Failed to create terminal:', err)
-    } finally {
-      setCreatingTerminal(false)
-    }
+    try { await createTerminal() } catch (err) { console.error('Failed:', err) } finally { setCreatingTerminal(false) }
   }
 
   const handleFileOpen = useCallback(async (path: string, content?: string) => {
     setEditorFile(path)
-    if (content !== undefined) {
-      setEditorContent(content)
-    } else {
-      const result = await readFile(path)
-      setEditorContent(result.content)
-    }
+    if (content !== undefined) { setEditorContent(content) } else { const result = await readFile(path); setEditorContent(result.content) }
   }, [readFile])
 
   const handleEditorSave = useCallback(async (path: string, content: string) => {
-    const result = await writeFile(path, content)
-    if (!result.error) {
-      setEditorContent(content)
-    }
-    return result
+    const result = await writeFile(path, content); if (!result.error) setEditorContent(content); return result
   }, [writeFile])
 
-  const handleEditorClose = useCallback(() => {
-    setEditorFile(null)
-    setEditorContent(null)
-  }, [])
+  const handleEditorClose = useCallback(() => { setEditorFile(null); setEditorContent(null) }, [])
+
+  // Determine if dark mode
+  const isDark = !mounted || theme === 'dark'
 
   return (
-    <div className="flex flex-col h-screen bg-[#0a0e23] text-[#c8d6e5] overflow-hidden">
-      {/* HEADER */}
-      <header className="flex items-center justify-between px-4 h-11 border-b border-[#1e2a5a] bg-[#0f1430]/90 backdrop-blur-md shrink-0 jh-glow-cyan">
+    <div className="flex flex-col h-screen bg-[var(--nx-bg-primary)] text-[var(--nx-text)] overflow-hidden transition-colors duration-200">
+      {/* ═══ HEADER ═══ */}
+      <header className="flex items-center justify-between px-4 h-11 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/90 backdrop-blur-md shrink-0 nx-panel-glow">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <img
-              src="/jasbol-hack-logo.png"
-              alt="Jasbol Hack"
-              width={28}
-              height={28}
-              className="rounded-sm"
-            />
+            <div className="w-7 h-7 rounded-md bg-gradient-to-br from-[#00E5C0] to-[#6366F1] flex items-center justify-center">
+              <Terminal className="w-4 h-4 text-white" />
+            </div>
             <h1 className="text-sm font-bold tracking-wide">
-              <span className="text-[#00d4ff]">Jasbol</span>
-              <span className="text-[#c8d6e5]"> Hack</span>
+              <span className="bg-gradient-to-r from-[#00E5C0] to-[#6366F1] bg-clip-text text-transparent">Nexus</span>
+              <span className="text-[var(--nx-text)] ml-0.5">Eclipse</span>
             </h1>
           </div>
-          <Separator orientation="vertical" className="h-5 bg-[#1e2a5a]" />
+          <Separator orientation="vertical" className="h-5 bg-[var(--nx-border)]" />
           <div className="flex items-center gap-1.5">
             {mounted && connected ? (
               <div className="flex items-center gap-1.5">
-                <span className="relative flex h-2 w-2 jh-pulse-ring">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e676] opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00e676]" />
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--nx-success)] opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--nx-success)]" />
                 </span>
-                <span className="text-[10px] text-[#00e676] font-medium">Connected</span>
+                <span className="text-[10px] text-[var(--nx-success)] font-medium">Live</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5">
-                <span className="relative flex h-2 w-2">
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#ff5252]" />
-                </span>
-                <span className="text-[10px] text-[#ff5252] font-medium">
-                  {mounted ? 'Disconnected' : 'Connecting...'}
-                </span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--nx-error)]" />
+                <span className="text-[10px] text-[var(--nx-error)] font-medium">{mounted ? 'Offline' : 'Connecting...'}</span>
               </div>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs gap-1.5 text-[#c8d6e5] hover:text-[#00d4ff] hover:bg-[#1a2048] transition-colors"
-            onClick={handleNewTerminal}
-            disabled={creatingTerminal || !connected}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            New Terminal
+          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] hover:bg-[var(--nx-bg-hover)] transition-colors" onClick={handleNewTerminal} disabled={creatingTerminal || !connected}>
+            <Plus className="h-3.5 w-3.5" />New Terminal
           </Button>
-          <Separator orientation="vertical" className="h-5 bg-[#1e2a5a]" />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-[#c8d6e5] hover:text-[#ffc107] hover:bg-[#1a2048] transition-colors"
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            disabled={!mounted}
-          >
-            {mounted ? (theme === 'dark' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />) : <Sun className="h-3.5 w-3.5 opacity-0" />}
+          <Separator orientation="vertical" className="h-5 bg-[var(--nx-border)]" />
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-secondary)] hover:text-[var(--nx-warning)] hover:bg-[var(--nx-bg-hover)] transition-colors" onClick={() => setTheme(isDark ? 'light' : 'dark')} disabled={!mounted}>
+            {mounted ? (isDark ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />) : <Sun className="h-3.5 w-3.5 opacity-0" />}
           </Button>
-          <Separator orientation="vertical" className="h-5 bg-[#1e2a5a]" />
-          {/* User Info & Logout */}
+          <Separator orientation="vertical" className="h-5 bg-[var(--nx-border)]" />
           {currentUser && (
             <div className="flex items-center gap-1.5">
-              <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#0a0e23] border border-[#1e2a5a] transition-colors hover:border-[#00d4ff]/30">
-                {currentUser.role === 'admin' ? (
-                  <Shield className="h-3 w-3 text-[#ffc107]" />
-                ) : (
-                  <User className="h-3 w-3 text-[#00d4ff]" />
-                )}
-                <span className="text-[10px] font-medium text-[#c8d6e5]">{currentUser.username}</span>
-                {currentUser.role === 'admin' && (
-                  <span className="text-[8px] px-1 py-0.5 rounded bg-[#ffc107]/15 text-[#ffc107] font-bold tracking-wider">ADMIN</span>
-                )}
+              <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] nx-hover-lift">
+                {currentUser.role === 'admin' ? <Shield className="h-3 w-3 text-[var(--nx-accent)]" /> : <User className="h-3 w-3 text-[var(--nx-accent-teal)]" />}
+                <span className="text-[10px] font-medium">{currentUser.username}</span>
+                {currentUser.role === 'admin' && <span className="text-[8px] px-1 py-0.5 rounded bg-[var(--nx-accent)]/15 text-[var(--nx-accent)] font-bold tracking-wider">ADMIN</span>}
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-[#6b7ba0] hover:text-[#ff5252] hover:bg-[#1a2048] transition-colors"
-                onClick={handleLogout}
-                title="Logout"
-              >
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-muted)] hover:text-[var(--nx-error)] hover:bg-[var(--nx-bg-hover)] transition-colors" onClick={handleLogout} title="Logout">
                 <LogOut className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -315,34 +181,23 @@ export default function Home() {
         </div>
       </header>
 
-      {/* MAIN CONTENT */}
+      {/* ═══ MAIN CONTENT ═══ */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar Toggle (when collapsed) */}
+        {/* Sidebar Toggle (collapsed) */}
         {sidebarCollapsed && (
-          <div className="flex flex-col items-center py-2 border-r border-[#1e2a5a] bg-[#0f1430]/80 w-8 shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-[#c8d6e5] hover:text-[#00d4ff] transition-colors"
-              onClick={() => setSidebarCollapsed(false)}
-            >
+          <div className="flex flex-col items-center py-2 border-r border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/80 w-8 shrink-0 nx-panel-enter">
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)] transition-colors" onClick={() => setSidebarCollapsed(false)}>
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
             <div className="flex flex-col gap-1 mt-2">
               {[
-                { icon: Globe, tab: 'services' },
+                { icon: Package, tab: 'packages' },
                 { icon: Wrench, tab: 'tools' },
                 { icon: FolderTree, tab: 'files' },
                 { icon: Container, tab: 'docker' },
                 { icon: Zap, tab: 'quick' },
               ].map(({ icon: Icon, tab }) => (
-                <Button
-                  key={tab}
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-[#6b7ba0] hover:text-[#00d4ff] hover:bg-[#1a2048] transition-colors"
-                  onClick={() => { setSidebarTab(tab); setSidebarCollapsed(false) }}
-                >
+                <Button key={tab} variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)] hover:bg-[var(--nx-bg-hover)] transition-colors" onClick={() => { setSidebarTab(tab); setSidebarCollapsed(false) }}>
                   <Icon className="h-3.5 w-3.5" />
                 </Button>
               ))}
@@ -352,103 +207,44 @@ export default function Home() {
 
         {/* Sidebar */}
         {!sidebarCollapsed && (
-          <div className="flex flex-col border-r border-[#1e2a5a] bg-[#0f1430]/80 backdrop-blur-md shrink-0 overflow-hidden jh-glow-cyan" style={{ width: 280 }}>
-            {/* Sidebar Header */}
-            <div className="flex items-center justify-between px-3 h-9 border-b border-[#1e2a5a] shrink-0">
-              <span className="text-xs font-semibold text-[#6b7ba0] uppercase tracking-wider">Explorer</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 text-[#6b7ba0] hover:text-[#c8d6e5] transition-colors"
-                onClick={() => setSidebarCollapsed(true)}
-              >
+          <div className="flex flex-col border-r border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/80 backdrop-blur-md shrink-0 overflow-hidden nx-panel-glow nx-panel-enter" style={{ width: 280 }}>
+            <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--nx-border)] shrink-0">
+              <span className="text-xs font-semibold text-[var(--nx-text-muted)] uppercase tracking-wider">Explorer</span>
+              <Button variant="ghost" size="icon" className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-text)] transition-colors" onClick={() => setSidebarCollapsed(true)}>
                 <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
             </div>
 
-            {/* Sidebar Tabs */}
             <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="flex flex-col flex-1 overflow-hidden">
-              <TabsList className="w-full h-8 bg-[#0a0e23] rounded-none border-b border-[#1e2a5a] p-0 shrink-0">
-                <TabsTrigger
-                  value="services"
-                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#1e2555] data-[state=active]:text-[#00d4ff] rounded-none transition-colors"
-                >
-                  <Globe className="h-3 w-3" />
-                  <span className="hidden sm:inline">Services</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="tools"
-                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#1e2555] data-[state=active]:text-[#00d4ff] rounded-none transition-colors"
-                >
-                  <Wrench className="h-3 w-3" />
-                  <span className="hidden sm:inline">Tools</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="files"
-                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#1e2555] data-[state=active]:text-[#00d4ff] rounded-none transition-colors"
-                >
-                  <FolderTree className="h-3 w-3" />
-                  <span className="hidden sm:inline">Files</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="docker"
-                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#1e2555] data-[state=active]:text-[#00d4ff] rounded-none transition-colors"
-                >
-                  <Container className="h-3 w-3" />
-                  <span className="hidden sm:inline">Docker</span>
-                </TabsTrigger>
-                <TabsTrigger
-                  value="quick"
-                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#1e2555] data-[state=active]:text-[#00d4ff] rounded-none transition-colors"
-                >
-                  <Zap className="h-3 w-3" />
-                  <span className="hidden sm:inline">Quick</span>
-                </TabsTrigger>
+              <TabsList className="w-full h-8 bg-[var(--nx-bg-primary)] rounded-none border-b border-[var(--nx-border)] p-0 shrink-0">
+                {[
+                  { value: 'packages', icon: Package },
+                  { value: 'tools', icon: Wrench },
+                  { value: 'files', icon: FolderTree },
+                  { value: 'docker', icon: Container },
+                  { value: 'quick', icon: Zap },
+                ].map(({ value, icon: Icon }) => (
+                  <TabsTrigger key={value} value={value} className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[var(--nx-bg-active)] data-[state=active]:text-[var(--nx-accent-teal)] rounded-none transition-colors">
+                    <Icon className="h-3 w-3" />
+                    <span className="hidden sm:inline">{value.charAt(0).toUpperCase() + value.slice(1)}</span>
+                  </TabsTrigger>
+                ))}
               </TabsList>
 
-              <TabsContent value="services" className="flex-1 overflow-hidden mt-0">
-                <OpenOutreachPanel
-                  ooStatus={ooStatus}
-                  checkOoStatus={checkOoStatus}
-                  startOoServices={startOoServices}
-                  startOoDaemon={startOoDaemon}
-                  sendCommandToTerminal={sendCommandToTerminal}
-                  connected={connected}
-                />
+              <TabsContent value="packages" className="flex-1 overflow-hidden mt-0">
+                <PackageSidebar installedPackages={installedPkgs} sendCommandToTerminal={sendCommandToTerminal} connected={connected} />
               </TabsContent>
-
               <TabsContent value="tools" className="flex-1 overflow-hidden mt-0">
-                <ToolStatus
-                  tools={tools}
-                  checkTools={checkTools}
-                  onInstall={installTool}
-                  sendCommandToTerminal={sendCommandToTerminal}
-                  loading={!mounted || !connected}
-                />
+                <ToolStatus tools={tools} checkTools={checkTools} onInstall={installTool} sendCommandToTerminal={sendCommandToTerminal} loading={!mounted || !connected} />
               </TabsContent>
-
               <TabsContent value="files" className="flex-1 overflow-hidden mt-0">
-                <FileManager
-                  listFiles={listFiles}
-                  onFileOpen={handleFileOpen}
-                  connected={connected}
-                />
+                <FileManager listFiles={listFiles} onFileOpen={handleFileOpen} connected={connected} />
               </TabsContent>
-
               <TabsContent value="docker" className="flex-1 overflow-hidden mt-0">
-                <DockerPanel
-                  listFiles={listFiles}
-                  onFileOpen={handleFileOpen}
-                  sendCommandToTerminal={sendCommandToTerminal}
-                  connected={connected}
-                />
+                <DockerPanel listFiles={listFiles} onFileOpen={handleFileOpen} sendCommandToTerminal={sendCommandToTerminal} connected={connected} />
               </TabsContent>
-
               <TabsContent value="quick" className="flex-1 overflow-hidden mt-0">
-                <QuickInstallPanel
-                  sendCommandToTerminal={sendCommandToTerminal}
-                  connected={connected}
-                />
+                <QuickInstallPanel sendCommandToTerminal={sendCommandToTerminal} connected={connected} />
               </TabsContent>
             </Tabs>
           </div>
@@ -457,179 +253,136 @@ export default function Home() {
         {/* Main Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <ResizablePanelGroup direction="vertical" className="flex-1">
-            {/* Terminal Panel */}
             <ResizablePanel defaultSize={65} minSize={30}>
               <div className="flex flex-col h-full">
                 {/* Terminal Tab Bar */}
-                <div className="flex items-center h-9 border-b border-[#1e2a5a] bg-[#0f1430]/60 shrink-0 overflow-x-auto">
+                <div className="flex items-center h-9 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/60 shrink-0 overflow-x-auto">
                   <ScrollArea className="flex-1">
                     <div className="flex items-center h-9">
                       {sessions.map((session) => (
-                        <div
-                          key={session.sessionId}
-                          className={`flex items-center gap-1.5 px-3 h-full text-xs border-r border-[#1e2a5a] transition-all duration-200 shrink-0 cursor-pointer ${
+                        <div key={session.sessionId}
+                          className={`flex items-center gap-1.5 px-3 h-full text-xs border-r border-[var(--nx-border)] transition-all duration-200 shrink-0 cursor-pointer ${
                             activeSessionId === session.sessionId
-                              ? 'bg-[#0a0e23] text-[#00d4ff] border-b-2 border-b-[#00d4ff]'
-                              : 'text-[#6b7ba0] hover:text-[#c8d6e5] hover:bg-[#0a0e23]/50'
+                              ? 'bg-[var(--nx-bg-primary)] text-[var(--nx-accent-teal)] nx-tab-active'
+                              : 'text-[var(--nx-text-muted)] hover:text-[var(--nx-text)] hover:bg-[var(--nx-bg-primary)]/50'
                           }`}
-                          onClick={() => setActiveSessionId(session.sessionId)}
-                        >
+                          onClick={() => setActiveSessionId(session.sessionId)}>
                           <SquareTerminal className="h-3 w-3 shrink-0" />
                           <span className="truncate max-w-24">{session.label}</span>
-                          <span className="text-[8px] text-[#3d4a6e] shrink-0">
-                            {session.sessionId.substring(0, 4)}
-                          </span>
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            className="ml-1 p-0.5 rounded hover:bg-[#1e2a5a] text-[#6b7ba0] hover:text-[#ff5252] transition-colors inline-flex items-center"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              destroyTerminal(session.sessionId)
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.stopPropagation()
-                                destroyTerminal(session.sessionId)
-                              }
-                            }}
-                          >
+                          <span className="text-[8px] text-[var(--nx-text-dim)] shrink-0">{session.sessionId.substring(0, 4)}</span>
+                          <span role="button" tabIndex={0}
+                            className="ml-1 p-0.5 rounded hover:bg-[var(--nx-bg-hover)] text-[var(--nx-text-muted)] hover:text-[var(--nx-error)] transition-colors inline-flex items-center"
+                            onClick={(e) => { e.stopPropagation(); destroyTerminal(session.sessionId) }}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); destroyTerminal(session.sessionId) } }}>
                             <X className="h-2.5 w-2.5" />
                           </span>
                         </div>
                       ))}
                     </div>
                   </ScrollArea>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 mx-1 text-[#6b7ba0] hover:text-[#00d4ff] hover:bg-[#1a2048] shrink-0 transition-colors"
-                    onClick={handleNewTerminal}
-                    disabled={creatingTerminal || !connected}
-                  >
+                  <Button variant="ghost" size="icon" className="h-7 w-7 mx-1 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)] hover:bg-[var(--nx-bg-hover)] shrink-0 transition-colors" onClick={handleNewTerminal} disabled={creatingTerminal || !connected}>
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
                 </div>
 
                 {/* Terminal Content */}
-                <div className="flex-1 bg-[#0a0e23] overflow-hidden relative">
+                <div className="flex-1 bg-[var(--nx-bg-primary)] overflow-hidden relative">
                   {sessions.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center">
-                        <Terminal className="h-12 w-12 mx-auto text-[#1e2a5a] mb-3" />
-                        <p className="text-sm text-[#3d4a6e] mb-3">
-                          {mounted && connected ? 'No terminal sessions' : 'Connecting to terminal service...'}
-                        </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-[#00d4ff] border-[#00d4ff]/30 hover:bg-[#00d4ff]/10 transition-colors"
-                          onClick={handleNewTerminal}
-                          disabled={!connected}
-                        >
-                          <Plus className="h-3.5 w-3.5 mr-1.5" />
-                          Start Terminal
+                        <Terminal className="h-12 w-12 mx-auto text-[var(--nx-border)] mb-3" />
+                        <p className="text-sm text-[var(--nx-text-dim)] mb-3">{mounted && connected ? 'No terminal sessions' : 'Connecting...'}</p>
+                        <Button variant="outline" size="sm" className="text-[var(--nx-accent-teal)] border-[var(--nx-accent-teal)]/30 hover:bg-[var(--nx-accent-teal)]/10 transition-colors" onClick={handleNewTerminal} disabled={!connected}>
+                          <Plus className="h-3.5 w-3.5 mr-1.5" />Start Terminal
                         </Button>
                       </div>
                     </div>
                   ) : (
                     sessions.map((session) => (
-                      <XtermTerminal
-                        key={session.sessionId}
-                        sessionId={session.sessionId}
-                        onOutput={onOutput}
-                        onClearBuffer={onClearBuffer}
-                        sendInput={sendInput}
-                        resizeTerminal={resizeTerminal}
-                        isActive={activeSessionId === session.sessionId}
-                      />
+                      <XtermTerminal key={session.sessionId} sessionId={session.sessionId} onOutput={onOutput} onClearBuffer={onClearBuffer} sendInput={sendInput} resizeTerminal={resizeTerminal} isActive={activeSessionId === session.sessionId} installedPackages={installedPkgs} />
                     ))
                   )}
                 </div>
               </div>
             </ResizablePanel>
 
-            {/* Editor Panel */}
-            <ResizableHandle withHandle className="bg-[#1e2a5a] hover:bg-[#2a3a7a] transition-colors" />
+            <ResizableHandle withHandle className="bg-[var(--nx-border)] hover:bg-[var(--nx-accent)]/30 transition-colors" />
             <ResizablePanel defaultSize={35} minSize={15}>
-              <div className="h-full bg-[#0a0e23] border-t border-[#1e2a5a]">
-                <CodeEditor
-                  filePath={editorFile}
-                  fileContent={editorContent}
-                  onSave={handleEditorSave}
-                  onRun={sendCommandToTerminal}
-                  onClose={handleEditorClose}
-                  readFile={readFile}
-                />
+              <div className="h-full bg-[var(--nx-bg-primary)] border-t border-[var(--nx-border)]">
+                <CodeEditor filePath={editorFile} fileContent={editorContent} onSave={handleEditorSave} onRun={sendCommandToTerminal} onClose={handleEditorClose} readFile={readFile} />
               </div>
             </ResizablePanel>
           </ResizablePanelGroup>
         </div>
       </div>
 
-      {/* STATUS BAR */}
-      <footer className="flex items-center justify-between px-3 h-6 border-t border-[#1e2a5a] bg-[#0f1430]/90 text-[10px] text-[#6b7ba0] shrink-0">
+      {/* ═══ STATUS BAR ═══ */}
+      <footer className="flex items-center justify-between px-3 h-6 border-t border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/90 text-[10px] text-[var(--nx-text-muted)] shrink-0">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <SquareTerminal className="h-2.5 w-2.5 text-[#00d4ff]" />
+          <div className="flex items-center gap-1.5">
+            <SquareTerminal className="h-2.5 w-2.5 text-[var(--nx-accent-teal)]" />
             <span>bash</span>
           </div>
-          <Separator orientation="vertical" className="h-3 bg-[#1e2a5a]" />
+          <Separator orientation="vertical" className="h-3 bg-[var(--nx-border)]" />
           <span>/workspace</span>
-          <Separator orientation="vertical" className="h-3 bg-[#1e2a5a]" />
+          <Separator orientation="vertical" className="h-3 bg-[var(--nx-border)]" />
+          {/* Environment indicators */}
+          <div className="flex items-center gap-1.5">
+            <span className="nx-env-dot node" />
+            <span>Node</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="nx-env-dot python" />
+            <span>Py</span>
+          </div>
           {activeSessionId && (
-            <span className="font-mono text-[#3d4a6e]">
-              session:{activeSessionId.substring(0, 8)}
-            </span>
+            <>
+              <Separator orientation="vertical" className="h-3 bg-[var(--nx-border)]" />
+              <span className="font-mono text-[var(--nx-text-dim)]">session:{activeSessionId.substring(0, 8)}</span>
+            </>
           )}
-          <Separator orientation="vertical" className="h-3 bg-[#1e2a5a]" />
-          <span>{sessions.length} terminal{sessions.length !== 1 ? 's' : ''}</span>
+          <Separator orientation="vertical" className="h-3 bg-[var(--nx-border)]" />
+          <span>{sessions.length} tab{sessions.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="flex items-center gap-3">
           {mounted && connected && latency > 0 && (
-            <span className={`${latency > 200 ? 'text-[#ffc107]' : 'text-[#00e676]'}`}>
-              {latency}ms
-            </span>
+            <span className={latency > 200 ? 'text-[var(--nx-warning)]' : 'text-[var(--nx-success)]'}>{latency}ms</span>
           )}
           <div className="flex items-center gap-1">
-            {mounted && connected ? (
-              <Wifi className="h-2.5 w-2.5 text-[#00e676]" />
-            ) : (
-              <WifiOff className="h-2.5 w-2.5 text-[#ff5252]" />
-            )}
+            {mounted && connected ? <Wifi className="h-2.5 w-2.5 text-[var(--nx-success)]" /> : <WifiOff className="h-2.5 w-2.5 text-[var(--nx-error)]" />}
           </div>
+          <span className="text-[var(--nx-text-dim)]">Nexus Eclipse</span>
         </div>
       </footer>
     </div>
   )
 }
 
-// Quick Install Panel Component
-function QuickInstallPanel({
-  sendCommandToTerminal,
-  connected,
-}: {
-  sendCommandToTerminal: (command: string) => void
-  connected: boolean
-}) {
+// ─── Quick Install Panel ───
+function QuickInstallPanel({ sendCommandToTerminal, connected }: { sendCommandToTerminal: (cmd: string) => void; connected: boolean }) {
+  const iconMap: Record<string, React.ReactNode> = {
+    sparkles: <Sparkles className="h-3 w-3" />,
+    code: <Code2 className="h-3 w-3" />,
+    cloud: <Cloud className="h-3 w-3" />,
+    node: <Cpu className="h-3 w-3" />,
+    lang: <Code2 className="h-3 w-3" />,
+    db: <Database className="h-3 w-3" />,
+  }
+
   return (
     <ScrollArea className="h-full">
       <div className="p-2 space-y-3">
         {Object.entries(QUICK_INSTALL).map(([category, items]) => (
           <div key={category}>
-            <h3 className="text-[10px] font-semibold text-[#6b7ba0] uppercase tracking-wider px-1 mb-1.5">
-              {category}
-            </h3>
+            <h3 className="text-[10px] font-semibold text-[var(--nx-text-muted)] uppercase tracking-wider px-1 mb-1.5">{category}</h3>
             <div className="space-y-0.5">
               {items.map((item) => (
-                <button
-                  key={item.name}
-                  className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs hover:bg-[#1a2048] transition-colors disabled:opacity-50"
-                  onClick={() => sendCommandToTerminal(item.cmd)}
-                  disabled={!connected}
-                >
-                  <span className="text-[#c8d6e5]">{item.name}</span>
-                  <Zap className="h-3 w-3 text-[#ffc107] opacity-50" />
+                <button key={item.name} className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs hover:bg-[var(--nx-bg-hover)] transition-colors disabled:opacity-50 nx-hover-lift" onClick={() => sendCommandToTerminal(item.cmd)} disabled={!connected}>
+                  <span className="flex items-center gap-2 text-[var(--nx-text)]">
+                    <span className="text-[var(--nx-accent-teal)]">{iconMap[item.icon] || <Zap className="h-3 w-3" />}</span>
+                    {item.name}
+                  </span>
+                  <Zap className="h-3 w-3 text-[var(--nx-accent)] opacity-40" />
                 </button>
               ))}
             </div>
