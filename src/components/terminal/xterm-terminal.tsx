@@ -425,6 +425,41 @@ export function XtermTerminal({
     term.loadAddon(fitAddon)
     term.loadAddon(webLinksAddon)
 
+    // ─── Fix: Enable Ctrl+Shift+C/V for copy/paste in browser ───
+    // Without this, browsers intercept Ctrl+C/V and xterm never sees them.
+    // Ctrl+Shift+C = copy selection, Ctrl+Shift+V = paste from clipboard
+    // Ctrl+C alone = still sends SIGINT to the shell (normal terminal behavior)
+    term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      // Allow Ctrl+Shift+C (copy)
+      if (event.ctrlKey && event.shiftKey && event.key === 'C') {
+        return false // Let browser handle it (copy)
+      }
+      // Allow Ctrl+Shift+V (paste)
+      if (event.ctrlKey && event.shiftKey && event.key === 'V') {
+        return false // Let browser handle it (paste)
+      }
+      // Allow Ctrl+Shift+X (cut)
+      if (event.ctrlKey && event.shiftKey && event.key === 'X') {
+        return false
+      }
+      // Allow Ctrl+Shift+A (select all)
+      if (event.ctrlKey && event.shiftKey && event.key === 'A') {
+        return false
+      }
+      // Allow browser refresh/close (Ctrl+R, Ctrl+W, Ctrl+T, Ctrl+L)
+      if (event.ctrlKey && !event.shiftKey && !event.altKey) {
+        if (['r', 'w', 't', 'l'].includes(event.key.toLowerCase())) {
+          return false
+        }
+      }
+      // Allow Ctrl+Plus/Minus for zoom
+      if (event.ctrlKey && (event.key === '+' || event.key === '-' || event.key === '=')) {
+        return false
+      }
+      // All other key events go to xterm
+      return true
+    })
+
     term.open(containerRef.current)
 
     termRef.current = term

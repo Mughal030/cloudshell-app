@@ -211,46 +211,139 @@ npm-install() { npm install -g "$@"; }
 pip-install() { pip3 install --user "$@" && export PATH="${HOME}/.local/bin:${PATH}"; }
 
 # ─── Claude Code CLI Setup ──────────────────────────────────
-# Install Claude Code: npm install -g @anthropic-ai/claude-code
-# On Linux (NOT Windows setx), use export to set env vars:
+# Claude Code is PRE-INSTALLED in the Docker image.
+# Just type 'claude' to start!
 #
-#   export ANTHROPIC_BASE_URL="https://your-api-endpoint.com/"
-#   export ANTHROPIC_AUTH_TOKEN="sk-your-api-key-here"
-#   export ANTHROPIC_MODEL="claude-opus-4-6"
-#   export CLAUDE_CODE_USE_AUTH_TOKEN="true"
-#   claude
+# Change settings individually:
+#   claude-set-url "https://your-api-endpoint.com/"
+#   claude-set-key "sk-your-new-api-key"
+#   claude-set-model "claude-opus-4-7"
+#   claude-show              (shows current config)
 #
-# To persist these across sessions, add them to ~/.bashrc_env:
-#   setup-claude-env "https://your-endpoint/" "sk-your-key" "claude-opus-4-6"
-#
+# Or set all at once:
+#   setup-claude-env "https://your-endpoint/" "sk-your-key" "claude-opus-4-7"
+
+# ─── Show current Claude Code configuration ─────────────────
+claude-show() {
+    echo "=== Claude Code Configuration ==="
+    echo "  ANTHROPIC_BASE_URL    = ${ANTHROPIC_BASE_URL:-(not set)}"
+    echo "  ANTHROPIC_AUTH_TOKEN   = ****${ANTHROPIC_AUTH_TOKEN: -4}"
+    echo "  ANTHROPIC_MODEL       = ${ANTHROPIC_MODEL:-(not set)}"
+    echo "  CLAUDE_CODE_USE_AUTH_TOKEN = ${CLAUDE_CODE_USE_AUTH_TOKEN:-(not set)}"
+    echo ""
+    if command -v claude &>/dev/null; then
+        echo "  claude CLI: installed ($(which claude))"
+    else
+        echo "  claude CLI: NOT FOUND (run: setup-claude-code)"
+    fi
+}
+
+# ─── Change Claude Code API Base URL only ────────────────────
+claude-set-url() {
+    if [ -z "$1" ]; then
+        echo "Usage: claude-set-url <base_url>"
+        echo "  Current: ${ANTHROPIC_BASE_URL}"
+        echo ""
+        echo "  Example:"
+        echo "    claude-set-url \"https://agentrouter.org/\""
+        echo "    claude-set-url \"https://api.anthropic.com/\""
+        return 1
+    fi
+    export ANTHROPIC_BASE_URL="$1"
+    # Update persisted env file
+    _claude_update_env ANTHROPIC_BASE_URL "$1"
+    echo "ANTHROPIC_BASE_URL updated to: $1"
+    echo "  (Saved to ~/.bashrc_env for future sessions)"
+}
+
+# ─── Change Claude Code API Key only ────────────────────────
+claude-set-key() {
+    if [ -z "$1" ]; then
+        echo "Usage: claude-set-key <api_key>"
+        echo "  Current: ****${ANTHROPIC_AUTH_TOKEN: -4}"
+        echo ""
+        echo "  Example:"
+        echo "    claude-set-key \"sk-ant-api03-xxxxx\""
+        return 1
+    fi
+    export ANTHROPIC_AUTH_TOKEN="$1"
+    export CLAUDE_CODE_USE_AUTH_TOKEN="true"
+    # Update persisted env file
+    _claude_update_env ANTHROPIC_AUTH_TOKEN "$1"
+    _claude_update_env CLAUDE_CODE_USE_AUTH_TOKEN "true"
+    echo "ANTHROPIC_AUTH_TOKEN updated to: ****${1: -4}"
+    echo "  (Saved to ~/.bashrc_env for future sessions)"
+}
+
+# ─── Change Claude Code Model only ──────────────────────────
+claude-set-model() {
+    if [ -z "$1" ]; then
+        echo "Usage: claude-set-model <model_name>"
+        echo "  Current: ${ANTHROPIC_MODEL}"
+        echo ""
+        echo "  Available models:"
+        echo "    claude-opus-4-7        (Most capable)"
+        echo "    claude-sonnet-4-20250514 (Balanced)"
+        echo "    claude-haiku-3-5-20241022 (Fast & cheap)"
+        return 1
+    fi
+    export ANTHROPIC_MODEL="$1"
+    # Update persisted env file
+    _claude_update_env ANTHROPIC_MODEL "$1"
+    echo "ANTHROPIC_MODEL updated to: $1"
+    echo "  (Saved to ~/.bashrc_env for future sessions)"
+}
+
+# ─── Internal: update a single env var in ~/.bashrc_env ─────
+_claude_update_env() {
+    local VAR_NAME="$1"
+    local VALUE="$2"
+    local ENV_FILE="${HOME}/.bashrc_env"
+
+    # Remove old line for this variable (if exists)
+    if [ -f "$ENV_FILE" ]; then
+        sed -i "/^export ${VAR_NAME}=/d" "$ENV_FILE" 2>/dev/null || true
+    fi
+
+    # Append new value
+    echo "export ${VAR_NAME}=\"${VALUE}\"" >> "$ENV_FILE"
+}
+
+# ─── Install Claude Code (if not pre-installed) ──────────────
 setup-claude-code() {
     echo "=== Installing Claude Code CLI ==="
     npm install -g @anthropic-ai/claude-code
     echo ""
     echo "=== Claude Code installed! ==="
     echo ""
-    echo "Now set your API credentials (Linux uses export, NOT setx):"
+    echo "Configure your API credentials with individual commands:"
     echo ""
-    echo "  export ANTHROPIC_BASE_URL=\"https://your-api-endpoint.com/\""
-    echo "  export ANTHROPIC_AUTH_TOKEN=\"sk-your-api-key-here\""
-    echo "  export ANTHROPIC_MODEL=\"claude-opus-4-6\""
-    echo "  export CLAUDE_CODE_USE_AUTH_TOKEN=\"true\""
-    echo "  claude"
+    echo "  claude-set-url \"https://your-api-endpoint.com/\""
+    echo "  claude-set-key \"sk-your-api-key-here\""
+    echo "  claude-set-model \"claude-opus-4-7\""
     echo ""
-    echo "Or use the helper:"
-    echo "  setup-claude-env \"https://your-endpoint/\" \"sk-your-key\" \"claude-opus-4-6\""
+    echo "Or set all at once:"
+    echo "  setup-claude-env \"https://your-endpoint/\" \"sk-your-key\" \"claude-opus-4-7\""
+    echo ""
+    echo "Then just type: claude"
 }
 
 setup-claude-env() {
     local BASE_URL="${1:-}"
     local AUTH_TOKEN="${2:-}"
-    local MODEL="${3:-claude-opus-4-6}"
+    local MODEL="${3:-claude-opus-4-7}"
 
     if [ -z "$BASE_URL" ] || [ -z "$AUTH_TOKEN" ]; then
         echo "Usage: setup-claude-env <base_url> <auth_token> [model]"
         echo ""
         echo "Example:"
-        echo "  setup-claude-env \"https://agentrouter.org/\" \"sk-abc123\" \"claude-opus-4-6\""
+        echo "  setup-claude-env \"https://agentrouter.org/\" \"sk-abc123\" \"claude-opus-4-7\""
+        echo ""
+        echo "Or change individually:"
+        echo "  claude-set-url   (change API endpoint only)"
+        echo "  claude-set-key   (change API key only)"
+        echo "  claude-set-model (change model only)"
+        echo "  claude-show      (show current config)"
         return 1
     fi
 
@@ -260,7 +353,7 @@ setup-claude-env() {
     export ANTHROPIC_MODEL="$MODEL"
     export CLAUDE_CODE_USE_AUTH_TOKEN="true"
 
-    # Persist to ~/.bashrc_env for future sessions
+    # Persist ALL claude vars to ~/.bashrc_env
     cat > "${HOME}/.bashrc_env" << ENVEOF
 # Claude Code CLI Environment Variables
 # Set on $(date)
@@ -270,11 +363,11 @@ export ANTHROPIC_MODEL="${MODEL}"
 export CLAUDE_CODE_USE_AUTH_TOKEN="true"
 ENVEOF
 
-    echo "✓ Claude Code environment configured!"
-    echo "  ANTHROPIC_BASE_URL=$ANTHROPIC_BASE_URL"
-    echo "  ANTHROPIC_MODEL=$ANTHROPIC_MODEL"
-    echo "  ANTHROPIC_AUTH_TOKEN=****${AUTH_TOKEN: -4}"
-    echo "  CLAUDE_CODE_USE_AUTH_TOKEN=true"
+    echo "Claude Code environment configured!"
+    echo "  ANTHROPIC_BASE_URL = $ANTHROPIC_BASE_URL"
+    echo "  ANTHROPIC_MODEL    = $ANTHROPIC_MODEL"
+    echo "  ANTHROPIC_AUTH_TOKEN = ****${AUTH_TOKEN: -4}"
+    echo "  CLAUDE_CODE_USE_AUTH_TOKEN = true"
     echo ""
     echo "  Saved to ~/.bashrc_env (persists across sessions)"
     echo "  Run 'claude' to start!"
@@ -465,7 +558,7 @@ echo "=========================================="
 echo "[Entrypoint] Dropping to cloudshell user..."
 echo "[Entrypoint] Starting server: $*"
 echo "[Entrypoint] npm global prefix: /home/cloudshell/.npm-global"
-echo "[Entrypoint] Claude Code: run 'setup-claude-code' to install"
+echo "[Entrypoint] Claude Code: pre-installed! Just type 'claude' to start"
 echo "=========================================="
 
 exec gosu cloudshell "$@"

@@ -171,6 +171,19 @@ RUN mkdir -p /var/lib/apt/lists/partial \
     && chown -R root:root /var/cache/apt \
     && chmod -R 755 /var/cache/apt
 
+# ─── Pre-install Claude Code CLI ──────────────────────────────────
+# Install as cloudshell user so it lands in ~/.npm-global/bin/claude
+RUN su -c "npm install -g @anthropic-ai/claude-code 2>&1 | tail -5" cloudshell && \
+    ln -sf /home/cloudshell/.npm-global/bin/claude /usr/local/bin/claude 2>/dev/null || true
+
+# ─── Claude Code default environment ──────────────────────────────
+# Users can change these at runtime with: claude-set-url, claude-set-key, claude-set-model
+# Or all at once: setup-claude-env <url> <key> <model>
+ENV ANTHROPIC_BASE_URL="https://your-endpoint.com/" \
+    ANTHROPIC_AUTH_TOKEN="sk-u4Onmsh8NZgtYJ0SArL8UIMrJB78m62b2FgGUz7tWWR7sJYV" \
+    ANTHROPIC_MODEL="claude-opus-4-7" \
+    CLAUDE_CODE_USE_AUTH_TOKEN="true"
+
 # ─── Environment Variables ───────────────────────────────────────
 ENV PORT=7860 \
     NODE_ENV=production \
