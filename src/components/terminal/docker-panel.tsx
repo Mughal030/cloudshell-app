@@ -25,12 +25,12 @@ interface DockerPanelProps {
 const DOCKERFILE_TEMPLATE = `FROM ubuntu:22.04
 
 # Install system packages
-RUN apt-get update && apt-get install -y \\
-    curl \\
-    wget \\
-    git \\
-    vim \\
-    nano \\
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    vim \
+    nano \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -116,16 +116,16 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border/30">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[#1e2a5a]/50">
         <div className="flex items-center gap-1.5">
-          <Container className="h-3.5 w-3.5 text-blue-400" />
-          <span className="text-xs font-medium">Containers</span>
+          <Container className="h-3.5 w-3.5 text-[#ffc107]" />
+          <span className="text-xs font-medium text-[#c8d6e5]">Containers</span>
         </div>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6"
+            className="h-6 w-6 text-[#6b7ba0] hover:text-[#00d4ff] transition-colors"
             onClick={loadDockerfiles}
             disabled={loading}
           >
@@ -134,7 +134,7 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6"
+            className="h-6 w-6 text-[#6b7ba0] hover:text-[#ffc107] transition-colors"
             onClick={handleNewDockerfile}
             title="New Dockerfile"
           >
@@ -144,20 +144,20 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
       </div>
 
       {/* Docker Info */}
-      <div className="px-3 py-2 border-b border-[#21262d]/50">
-        <div className="flex items-start gap-2 text-[10px] text-[#8b949e] bg-[#0d1117] rounded p-2">
-          <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-400" />
+      <div className="px-3 py-2 border-b border-[#1e2a5a]/50">
+        <div className="flex items-start gap-2 text-[10px] text-[#6b7ba0] bg-[#0a0e23] rounded p-2">
+          <Info className="h-3.5 w-3.5 shrink-0 mt-0.5 text-[#ffc107]" />
           <div className="flex-1">
-            <span>Dockerfiles are saved in <code className="text-[#00ff41] bg-[#161b22] px-1 rounded">.dockerfiles/</code> and persist across sessions. Uses <b>Rootless Docker</b> at <code className="text-[#00ff41] bg-[#161b22] px-1 rounded">/home/z/bin/docker</code></span>
+            <span>Dockerfiles are saved in <code className="text-[#00d4ff] bg-[#0f1430] px-1 rounded">.dockerfiles/</code> and persist across sessions. Uses <b>Rootless Docker</b> at <code className="text-[#00d4ff] bg-[#0f1430] px-1 rounded">/home/z/bin/docker</code></span>
             <div className="flex gap-2 mt-1">
               <button
-                className="text-blue-400 hover:text-blue-300 underline"
+                className="text-[#ffc107] hover:text-[#ffe57f] underline transition-colors"
                 onClick={handleCheckDocker}
               >
                 Check Docker
               </button>
               <button
-                className="text-green-400 hover:text-green-300 underline"
+                className="text-[#00e676] hover:text-[#69f0ae] underline transition-colors"
                 onClick={handleInstallPodman}
               >
                 Start Daemon
@@ -166,7 +166,7 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
           </div>
         </div>
         {error && (
-          <div className="mt-1 text-[10px] text-red-400 bg-red-500/10 rounded p-1.5">
+          <div className="mt-1 text-[10px] text-[#ff5252] bg-[#ff5252]/10 rounded p-1.5">
             {error}
           </div>
         )}
@@ -177,15 +177,15 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
         <div className="p-1">
           {dockerfiles.length === 0 && !loading && (
             <div className="text-center py-6 px-3">
-              <Container className="h-8 w-8 mx-auto text-[#21262d] mb-2" />
-              <p className="text-xs text-[#8b949e]">No Dockerfiles yet</p>
-              <p className="text-[10px] text-[#484f58] mt-1">
+              <Container className="h-8 w-8 mx-auto text-[#1e2a5a] mb-2" />
+              <p className="text-xs text-[#6b7ba0]">No Dockerfiles yet</p>
+              <p className="text-[10px] text-[#3d4a6e] mt-1">
                 Create one to get started
               </p>
               <Button
                 variant="outline"
                 size="sm"
-                className="mt-3 h-7 text-xs text-[#00ff41] border-[#238636] hover:bg-[#238636]/20"
+                className="mt-3 h-7 text-xs text-[#ffc107] border-[#ffc107]/30 hover:bg-[#ffc107]/10 transition-colors"
                 onClick={handleNewDockerfile}
               >
                 <Plus className="h-3 w-3 mr-1" />
@@ -196,17 +196,17 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
           {dockerfiles.map((df) => (
             <div
               key={df.name}
-              className="flex flex-col gap-1.5 px-2 py-2 rounded hover:bg-[#21262d]/50 transition-colors group"
+              className="flex flex-col gap-1.5 px-2 py-2 rounded hover:bg-[#1a2048]/60 transition-colors group"
             >
               <div className="flex items-center gap-2">
-                <FileCode className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                <FileCode className="h-3.5 w-3.5 text-[#ffc107] shrink-0" />
                 <button
-                  className="text-xs font-medium truncate flex-1 text-left hover:text-blue-400 transition-colors"
+                  className="text-xs font-medium truncate flex-1 text-left hover:text-[#ffc107] transition-colors text-[#c8d6e5]"
                   onClick={() => onFileOpen(`.dockerfiles/${df.name}`)}
                 >
                   {df.name}
                 </button>
-                <Badge variant="secondary" className="h-4 px-1 text-[8px] bg-blue-500/10 text-blue-400 border-blue-500/20 shrink-0">
+                <Badge variant="secondary" className="h-4 px-1 text-[8px] bg-[#ffc107]/10 text-[#ffc107] border-[#ffc107]/20 shrink-0">
                   {formatSize(df.size)}
                 </Badge>
               </div>
@@ -214,7 +214,7 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-5 px-1.5 text-[10px] text-green-400 hover:text-green-300 hover:bg-[#238636]/10"
+                  className="h-5 px-1.5 text-[10px] text-[#00e676] hover:text-[#69f0ae] hover:bg-[#00e676]/10 transition-colors"
                   onClick={() => handleBuildImage(df.name)}
                 >
                   <Rocket className="h-3 w-3 mr-0.5" />
@@ -223,7 +223,7 @@ export function DockerPanel({ listFiles, onFileOpen, sendCommandToTerminal, conn
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-5 px-1.5 text-[10px] text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                  className="h-5 px-1.5 text-[10px] text-[#ffc107] hover:text-[#ffe57f] hover:bg-[#ffc107]/10 transition-colors"
                   onClick={() => handleRunContainer(df.name)}
                 >
                   <Play className="h-3 w-3 mr-0.5" />

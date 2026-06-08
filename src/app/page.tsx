@@ -39,7 +39,7 @@ import { CodeEditor } from '@/components/terminal/code-editor'
 // Dynamic import xterm.js with SSR disabled — it accesses window/DOM APIs during init
 const XtermTerminal = dynamic(
   () => import('@/components/terminal/xterm-terminal').then(mod => ({ default: mod.XtermTerminal })),
-  { ssr: false, loading: () => <div className="w-full h-full bg-[#0d1117]" /> }
+  { ssr: false, loading: () => <div className="w-full h-full bg-[#0a0e23]" /> }
 )
 
 // Quick install categories - rootless alternatives that work without sudo
@@ -83,6 +83,26 @@ const QUICK_INSTALL = {
     { name: 'Redis Tools', cmd: 'pip3 install iredis 2>/dev/null && echo "iredis installed via pip" || echo "Install via pip: pip3 install iredis"' },
     { name: 'SQLite Browser', cmd: 'pip3 install sqlite-web 2>/dev/null && echo "sqlite-web installed via pip" || echo "Install via pip: pip3 install sqlite-web"' },
   ],
+}
+
+// Theme color constants
+const C = {
+  bg:        '#0a0e23',  // Deep midnight blue
+  bgPanel:   '#0f1430',  // Panel background
+  bgSurface: '#141938',  // Surface/elevated
+  bgHover:   '#1a2048',  // Hover state
+  bgActive:  '#1e2555',  // Active/selected
+  border:    '#1e2a5a',  // Subtle blue border
+  borderHi:  '#2a3a7a',  // Highlighted border
+  text:      '#c8d6e5',  // Primary text
+  textMuted: '#6b7ba0',  // Muted/secondary text
+  textDim:   '#3d4a6e',  // Dim/hint text
+  cyan:      '#00d4ff',  // Primary accent - Electric cyan
+  gold:      '#ffc107',  // Secondary accent - Warm gold
+  purple:    '#a855f7',  // Tertiary accent - Royal purple
+  green:     '#00e676',  // Success - Vibrant green
+  red:       '#ff5252',  // Error/Danger
+  blue:      '#448aff',  // Info blue
 }
 
 export default function Home() {
@@ -205,9 +225,9 @@ export default function Home() {
   }, [])
 
   return (
-    <div className="flex flex-col h-screen bg-[#0d1117] text-[#c9d1d9] overflow-hidden">
+    <div className="flex flex-col h-screen bg-[#0a0e23] text-[#c8d6e5] overflow-hidden">
       {/* HEADER */}
-      <header className="flex items-center justify-between px-4 h-11 border-b border-[#21262d] bg-[#161b22]/90 backdrop-blur-sm shrink-0">
+      <header className="flex items-center justify-between px-4 h-11 border-b border-[#1e2a5a] bg-[#0f1430]/90 backdrop-blur-md shrink-0 jh-glow-cyan">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <img
@@ -218,26 +238,26 @@ export default function Home() {
               className="rounded-sm"
             />
             <h1 className="text-sm font-bold tracking-wide">
-              <span className="text-[#00ff41]">Jasbol</span>
-              <span className="text-[#c9d1d9]"> Hack</span>
+              <span className="text-[#00d4ff]">Jasbol</span>
+              <span className="text-[#c8d6e5]"> Hack</span>
             </h1>
           </div>
-          <Separator orientation="vertical" className="h-5 bg-[#21262d]" />
+          <Separator orientation="vertical" className="h-5 bg-[#1e2a5a]" />
           <div className="flex items-center gap-1.5">
             {mounted && connected ? (
               <div className="flex items-center gap-1.5">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                <span className="relative flex h-2 w-2 jh-pulse-ring">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e676] opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00e676]" />
                 </span>
-                <span className="text-[10px] text-green-400 font-medium">Connected</span>
+                <span className="text-[10px] text-[#00e676] font-medium">Connected</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5">
                 <span className="relative flex h-2 w-2">
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#ff5252]" />
                 </span>
-                <span className="text-[10px] text-red-400 font-medium">
+                <span className="text-[10px] text-[#ff5252] font-medium">
                   {mounted ? 'Disconnected' : 'Connecting...'}
                 </span>
               </div>
@@ -249,42 +269,42 @@ export default function Home() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 text-xs gap-1.5 text-[#c9d1d9] hover:text-[#00ff41] hover:bg-[#21262d]"
+            className="h-7 text-xs gap-1.5 text-[#c8d6e5] hover:text-[#00d4ff] hover:bg-[#1a2048] transition-colors"
             onClick={handleNewTerminal}
             disabled={creatingTerminal || !connected}
           >
             <Plus className="h-3.5 w-3.5" />
             New Terminal
           </Button>
-          <Separator orientation="vertical" className="h-5 bg-[#21262d]" />
+          <Separator orientation="vertical" className="h-5 bg-[#1e2a5a]" />
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 text-[#c9d1d9] hover:text-yellow-400 hover:bg-[#21262d]"
+            className="h-7 w-7 text-[#c8d6e5] hover:text-[#ffc107] hover:bg-[#1a2048] transition-colors"
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             disabled={!mounted}
           >
             {mounted ? (theme === 'dark' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />) : <Sun className="h-3.5 w-3.5 opacity-0" />}
           </Button>
-          <Separator orientation="vertical" className="h-5 bg-[#21262d]" />
+          <Separator orientation="vertical" className="h-5 bg-[#1e2a5a]" />
           {/* User Info & Logout */}
           {currentUser && (
             <div className="flex items-center gap-1.5">
-              <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#0d1117] border border-[#21262d]">
+              <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#0a0e23] border border-[#1e2a5a] transition-colors hover:border-[#00d4ff]/30">
                 {currentUser.role === 'admin' ? (
-                  <Shield className="h-3 w-3 text-[#0ea5e9]" />
+                  <Shield className="h-3 w-3 text-[#ffc107]" />
                 ) : (
-                  <User className="h-3 w-3 text-[#00ff41]" />
+                  <User className="h-3 w-3 text-[#00d4ff]" />
                 )}
-                <span className="text-[10px] font-medium text-[#c9d1d9]">{currentUser.username}</span>
+                <span className="text-[10px] font-medium text-[#c8d6e5]">{currentUser.username}</span>
                 {currentUser.role === 'admin' && (
-                  <span className="text-[8px] px-1 py-0.5 rounded bg-[#0ea5e9]/20 text-[#0ea5e9] font-bold">ADMIN</span>
+                  <span className="text-[8px] px-1 py-0.5 rounded bg-[#ffc107]/15 text-[#ffc107] font-bold tracking-wider">ADMIN</span>
                 )}
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-[#8b949e] hover:text-red-400 hover:bg-[#21262d]"
+                className="h-7 w-7 text-[#6b7ba0] hover:text-[#ff5252] hover:bg-[#1a2048] transition-colors"
                 onClick={handleLogout}
                 title="Logout"
               >
@@ -299,11 +319,11 @@ export default function Home() {
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar Toggle (when collapsed) */}
         {sidebarCollapsed && (
-          <div className="flex flex-col items-center py-2 border-r border-[#21262d] bg-[#161b22]/80 w-8 shrink-0">
+          <div className="flex flex-col items-center py-2 border-r border-[#1e2a5a] bg-[#0f1430]/80 w-8 shrink-0">
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 text-[#c9d1d9] hover:text-[#00ff41]"
+              className="h-6 w-6 text-[#c8d6e5] hover:text-[#00d4ff] transition-colors"
               onClick={() => setSidebarCollapsed(false)}
             >
               <ChevronRight className="h-3.5 w-3.5" />
@@ -320,7 +340,7 @@ export default function Home() {
                   key={tab}
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 text-[#8b949e] hover:text-[#00ff41] hover:bg-[#21262d]"
+                  className="h-7 w-7 text-[#6b7ba0] hover:text-[#00d4ff] hover:bg-[#1a2048] transition-colors"
                   onClick={() => { setSidebarTab(tab); setSidebarCollapsed(false) }}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -332,14 +352,14 @@ export default function Home() {
 
         {/* Sidebar */}
         {!sidebarCollapsed && (
-          <div className="flex flex-col border-r border-[#21262d] bg-[#161b22]/80 backdrop-blur-sm shrink-0 overflow-hidden" style={{ width: 280 }}>
+          <div className="flex flex-col border-r border-[#1e2a5a] bg-[#0f1430]/80 backdrop-blur-md shrink-0 overflow-hidden jh-glow-cyan" style={{ width: 280 }}>
             {/* Sidebar Header */}
-            <div className="flex items-center justify-between px-3 h-9 border-b border-[#21262d] shrink-0">
-              <span className="text-xs font-semibold text-[#8b949e] uppercase tracking-wider">Explorer</span>
+            <div className="flex items-center justify-between px-3 h-9 border-b border-[#1e2a5a] shrink-0">
+              <span className="text-xs font-semibold text-[#6b7ba0] uppercase tracking-wider">Explorer</span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-5 w-5 text-[#8b949e] hover:text-[#c9d1d9]"
+                className="h-5 w-5 text-[#6b7ba0] hover:text-[#c8d6e5] transition-colors"
                 onClick={() => setSidebarCollapsed(true)}
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
@@ -348,38 +368,38 @@ export default function Home() {
 
             {/* Sidebar Tabs */}
             <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="flex flex-col flex-1 overflow-hidden">
-              <TabsList className="w-full h-8 bg-[#0d1117] rounded-none border-b border-[#21262d] p-0 shrink-0">
+              <TabsList className="w-full h-8 bg-[#0a0e23] rounded-none border-b border-[#1e2a5a] p-0 shrink-0">
                 <TabsTrigger
                   value="services"
-                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
+                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#1e2555] data-[state=active]:text-[#00d4ff] rounded-none transition-colors"
                 >
                   <Globe className="h-3 w-3" />
                   <span className="hidden sm:inline">Services</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="tools"
-                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
+                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#1e2555] data-[state=active]:text-[#00d4ff] rounded-none transition-colors"
                 >
                   <Wrench className="h-3 w-3" />
                   <span className="hidden sm:inline">Tools</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="files"
-                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
+                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#1e2555] data-[state=active]:text-[#00d4ff] rounded-none transition-colors"
                 >
                   <FolderTree className="h-3 w-3" />
                   <span className="hidden sm:inline">Files</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="docker"
-                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
+                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#1e2555] data-[state=active]:text-[#00d4ff] rounded-none transition-colors"
                 >
                   <Container className="h-3 w-3" />
                   <span className="hidden sm:inline">Docker</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="quick"
-                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#21262d] data-[state=active]:text-[#00ff41] rounded-none"
+                  className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[#1e2555] data-[state=active]:text-[#00d4ff] rounded-none transition-colors"
                 >
                   <Zap className="h-3 w-3" />
                   <span className="hidden sm:inline">Quick</span>
@@ -441,28 +461,28 @@ export default function Home() {
             <ResizablePanel defaultSize={65} minSize={30}>
               <div className="flex flex-col h-full">
                 {/* Terminal Tab Bar */}
-                <div className="flex items-center h-9 border-b border-[#21262d] bg-[#161b22]/60 shrink-0 overflow-x-auto">
+                <div className="flex items-center h-9 border-b border-[#1e2a5a] bg-[#0f1430]/60 shrink-0 overflow-x-auto">
                   <ScrollArea className="flex-1">
                     <div className="flex items-center h-9">
                       {sessions.map((session) => (
                         <div
                           key={session.sessionId}
-                          className={`flex items-center gap-1.5 px-3 h-full text-xs border-r border-[#21262d] transition-colors shrink-0 cursor-pointer ${
+                          className={`flex items-center gap-1.5 px-3 h-full text-xs border-r border-[#1e2a5a] transition-all duration-200 shrink-0 cursor-pointer ${
                             activeSessionId === session.sessionId
-                              ? 'bg-[#0d1117] text-[#00ff41] border-b-2 border-b-[#00ff41]'
-                              : 'text-[#8b949e] hover:text-[#c9d1d9] hover:bg-[#0d1117]/50'
+                              ? 'bg-[#0a0e23] text-[#00d4ff] border-b-2 border-b-[#00d4ff]'
+                              : 'text-[#6b7ba0] hover:text-[#c8d6e5] hover:bg-[#0a0e23]/50'
                           }`}
                           onClick={() => setActiveSessionId(session.sessionId)}
                         >
                           <SquareTerminal className="h-3 w-3 shrink-0" />
                           <span className="truncate max-w-24">{session.label}</span>
-                          <span className="text-[8px] text-[#484f58] shrink-0">
+                          <span className="text-[8px] text-[#3d4a6e] shrink-0">
                             {session.sessionId.substring(0, 4)}
                           </span>
                           <span
                             role="button"
                             tabIndex={0}
-                            className="ml-1 p-0.5 rounded hover:bg-[#21262d] text-[#8b949e] hover:text-red-400 transition-colors inline-flex items-center"
+                            className="ml-1 p-0.5 rounded hover:bg-[#1e2a5a] text-[#6b7ba0] hover:text-[#ff5252] transition-colors inline-flex items-center"
                             onClick={(e) => {
                               e.stopPropagation()
                               destroyTerminal(session.sessionId)
@@ -483,7 +503,7 @@ export default function Home() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 mx-1 text-[#8b949e] hover:text-[#00ff41] hover:bg-[#21262d] shrink-0"
+                    className="h-7 w-7 mx-1 text-[#6b7ba0] hover:text-[#00d4ff] hover:bg-[#1a2048] shrink-0 transition-colors"
                     onClick={handleNewTerminal}
                     disabled={creatingTerminal || !connected}
                   >
@@ -492,18 +512,18 @@ export default function Home() {
                 </div>
 
                 {/* Terminal Content */}
-                <div className="flex-1 bg-[#0d1117] overflow-hidden relative">
+                <div className="flex-1 bg-[#0a0e23] overflow-hidden relative">
                   {sessions.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center">
-                        <Terminal className="h-12 w-12 mx-auto text-[#21262d] mb-3" />
-                        <p className="text-sm text-[#484f58] mb-3">
+                        <Terminal className="h-12 w-12 mx-auto text-[#1e2a5a] mb-3" />
+                        <p className="text-sm text-[#3d4a6e] mb-3">
                           {mounted && connected ? 'No terminal sessions' : 'Connecting to terminal service...'}
                         </p>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="text-[#00ff41] border-[#238636] hover:bg-[#238636]/20"
+                          className="text-[#00d4ff] border-[#00d4ff]/30 hover:bg-[#00d4ff]/10 transition-colors"
                           onClick={handleNewTerminal}
                           disabled={!connected}
                         >
@@ -530,9 +550,9 @@ export default function Home() {
             </ResizablePanel>
 
             {/* Editor Panel */}
-            <ResizableHandle withHandle className="bg-[#21262d] hover:bg-[#30363d] transition-colors" />
+            <ResizableHandle withHandle className="bg-[#1e2a5a] hover:bg-[#2a3a7a] transition-colors" />
             <ResizablePanel defaultSize={35} minSize={15}>
-              <div className="h-full bg-[#0d1117] border-t border-[#21262d]">
+              <div className="h-full bg-[#0a0e23] border-t border-[#1e2a5a]">
                 <CodeEditor
                   filePath={editorFile}
                   fileContent={editorContent}
@@ -548,34 +568,34 @@ export default function Home() {
       </div>
 
       {/* STATUS BAR */}
-      <footer className="flex items-center justify-between px-3 h-6 border-t border-[#21262d] bg-[#161b22]/90 text-[10px] text-[#8b949e] shrink-0">
+      <footer className="flex items-center justify-between px-3 h-6 border-t border-[#1e2a5a] bg-[#0f1430]/90 text-[10px] text-[#6b7ba0] shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
-            <SquareTerminal className="h-2.5 w-2.5" />
+            <SquareTerminal className="h-2.5 w-2.5 text-[#00d4ff]" />
             <span>bash</span>
           </div>
-          <Separator orientation="vertical" className="h-3 bg-[#21262d]" />
+          <Separator orientation="vertical" className="h-3 bg-[#1e2a5a]" />
           <span>/workspace</span>
-          <Separator orientation="vertical" className="h-3 bg-[#21262d]" />
+          <Separator orientation="vertical" className="h-3 bg-[#1e2a5a]" />
           {activeSessionId && (
-            <span className="font-mono">
+            <span className="font-mono text-[#3d4a6e]">
               session:{activeSessionId.substring(0, 8)}
             </span>
           )}
-          <Separator orientation="vertical" className="h-3 bg-[#21262d]" />
+          <Separator orientation="vertical" className="h-3 bg-[#1e2a5a]" />
           <span>{sessions.length} terminal{sessions.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="flex items-center gap-3">
           {mounted && connected && latency > 0 && (
-            <span className={`${latency > 200 ? 'text-yellow-400' : 'text-green-400'}`}>
+            <span className={`${latency > 200 ? 'text-[#ffc107]' : 'text-[#00e676]'}`}>
               {latency}ms
             </span>
           )}
           <div className="flex items-center gap-1">
             {mounted && connected ? (
-              <Wifi className="h-2.5 w-2.5 text-green-500" />
+              <Wifi className="h-2.5 w-2.5 text-[#00e676]" />
             ) : (
-              <WifiOff className="h-2.5 w-2.5 text-red-500" />
+              <WifiOff className="h-2.5 w-2.5 text-[#ff5252]" />
             )}
           </div>
         </div>
@@ -597,19 +617,19 @@ function QuickInstallPanel({
       <div className="p-2 space-y-3">
         {Object.entries(QUICK_INSTALL).map(([category, items]) => (
           <div key={category}>
-            <h3 className="text-[10px] font-semibold text-[#8b949e] uppercase tracking-wider px-1 mb-1.5">
+            <h3 className="text-[10px] font-semibold text-[#6b7ba0] uppercase tracking-wider px-1 mb-1.5">
               {category}
             </h3>
             <div className="space-y-0.5">
               {items.map((item) => (
                 <button
                   key={item.name}
-                  className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs hover:bg-[#21262d] transition-colors disabled:opacity-50"
+                  className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs hover:bg-[#1a2048] transition-colors disabled:opacity-50"
                   onClick={() => sendCommandToTerminal(item.cmd)}
                   disabled={!connected}
                 >
-                  <span className="text-[#c9d1d9]">{item.name}</span>
-                  <Zap className="h-3 w-3 text-[#00ff41] opacity-50" />
+                  <span className="text-[#c8d6e5]">{item.name}</span>
+                  <Zap className="h-3 w-3 text-[#ffc107] opacity-50" />
                 </button>
               ))}
             </div>

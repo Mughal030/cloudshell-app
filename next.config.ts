@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
+
   // DO NOT use "standalone" output - our custom server.ts handles everything.
   // Standalone mode conflicts with custom servers using Socket.IO.
   // output: "standalone",

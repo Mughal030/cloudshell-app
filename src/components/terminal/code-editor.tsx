@@ -95,10 +95,10 @@ export function CodeEditor({ filePath, fileContent: initialContent, onSave, onRu
 
   if (!filePath) {
     return (
-      <div className="flex items-center justify-center h-full text-[#484f58] text-sm bg-[#0d1117]">
+      <div className="flex items-center justify-center h-full text-[#3d4a6e] text-sm bg-[#0a0e23]">
         <div className="text-center">
-          <FileCode className="h-8 w-8 mx-auto text-[#21262d] mb-2" />
-          <p className="text-xs text-[#484f58]">Select a file to edit</p>
+          <FileCode className="h-8 w-8 mx-auto text-[#1e2a5a] mb-2" />
+          <p className="text-xs text-[#3d4a6e]">Select a file to edit</p>
         </div>
       </div>
     )
@@ -108,21 +108,21 @@ export function CodeEditor({ filePath, fileContent: initialContent, onSave, onRu
   const isDockerfile = fileName.toLowerCase().includes('dockerfile')
 
   return (
-    <div className="flex flex-col h-full bg-[#0d1117]">
+    <div className="flex flex-col h-full bg-[#0a0e23]">
       {/* Editor Tab Bar */}
-      <div className="flex items-center justify-between px-2 border-b border-[#21262d]/50">
+      <div className="flex items-center justify-between px-2 border-b border-[#1e2a5a]/50">
         <div className="flex items-center gap-1.5 py-1">
-          <FileCode className="h-3.5 w-3.5 text-blue-400" />
-          <span className="text-xs font-medium text-[#c9d1d9] truncate max-w-48">{fileName}</span>
+          <FileCode className="h-3.5 w-3.5 text-[#ffc107]" />
+          <span className="text-xs font-medium text-[#c8d6e5] truncate max-w-48">{fileName}</span>
           {dirty && (
-            <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+            <span className="w-1.5 h-1.5 rounded-full bg-[#ffc107]" />
           )}
         </div>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 px-2 text-[10px] text-[#8b949e] hover:text-[#00ff41]"
+            className="h-6 px-2 text-[10px] text-[#6b7ba0] hover:text-[#00d4ff] transition-colors"
             onClick={handleSave}
             disabled={saving || !dirty}
           >
@@ -132,7 +132,7 @@ export function CodeEditor({ filePath, fileContent: initialContent, onSave, onRu
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 px-2 text-[10px] text-[#00ff41] hover:text-[#56d364] hover:bg-[#238636]/10"
+            className="h-6 px-2 text-[10px] text-[#00d4ff] hover:text-[#84ffff] hover:bg-[#00d4ff]/10 transition-colors"
             onClick={handleRun}
           >
             <Play className="h-3 w-3 mr-1" />
@@ -141,7 +141,7 @@ export function CodeEditor({ filePath, fileContent: initialContent, onSave, onRu
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-[#8b949e] hover:text-red-400"
+            className="h-6 w-6 text-[#6b7ba0] hover:text-[#ff5252] transition-colors"
             onClick={onClose}
           >
             <X className="h-3 w-3" />
@@ -155,7 +155,7 @@ export function CodeEditor({ filePath, fileContent: initialContent, onSave, onRu
           value={content}
           onChange={(e) => { setContent(e.target.value); setDirty(true) }}
           onKeyDown={handleKeyDown}
-          className="w-full h-full resize-none bg-[#0d1117] text-[#c9d1d9] font-mono text-sm p-3 focus:outline-none border-0 selection:bg-[#264f78] placeholder-[#484f58]"
+          className="w-full h-full resize-none bg-[#0a0e23] text-[#c8d6e5] font-mono text-sm p-3 focus:outline-none border-0 selection:bg-[#1a3a6a] placeholder-[#3d4a6e]"
           spellCheck={false}
           style={{
             lineHeight: '1.5',
@@ -164,7 +164,7 @@ export function CodeEditor({ filePath, fileContent: initialContent, onSave, onRu
           placeholder="// Start typing or select a file..."
         />
         {/* Hint */}
-        <div className="absolute bottom-2 right-2 text-[10px] text-[#30363d] pointer-events-none">
+        <div className="absolute bottom-2 right-2 text-[10px] text-[#1e2a5a] pointer-events-none">
           Ctrl+S to save
         </div>
       </div>
