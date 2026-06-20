@@ -59,6 +59,7 @@ export default function Home() {
     latency, createTerminal, destroyTerminal, sendInput, resizeTerminal,
     onOutput, onClearBuffer, checkTools, installTool, readFile, writeFile,
     listFiles, createFolder, deleteFile, renameFile, sendCommandToTerminal,
+    onFilesChanged, requestWorkspaceInfo,
     ooStatus, checkOoStatus, startOoServices, startOoDaemon,
   } = useSocket()
 
@@ -238,7 +239,18 @@ export default function Home() {
                 <ToolStatus tools={tools} checkTools={checkTools} onInstall={installTool} sendCommandToTerminal={sendCommandToTerminal} loading={!mounted || !connected} />
               </TabsContent>
               <TabsContent value="files" className="flex-1 overflow-hidden mt-0">
-                <FileManager listFiles={listFiles} onFileOpen={handleFileOpen} connected={connected} writeFile={writeFile} createFolder={createFolder} deleteFile={deleteFile} />
+                <FileManager
+                  listFiles={listFiles}
+                  onFileOpen={handleFileOpen}
+                  connected={connected}
+                  writeFile={writeFile}
+                  createFolder={createFolder}
+                  deleteFile={deleteFile}
+                  renameFile={renameFile}
+                  onFilesChanged={onFilesChanged}
+                  requestWorkspaceInfo={requestWorkspaceInfo}
+                  sendCommandToTerminal={sendCommandToTerminal}
+                />
               </TabsContent>
               <TabsContent value="docker" className="flex-1 overflow-hidden mt-0">
                 <DockerPanel listFiles={listFiles} onFileOpen={handleFileOpen} sendCommandToTerminal={sendCommandToTerminal} connected={connected} />

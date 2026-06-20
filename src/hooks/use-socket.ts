@@ -439,7 +439,7 @@ export function useSocket() {
     })
   }, [])
 
-  const listFiles = useCallback((path?: string): Promise<{ files: FileInfo[]; error: string | null }> => {
+  const listFiles = useCallback((path?: string, showHidden?: boolean): Promise<{ files: FileInfo[]; error: string | null }> => {
     return new Promise((resolve) => {
       const socket = socketRef.current
       if (!socket) {
@@ -453,7 +453,7 @@ export function useSocket() {
       }
 
       socket.on('file:listing', handler)
-      socket.emit('file:list', { path: path || '' })
+      socket.emit('file:list', { path: path || '', showHidden: showHidden === true })
 
       setTimeout(() => {
         socket.off('file:listing', handler)
@@ -544,6 +544,29 @@ export function useSocket() {
     }
   }, [sendInput])
 
+  // Listen for files:changed events (emitted by server after every file op)
+  // Returns an unsubscribe function. The handler is called with the changed path.
+  const onFilesChanged = useCallback((handler: (data: { path: string; workspace: string }) => void) => {
+    const socket = socketRef.current
+    if (!socket) return () => {}
+    const listener = (data: { path: string; workspace: string }) => handler(data)
+    socket.on('files:changed', listener)
+    return () => { socket.off('files:changed', listener) }
+  }, [])
+
+  // Request workspace info (absolute path) — handler is called once with the result
+  const requestWorkspaceInfo = useCallback((handler: (data: { workspace: string; defaultWorkspace: string }) => void) => {
+    const socket = socketRef.current
+    if (!socket) return
+    const listener = (data: { workspace: string; defaultWorkspace: string }) => {
+      socket.off('workspace:info', listener)
+      handler(data)
+    }
+    socket.on('workspace:info', listener)
+    socket.emit('workspace:info')
+    setTimeout(() => { socket.off('workspace:info', listener) }, 5000)
+  }, [])
+
   // OpenOutreach status
   const [ooStatus, setOoStatus] = useState<Record<string, boolean | string>>({})
 
@@ -621,6 +644,8 @@ export function useSocket() {
     deleteFile,
     renameFile,
     sendCommandToTerminal,
+    onFilesChanged,
+    requestWorkspaceInfo,
     ooStatus,
     checkOoStatus,
     startOoServices,

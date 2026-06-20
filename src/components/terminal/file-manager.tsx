@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   File,
   Folder,
@@ -15,6 +15,9 @@ import {
   Pencil,
   Check,
   X as XIcon,
+  Eye,
+  EyeOff,
+  Terminal as TerminalIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -23,31 +26,52 @@ import { useToast } from '@/hooks/use-toast'
 import type { FileInfo } from '@/hooks/use-socket'
 
 interface FileManagerProps {
-  listFiles: (path?: string) => Promise<{ files: FileInfo[]; error: string | null }>
+  listFiles: (path?: string, showHidden?: boolean) => Promise<{ files: FileInfo[]; error: string | null }>
   onFileOpen: (path: string) => void
   connected: boolean
   writeFile: (path: string, content: string) => Promise<{ error: string | null }>
   createFolder: (path: string) => Promise<{ error: string | null }>
   deleteFile: (path: string) => Promise<{ error: string | null }>
+  renameFile: (oldPath: string, newPath: string) => Promise<{ error: string | null }>
+  onFilesChanged?: (handler: (data: { path: string; workspace: string }) => void) => () => void
+  requestWorkspaceInfo?: (handler: (data: { workspace: string; defaultWorkspace: string }) => void) => void
+  sendCommandToTerminal?: (command: string) => void
 }
 
-export function FileManager({ listFiles, onFileOpen, connected, writeFile, createFolder, deleteFile }: FileManagerProps) {
+export function FileManager({
+  listFiles,
+  onFileOpen,
+  connected,
+  writeFile,
+  createFolder,
+  deleteFile,
+  renameFile,
+  onFilesChanged,
+  requestWorkspaceInfo,
+  sendCommandToTerminal,
+}: FileManagerProps) {
   const { toast } = useToast()
   const [currentPath, setCurrentPath] = useState('')
   const [files, setFiles] = useState<FileInfo[]>([])
   const [loading, setLoading] = useState(false)
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
+  const [showHidden, setShowHidden] = useState(false)
+  const [workspaceRoot, setWorkspaceRoot] = useState<string>('')
   const [showNewFile, setShowNewFile] = useState(false)
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [newItemName, setNewItemName] = useState('')
   const [creating, setCreating] = useState(false)
   const [renamingPath, setRenamingPath] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  // Track the path the user is currently viewing, so auto-refresh uses the right one
+  const currentPathRef = useRef('')
+  const showHiddenRef = useRef(false)
+  useEffect(() => { currentPathRef.current = currentPath }, [currentPath])
+  useEffect(() => { showHiddenRef.current = showHidden }, [showHidden])
 
-  const loadFiles = useCallback(async (path?: string) => {
+  const loadFiles = useCallback(async (path?: string, hidden?: boolean) => {
     setLoading(true)
     try {
-      const result = await listFiles(path)
+      const result = await listFiles(path, hidden)
       if (!result.error) {
         setFiles(result.files)
         setCurrentPath(path || '')
@@ -63,15 +87,46 @@ export function FileManager({ listFiles, onFileOpen, connected, writeFile, creat
     }
   }, [listFiles, toast])
 
+  // Initial load when connected
   useEffect(() => {
     if (connected) {
-      loadFiles()
+      loadFiles('', showHidden)
+      if (requestWorkspaceInfo) {
+        requestWorkspaceInfo((data) => setWorkspaceRoot(data.workspace))
+      }
     }
+  }, [connected, loadFiles, showHidden, requestWorkspaceInfo])
+
+  // Auto-refresh on files:changed event from the server
+  useEffect(() => {
+    if (!onFilesChanged) return
+    const unsubscribe = onFilesChanged(() => {
+      // Reload the current path with the current hidden-files setting
+      loadFiles(currentPathRef.current || undefined, showHiddenRef.current)
+    })
+    return unsubscribe
+  }, [onFilesChanged, loadFiles])
+
+  // Polling auto-refresh every 4 seconds (catches changes made from the terminal)
+  useEffect(() => {
+    if (!connected) return
+    const interval = setInterval(() => {
+      loadFiles(currentPathRef.current || undefined, showHiddenRef.current)
+    }, 4000)
+    return () => clearInterval(interval)
   }, [connected, loadFiles])
+
+  // Reload when showHidden toggles
+  useEffect(() => {
+    if (connected) {
+      loadFiles(currentPath, showHidden)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showHidden])
 
   const handleDirectoryClick = (dirName: string) => {
     const newPath = currentPath ? `${currentPath}/${dirName}` : dirName
-    loadFiles(newPath)
+    loadFiles(newPath, showHidden)
   }
 
   const handleFileClick = (fileName: string) => {
@@ -82,14 +137,20 @@ export function FileManager({ listFiles, onFileOpen, connected, writeFile, creat
   const handleNavigateUp = () => {
     if (currentPath.includes('/')) {
       const parentPath = currentPath.split('/').slice(0, -1).join('/')
-      loadFiles(parentPath)
+      loadFiles(parentPath, showHidden)
     } else if (currentPath) {
-      loadFiles()
+      loadFiles('', showHidden)
     }
   }
 
   const handleNavigateHome = () => {
-    loadFiles()
+    loadFiles('', showHidden)
+  }
+
+  const handleOpenTerminalHere = () => {
+    if (!sendCommandToTerminal) return
+    const target = currentPath ? `${workspaceRoot}/${currentPath}` : workspaceRoot
+    sendCommandToTerminal(`cd ${target}`)
   }
 
   const breadcrumbs = currentPath ? currentPath.split('/') : []
@@ -141,7 +202,7 @@ export function FileManager({ listFiles, onFileOpen, connected, writeFile, creat
       setNewItemName('')
       setCreating(false)
       // Reload the file list
-      await loadFiles(currentPath || undefined)
+      await loadFiles(currentPath || undefined, showHidden)
     }
   }
 
@@ -162,7 +223,7 @@ export function FileManager({ listFiles, onFileOpen, connected, writeFile, creat
         title: 'Deleted',
         description: fileName,
       })
-      await loadFiles(currentPath || undefined)
+      await loadFiles(currentPath || undefined, showHidden)
     }
   }
 
@@ -186,18 +247,22 @@ export function FileManager({ listFiles, onFileOpen, connected, writeFile, creat
       return
     }
 
-    // We don't have renameFile in props, so use the createFolder+writeFile pattern
-    // Actually let's just emit via terminal command
-    // Simpler: use the renameFile function from socket (added separately)
-    // For now, fall back to using `mv` via terminal command through onFileOpen trick
-    // Better: just hide the rename UI for now and notify the user
-    toast({
-      title: 'Rename',
-      description: 'Use the terminal: mv ' + renamingPath + ' ' + newPath,
-    })
+    const result = await renameFile(renamingPath, newPath)
+    if (result.error) {
+      toast({
+        title: 'Rename failed',
+        description: result.error,
+        variant: 'destructive',
+      })
+    } else {
+      toast({
+        title: 'Renamed',
+        description: `${renamingPath.split('/').pop()} → ${renameValue}`,
+      })
+    }
     setRenamingPath(null)
     setRenameValue('')
-    await loadFiles(currentPath || undefined)
+    await loadFiles(currentPath || undefined, showHidden)
   }
 
   const formatSize = (bytes: number) => {
@@ -207,8 +272,18 @@ export function FileManager({ listFiles, onFileOpen, connected, writeFile, creat
     return `${(bytes / (1024 * 1024)).toFixed(1)}M`
   }
 
+  // Absolute path display (for the breadcrumb header)
+  const absolutePath = workspaceRoot ? `${workspaceRoot}${currentPath ? '/' + currentPath : ''}` : currentPath
+
   return (
     <div className="flex flex-col h-full">
+      {/* Absolute path display */}
+      <div className="px-2 py-1 border-b border-[var(--nx-border)]/50 bg-[var(--nx-bg-primary)]/40">
+        <div className="text-[9px] font-mono text-[var(--nx-text-dim)] truncate" title={absolutePath}>
+          {absolutePath || '/workspace'}
+        </div>
+      </div>
+
       {/* Breadcrumb */}
       <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[var(--nx-border)]/50 text-xs overflow-x-auto whitespace-nowrap">
         <Button
@@ -216,23 +291,28 @@ export function FileManager({ listFiles, onFileOpen, connected, writeFile, creat
           size="icon"
           className="h-5 w-5 shrink-0 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
           onClick={handleNavigateHome}
+          title="Go to workspace root"
         >
           <Home className="h-3 w-3" />
         </Button>
-        {breadcrumbs.map((part, i) => (
-          <span key={i} className="flex items-center gap-1 shrink-0">
-            <ChevronRight className="h-3 w-3 text-[var(--nx-text-dim)]" />
-            <button
-              className="text-[var(--nx-text-secondary)] hover:text-[var(--nx-text)] transition-colors"
-              onClick={() => {
-                const path = breadcrumbs.slice(0, i + 1).join('/')
-                loadFiles(path)
-              }}
-            >
-              {part}
-            </button>
-          </span>
-        ))}
+        {breadcrumbs.length === 0 ? (
+          <span className="text-[var(--nx-text-secondary)] text-xs">workspace</span>
+        ) : (
+          breadcrumbs.map((part, i) => (
+            <span key={i} className="flex items-center gap-1 shrink-0">
+              <ChevronRight className="h-3 w-3 text-[var(--nx-text-dim)]" />
+              <button
+                className="text-[var(--nx-text-secondary)] hover:text-[var(--nx-text)] transition-colors"
+                onClick={() => {
+                  const path = breadcrumbs.slice(0, i + 1).join('/')
+                  loadFiles(path, showHidden)
+                }}
+              >
+                {part}
+              </button>
+            </span>
+          ))
+        )}
       </div>
 
       {/* Actions */}
@@ -241,8 +321,9 @@ export function FileManager({ listFiles, onFileOpen, connected, writeFile, creat
           variant="ghost"
           size="icon"
           className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
-          onClick={() => loadFiles(currentPath || undefined)}
+          onClick={() => loadFiles(currentPath || undefined, showHidden)}
           disabled={loading}
+          title="Refresh"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
         </Button>
@@ -264,6 +345,26 @@ export function FileManager({ listFiles, onFileOpen, connected, writeFile, creat
         >
           <FolderPlus className="h-3.5 w-3.5" />
         </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`h-6 w-6 transition-colors ${showHidden ? 'text-[var(--nx-accent-teal)] bg-[var(--nx-accent-teal)]/10' : 'text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)]'}`}
+          onClick={() => setShowHidden(!showHidden)}
+          title={showHidden ? 'Hide hidden files' : 'Show hidden files'}
+        >
+          {showHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+        </Button>
+        {sendCommandToTerminal && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
+            onClick={handleOpenTerminalHere}
+            title="Open terminal here"
+          >
+            <TerminalIcon className="h-3.5 w-3.5" />
+          </Button>
+        )}
         {currentPath && (
           <Button
             variant="ghost"
@@ -302,12 +403,21 @@ export function FileManager({ listFiles, onFileOpen, connected, writeFile, creat
       <ScrollArea className="flex-1">
         <div className="py-1">
           {files.length === 0 && !loading && (
-            <div className="text-center text-[var(--nx-text-dim)] text-xs py-4">
-              Empty directory
-              <div className="mt-2 text-[10px]">Click + to create a file or folder</div>
+            <div className="text-center text-[var(--nx-text-dim)] text-xs py-4 px-3">
+              <FolderOpen className="h-6 w-6 mx-auto mb-2 opacity-50" />
+              <div>Empty directory</div>
+              <div className="mt-2 text-[10px]">
+                Click <FilePlus className="inline h-2.5 w-2.5" /> to create a file,
+                or <FolderPlus className="inline h-2.5 w-2.5" /> to create a folder.
+              </div>
+              {!showHidden && (
+                <div className="mt-1 text-[10px] opacity-70">
+                  Hidden files (dotfiles) are hidden. Click <EyeOff className="inline h-2.5 w-2.5" /> to show them.
+                </div>
+              )}
             </div>
           )}
-          {loading && (
+          {loading && files.length === 0 && (
             <div className="text-center text-[var(--nx-text-dim)] text-xs py-4">
               Loading...
             </div>
@@ -320,15 +430,16 @@ export function FileManager({ listFiles, onFileOpen, connected, writeFile, creat
             .map((file) => {
               const filePath = currentPath ? `${currentPath}/${file.name}` : file.name
               const isRenaming = renamingPath === filePath
+              const isHidden = file.name.startsWith('.')
               return (
                 <div
                   key={file.name}
                   className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--nx-bg-hover)]/60 transition-colors group"
                 >
                   {file.type === 'directory' ? (
-                    <Folder className="h-3.5 w-3.5 text-[var(--nx-warning)] shrink-0" />
+                    <Folder className={`h-3.5 w-3.5 shrink-0 ${isHidden ? 'text-[var(--nx-text-dim)]' : 'text-[var(--nx-warning)]'}`} />
                   ) : (
-                    <File className="h-3.5 w-3.5 text-[var(--nx-text-secondary)] shrink-0" />
+                    <File className={`h-3.5 w-3.5 shrink-0 ${isHidden ? 'text-[var(--nx-text-dim)]' : 'text-[var(--nx-text-secondary)]'}`} />
                   )}
                   {isRenaming ? (
                     <>
@@ -352,7 +463,7 @@ export function FileManager({ listFiles, onFileOpen, connected, writeFile, creat
                   ) : (
                     <>
                       <button
-                        className="truncate flex-1 text-left text-[var(--nx-text)]"
+                        className={`truncate flex-1 text-left ${isHidden ? 'text-[var(--nx-text-dim)]' : 'text-[var(--nx-text)]'}`}
                         onClick={() => {
                           if (file.type === 'directory') {
                             handleDirectoryClick(file.name)
@@ -393,6 +504,13 @@ export function FileManager({ listFiles, onFileOpen, connected, writeFile, creat
             })}
         </div>
       </ScrollArea>
+
+      {/* Footer hint */}
+      <div className="px-2 py-1 border-t border-[var(--nx-border)]/50 bg-[var(--nx-bg-primary)]/40">
+        <div className="text-[9px] text-[var(--nx-text-dim)] truncate">
+          {files.length} item{files.length !== 1 ? 's' : ''}{showHidden ? ' • showing hidden' : ''} • auto-refresh 4s
+        </div>
+      </div>
     </div>
   )
 }

@@ -113,6 +113,56 @@ COPY . .
 CMD ["/bin/bash"]
 `, 'utf-8')
   }
+  // Create a visible README so 'ls' shows something (not just hidden .dockerfiles)
+  const readme = join(DEFAULT_WORKSPACE_DIR, 'README.md')
+  if (!existsSync(readme)) {
+    writeFileSync(readme, `# CloudShell Workspace
+
+Welcome to your **Jasbol Hack CloudShell** workspace!
+
+## Quick Start
+
+\`\`\`bash
+# List files (including hidden)
+ls -la
+
+# Try Claude Code (pre-installed)
+claude
+
+# Install a global npm package (no sudo needed)
+npm install -g typescript
+
+# After running 'curl | bash' installers, refresh your PATH:
+source ~/.bashrc
+# Or just open a new terminal tab
+\`\`\`
+
+## Where do downloaded tools go?
+
+Most 'curl | bash' installers put binaries in:
+- \`~/.local/bin/\`        (already in PATH)
+- \`~/.npm-global/bin/\`   (already in PATH, for npm -g)
+- \`~/.cargo/bin/\`        (Rust)
+- \`~/.bun/bin/\`          (Bun)
+- \`~/.opencode/bin/\`     (opencode)
+
+These directories are OUTSIDE this workspace folder, so they won't
+appear in the file sidebar. To use a freshly-installed tool, run:
+
+\`\`\`bash
+source ~/.bashrc
+\`\`\`
+
+Or just open a new terminal tab — the new tool will be on your PATH.
+
+## Tips
+
+- **Ctrl+Shift+C / Ctrl+Shift+V** = copy / paste in terminal
+- **Ctrl+S** in the code editor = save
+- Click the refresh button in the Files tab to re-scan
+- Toggle "Show hidden" to see dotfiles like .bashrc
+`, 'utf-8')
+  }
 }
 
 ensureWorkspaceDirs()
@@ -279,11 +329,16 @@ function resolveWorkspacePath(inputPath: string, workspaceDir: string): string |
 }
 
 // ─── Helper: list files in a directory ───────────────────────────
-function listDirectory(dirPath: string): { name: string; type: 'file' | 'directory'; size: number; modified: string }[] {
+function listDirectory(dirPath: string, showHidden: boolean = false): { name: string; type: 'file' | 'directory'; size: number; modified: string }[] {
   try {
     const entries = readdirSync(dirPath, { withFileTypes: true })
     return entries
-      .filter((entry) => !entry.name.startsWith('.') || entry.name === '.dockerfiles')
+      .filter((entry) => {
+        if (showHidden) return true
+        // Hide dotfiles by default, but always show .dockerfiles (legacy)
+        if (!entry.name.startsWith('.')) return true
+        return entry.name === '.dockerfiles'
+      })
       .map((entry) => {
         const fullPath = join(dirPath, entry.name)
         try {
@@ -390,6 +445,8 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     '\x1b[32m║\x1b[0m  \x1b[1;36mclaude-set-key\x1b[0m     - Change API key only               \x1b[32m║\x1b[0m',
     '\x1b[32m║\x1b[0m  \x1b[1;36mclaude-set-model\x1b[0m   - Change model only                 \x1b[32m║\x1b[0m',
     '\x1b[32m║\x1b[0m  \x1b[1;36msetup-claude-env\x1b[0m   - Set all Claude env vars at once   \x1b[32m║\x1b[0m',
+    '\x1b[32m║\x1b[0m  \x1b[1;36mreload\x1b[0m              - Refresh PATH after curl|bash      \x1b[32m║\x1b[0m',
+    '\x1b[32m║\x1b[0m  \x1b[1;36mwhereis-tool\x1b[0m       - Find a freshly-installed tool     \x1b[32m║\x1b[0m',
     '\x1b[32m║\x1b[0m  \x1b[1;36mcloudshell-test\x1b[0m    - Test all commands                  \x1b[32m║\x1b[0m',
     '\x1b[32m║\x1b[0m  \x1b[1;36mnpm-global-help\x1b[0m    - npm install -g help                \x1b[32m║\x1b[0m',
     '\x1b[32m╚══════════════════════════════════════════════════════════════════╝\x1b[0m',
@@ -403,6 +460,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     '\x1b[2m  Or set all at once:\x1b[0m',
     '\x1b[2m    setup-claude-env "https://your-endpoint/" "sk-your-key" "claude-opus-4-7"\x1b[0m',
     '\x1b[2m  Copy/Paste: Ctrl+Shift+C = Copy, Ctrl+Shift+V = Paste\x1b[0m',
+    '\x1b[2m  After curl|bash installers: type `reload` to refresh PATH\x1b[0m',
     '',
   ].filter(Boolean).join('\r\n')
 
@@ -540,6 +598,8 @@ app.prepare().then(() => {
     }
 
     socket.emit('terminal:connected', { sudoMode, workspace: userWorkspace })
+    // Send workspace info immediately so the file manager can display the absolute path
+    socket.emit('workspace:info', { workspace: userWorkspace, defaultWorkspace: DEFAULT_WORKSPACE_DIR })
 
     // Terminal: Create (with user-specific workspace)
     socket.on('terminal:create', (data?: { cols?: number; rows?: number }) => {
@@ -623,14 +683,17 @@ app.prepare().then(() => {
         if (!existsSync(parentDir)) mkdirSync(parentDir, { recursive: true })
         writeFileSync(resolvedPath, data.content, 'utf-8')
         socket.emit('file:written', { path: data.path, error: null })
+        // Broadcast change so file manager auto-refreshes
+        socket.emit('files:changed', { path: data.path, workspace: userWorkspace })
       } catch (err) {
         socket.emit('file:written', { path: data.path, error: String(err) })
       }
     })
 
     // File: List (scoped to user workspace)
-    socket.on('file:list', (data?: { path?: string }) => {
+    socket.on('file:list', (data?: { path?: string; showHidden?: boolean }) => {
       const inputPath = data?.path || ''
+      const showHidden = data?.showHidden === true
       const resolvedPath = resolveWorkspacePath(inputPath, userWorkspace)
       if (!resolvedPath) {
         socket.emit('file:listing', { path: inputPath, files: [], error: 'Path traversal not allowed' })
@@ -646,7 +709,7 @@ app.prepare().then(() => {
           socket.emit('file:listing', { path: inputPath, files: [], error: 'Not a directory' })
           return
         }
-        const files = listDirectory(resolvedPath)
+        const files = listDirectory(resolvedPath, showHidden)
         socket.emit('file:listing', { path: inputPath, files, error: null })
       } catch (err) {
         socket.emit('file:listing', { path: inputPath, files: [], error: String(err) })
@@ -667,6 +730,7 @@ app.prepare().then(() => {
         }
         mkdirSync(resolvedPath, { recursive: true })
         socket.emit('folder:created', { path: data.path, error: null })
+        socket.emit('files:changed', { path: data.path, workspace: userWorkspace })
       } catch (err) {
         socket.emit('folder:created', { path: data.path, error: String(err) })
       }
@@ -693,6 +757,7 @@ app.prepare().then(() => {
           unlinkSync(resolvedPath)
         }
         socket.emit('file:deleted', { path: data.path, error: null })
+        socket.emit('files:changed', { path: data.path, workspace: userWorkspace })
       } catch (err) {
         socket.emit('file:deleted', { path: data.path, error: String(err) })
       }
@@ -710,9 +775,15 @@ app.prepare().then(() => {
         const { renameSync } = require('fs')
         renameSync(resolvedOld, resolvedNew)
         socket.emit('file:renamed', { path: data.oldPath, error: null })
+        socket.emit('files:changed', { path: data.newPath, workspace: userWorkspace })
       } catch (err) {
         socket.emit('file:renamed', { path: data.oldPath, error: String(err) })
       }
+    })
+
+    // Workspace: Info — returns absolute workspace path so the file manager can display it
+    socket.on('workspace:info', () => {
+      socket.emit('workspace:info', { workspace: userWorkspace, defaultWorkspace: DEFAULT_WORKSPACE_DIR })
     })
 
     // Tools: Check

@@ -191,3 +191,65 @@ Stage Summary:
 - Linux export commands work for ANTHROPIC_* env vars (not Windows setx)
 - setup-claude-env persists env vars to ~/.bashrc_env across sessions
 - HF Space rebuilt and running successfully
+
+---
+Task ID: fix-file-manager-and-downloads
+Agent: main
+Task: Fix "downloaded files don't appear in sidebar" + "ls shows nothing" + "opencode: command not found" after curl|bash installers
+
+Work Log:
+- Analyzed user's terminal transcript: ran `curl -fsSL https://opencode.ai/install | bash`, install succeeded, then `opencode` returned "command not found"
+- Root cause analysis:
+  1. curl|bash installers put binaries in ~/.opencode/bin, ~/.local/bin, ~/.npm-global/bin, etc. — OUTSIDE the workspace
+  2. File manager is sandboxed to /home/cloudshell/workspace and HIDES dotfiles by default
+  3. ls shows nothing because workspace only contains .dockerfiles (hidden)
+  4. opencode: command not found because installer added to ~/.bashrc but current shell didn't re-source it
+- Implemented comprehensive fixes:
+  
+  Backend (server.ts):
+  - Added `showHidden` parameter to file:list socket event
+  - Updated listDirectory() helper to support showing hidden files
+  - Added `files:changed` broadcast event after every file operation (write/createFolder/delete/rename)
+  - Added `workspace:info` socket event to expose absolute workspace path
+  - Emit workspace:info on connection so file manager knows the root path immediately
+  - Create a visible README.md in workspace at server startup so `ls` shows something
+  
+  Frontend (use-socket.ts):
+  - Updated listFiles() to accept showHidden parameter
+  - Added onFilesChanged() callback to listen for files:changed events
+  - Added requestWorkspaceInfo() to fetch the absolute workspace path
+  
+  Frontend (file-manager.tsx) - REWROTE:
+  - Added "Show Hidden Files" toggle button (eye icon)
+  - Added absolute path display at top of file manager
+  - Added polling auto-refresh every 4 seconds (catches terminal-created files)
+  - Added event-driven refresh on files:changed (catches sidebar-created files)
+  - Added "Open Terminal Here" button (cd to current folder)
+  - Fixed rename function — now properly uses renameFile() instead of telling user to use terminal mv
+  - Hidden files shown in dim color
+  - Empty state shows helpful hint about toggling hidden files
+  - Footer shows item count and auto-refresh indicator
+  
+  Frontend (page.tsx):
+  - Pass new props to FileManager: onFilesChanged, requestWorkspaceInfo, sendCommandToTerminal, renameFile
+  
+  Entrypoint (docker-entrypoint.sh):
+  - Created README.md in /home/cloudshell/workspace at container startup
+  - Added `reload` function to .bashrc_cloudshell — sources .bashrc AND picks up common installer directories (.opencode/bin, .bun/bin, .cargo/bin, .deno/bin, .local/go/bin, etc.)
+  - Added `whereis-tool` function — searches common install locations for a freshly-installed tool
+  - Added `rl` alias for `reload`
+  - Ensured reload() and whereis-tool() helpers are appended even if .bashrc_cloudshell already existed from previous version
+  
+  Server welcome banner:
+  - Added `reload` and `whereis-tool` to the welcome banner command list
+  - Added "After curl|bash installers: type `reload` to refresh PATH" hint
+
+Stage Summary:
+- File manager now auto-refreshes every 4s + on every file operation (no manual refresh needed)
+- Show Hidden Files toggle reveals dotfiles like .bashrc, .dockerfiles, .config
+- Absolute path shown at top so user always knows where they are
+- After `curl|bash` installers, user can type `reload` to instantly refresh PATH
+- `whereis-tool <name>` finds where a tool was installed
+- README.md in workspace means `ls` shows content immediately (no more empty workspace confusion)
+- Build verified: `npx next build` succeeds with no errors
+- All changes ready to deploy to HF Spaces

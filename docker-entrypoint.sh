@@ -185,6 +185,64 @@ DOCKERFILE
     chown -R cloudshell:cloudshell "${WORKSPACE}/.dockerfiles" 2>/dev/null || true
 fi
 
+# ─── Create a visible README so 'ls' shows something (not just hidden .dockerfiles) ──
+if [ ! -f "${WORKSPACE}/README.md" ]; then
+    cat > "${WORKSPACE}/README.md" << 'READMEEOF'
+# CloudShell Workspace
+
+Welcome to your **Jasbol Hack CloudShell** workspace!
+
+## Quick Start
+
+```bash
+# List files (including hidden)
+ls -la
+
+# Try Claude Code (pre-installed)
+claude
+
+# Install a global npm package (no sudo needed)
+npm install -g typescript
+
+# After running 'curl | bash' installers, refresh your PATH:
+reload
+# Or just open a new terminal tab
+```
+
+## Where do downloaded tools go?
+
+Most `curl | bash` installers put binaries in:
+- `~/.local/bin/`        (already in PATH)
+- `~/.npm-global/bin/`   (already in PATH, for npm -g)
+- `~/.cargo/bin/`        (Rust)
+- `~/.bun/bin/`          (Bun)
+- `~/.opencode/bin/`     (opencode)
+
+These directories are OUTSIDE this workspace folder, so they won't
+appear in the file sidebar. To use a freshly-installed tool, run:
+
+```bash
+reload
+# or
+source ~/.bashrc
+```
+
+To find where a tool was installed:
+```bash
+whereis-tool opencode
+```
+
+## Tips
+
+- **Ctrl+Shift+C / Ctrl+Shift+V** = copy / paste in terminal
+- **Ctrl+S** in the code editor = save
+- Click the refresh button in the Files tab to re-scan
+- Toggle "Show hidden" to see dotfiles like .bashrc
+- File sidebar auto-refreshes every 4 seconds
+READMEEOF
+    chown cloudshell:cloudshell "${WORKSPACE}/README.md" 2>/dev/null || true
+fi
+
 # ─── Create .bashrc with useful aliases and functions ────────────
 if [ ! -f "/home/cloudshell/.bashrc_cloudshell" ]; then
     cat > "/home/cloudshell/.bashrc_cloudshell" << 'BASHRC'
@@ -209,6 +267,60 @@ fi
 # Quick install functions (work WITHOUT sudo apt)
 npm-install() { npm install -g "$@"; }
 pip-install() { pip3 install --user "$@" && export PATH="${HOME}/.local/bin:${PATH}"; }
+
+# ─── Reload PATH / source bashrc (after curl|bash installers) ────
+# Most 'curl | bash' installers (opencode, bun, rust, deno, etc.)
+# add a new PATH entry to ~/.bashrc but the change doesn't take
+# effect in the current shell. Run `reload` to fix it instantly.
+reload() {
+    source "${HOME}/.bashrc" 2>/dev/null
+    source "${HOME}/.bashrc_env" 2>/dev/null
+    # Also pick up common installer directories that might have been
+    # created since the shell started
+    for d in "${HOME}/.opencode/bin" "${HOME}/.bun/bin" "${HOME}/.cargo/bin" \
+             "${HOME}/.deno/bin" "${HOME}/.local/bin" "${HOME}/.npm-global/bin" \
+             "${HOME}/.nvm/versions/node"/*/bin "${HOME}/go/bin" \
+             "${HOME}/.local/go/bin" "${HOME}/.krew/bin"; do
+        [ -d "$d" ] && case ":$PATH:" in
+            *":$d:"*) ;;
+            *) export PATH="$d:$PATH" ;;
+        esac
+    done
+    echo "✓ Shell reloaded. PATH updated."
+    echo "  PATH entries added: $(echo "$PATH" | tr ':' '\n' | wc -l) directories"
+}
+alias rl='reload'
+
+# ─── Show what was just installed (where did the binary land?) ──
+# Use after running a 'curl | bash' installer to find the new binary
+whereis-tool() {
+    if [ -z "$1" ]; then
+        echo "Usage: whereis-tool <name>"
+        echo "  Searches common install locations for the given tool"
+        echo "  Example: whereis-tool opencode"
+        return 1
+    fi
+    local name="$1"
+    local found=0
+    echo "Searching for '$name' in common install locations..."
+    for d in "${HOME}/.local/bin" "${HOME}/.npm-global/bin" "${HOME}/bin" \
+             "${HOME}/.opencode/bin" "${HOME}/.bun/bin" "${HOME}/.cargo/bin" \
+             "${HOME}/.deno/bin" "${HOME}/go/bin" "${HOME}/.local/go/bin" \
+             "/usr/local/bin" "/usr/bin"; do
+        if [ -x "${d}/${name}" ]; then
+            echo "  ✓ ${d}/${name}"
+            found=1
+        fi
+    done
+    if [ $found -eq 0 ]; then
+        echo "  ✗ '$name' not found in any common location."
+        echo "    Try: reload  (to refresh PATH after an installer ran)"
+        echo "    Or:  find ~ -name '$name' -type f 2>/dev/null"
+    else
+        echo ""
+        echo "  To use it: reload  (or open a new terminal tab)"
+    fi
+}
 
 # ─── Claude Code CLI Setup ──────────────────────────────────
 # Claude Code is PRE-INSTALLED in the Docker image.
@@ -515,6 +627,63 @@ npm-global-help() {
 BASHRC
     chown cloudshell:cloudshell "/home/cloudshell/.bashrc_cloudshell" 2>/dev/null || true
     echo "[Entrypoint] Custom bashrc created"
+fi
+
+# ─── Ensure reload() and whereis-tool() helpers exist (even if .bashrc_cloudshell already existed) ──
+if ! grep -q "^reload()" "/home/cloudshell/.bashrc_cloudshell" 2>/dev/null; then
+    cat >> "/home/cloudshell/.bashrc_cloudshell" << 'BASHRC_APPEND'
+
+# ─── Reload PATH / source bashrc (after curl|bash installers) ────
+# Most 'curl | bash' installers (opencode, bun, rust, deno, etc.)
+# add a new PATH entry to ~/.bashrc but the change doesn't take
+# effect in the current shell. Run `reload` to fix it instantly.
+reload() {
+    source "${HOME}/.bashrc" 2>/dev/null
+    source "${HOME}/.bashrc_env" 2>/dev/null
+    for d in "${HOME}/.opencode/bin" "${HOME}/.bun/bin" "${HOME}/.cargo/bin" \
+             "${HOME}/.deno/bin" "${HOME}/.local/bin" "${HOME}/.npm-global/bin" \
+             "${HOME}/.nvm/versions/node"/*/bin "${HOME}/go/bin" \
+             "${HOME}/.local/go/bin" "${HOME}/.krew/bin"; do
+        [ -d "$d" ] && case ":$PATH:" in
+            *":$d:"*) ;;
+            *) export PATH="$d:$PATH" ;;
+        esac
+    done
+    echo "✓ Shell reloaded. PATH updated."
+    echo "  PATH entries: $(echo "$PATH" | tr ':' '\n' | wc -l) directories"
+}
+alias rl='reload'
+
+whereis-tool() {
+    if [ -z "$1" ]; then
+        echo "Usage: whereis-tool <name>"
+        echo "  Searches common install locations for the given tool"
+        return 1
+    fi
+    local name="$1"
+    local found=0
+    echo "Searching for '$name' in common install locations..."
+    for d in "${HOME}/.local/bin" "${HOME}/.npm-global/bin" "${HOME}/bin" \
+             "${HOME}/.opencode/bin" "${HOME}/.bun/bin" "${HOME}/.cargo/bin" \
+             "${HOME}/.deno/bin" "${HOME}/go/bin" "${HOME}/.local/go/bin" \
+             "/usr/local/bin" "/usr/bin"; do
+        if [ -x "${d}/${name}" ]; then
+            echo "  ✓ ${d}/${name}"
+            found=1
+        fi
+    done
+    if [ $found -eq 0 ]; then
+        echo "  ✗ '$name' not found in any common location."
+        echo "    Try: reload  (to refresh PATH after an installer ran)"
+        echo "    Or:  find ~ -name '$name' -type f 2>/dev/null"
+    else
+        echo ""
+        echo "  To use it: reload  (or open a new terminal tab)"
+    fi
+}
+BASHRC_APPEND
+    chown cloudshell:cloudshell "/home/cloudshell/.bashrc_cloudshell" 2>/dev/null || true
+    echo "[Entrypoint] reload() and whereis-tool() helpers appended"
 fi
 
 # Append to .bashrc if not already done
