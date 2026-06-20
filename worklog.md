@@ -253,3 +253,69 @@ Stage Summary:
 - README.md in workspace means `ls` shows content immediately (no more empty workspace confusion)
 - Build verified: `npx next build` succeeds with no errors
 - All changes ready to deploy to HF Spaces
+
+---
+Task ID: fix-path-and-file-watcher
+Agent: main
+Task: Fix "still not working" - opencode command not found after install, downloads not in sidebar, file manager not refreshing
+
+Work Log:
+- Analyzed user screenshot: showed `curl -fsSL https://opencode.ai/install | bash` succeeded, then `opencode` returned "command not found"
+- Root cause #1: PTY's PATH env var was set in server.ts (HARDENED_PATH) but only included ~/.npm-global/bin and ~/.bun/bin — did NOT include ~/.opencode/bin, ~/.cargo/bin, ~/.deno/bin, ~/.local/go/bin, etc. So tools installed by curl|bash were not on PATH until user manually ran `source ~/.bashrc` or `reload`
+- Root cause #2: File manager polling useEffect had `loadFiles` as a dependency, and `loadFiles` was recreated on every render (due to unstable `toast` ref). This caused the setInterval to be cleared and recreated on every render, so polling essentially NEVER fired — sidebar never auto-refreshed
+- Root cause #3: No real-time file watcher — even when polling fired, downloads from `wget`/`curl -O` took up to 4s to appear in sidebar
+- Implemented comprehensive fixes:
+
+  Backend (server.ts):
+  - Expanded HARDENED_PATH to include ALL common curl|bash installer destinations:
+    ~/.opencode/bin, ~/.bun/bin, ~/.cargo/bin, ~/.deno/bin, ~/.local/go/bin,
+    ~/go/bin, ~/.krew/bin, ~/.nvm/versions/node/v{18,20,22}/bin, ~/.yarn/bin, ~/.pnpm
+  - Tools installed by curl|bash now work IMMEDIATELY — no need to `source ~/.bashrc` first
+  - Added real-time file watcher (fs.watch with recursive: true) on user workspace
+  - Watcher debounces events (300ms) and broadcasts 'files:changed' to the client socket
+  - Sidebar now refreshes within ~300ms of any file change in the workspace
+    (catches wget/curl -O downloads, npm install, git clone, manual edits, etc.)
+  - Watcher is cleaned up on socket disconnect to prevent memory leaks
+  - Updated welcome banner to mention "PATH auto-refreshes"
+
+  Frontend (file-manager.tsx):
+  - Added loadFilesRef (useRef) that always points to the latest loadFiles function
+  - Polling useEffect now depends ONLY on [connected], NOT on loadFiles
+    → setInterval is stable, never gets cleared on re-renders
+  - Auto-refresh interval reduced from 4s to 3s
+  - All internal calls to loadFiles now go through loadFilesRef.current
+
+  Entrypoint (docker-entrypoint.sh):
+  - Added PROMPT_COMMAND hook (__cloudshell_refresh_path) that runs before each
+    prompt and auto-adds any newly-created installer directories to PATH
+  - Also re-sources ~/.bashrc_env if it has been modified since last check
+    (so newly-exported env vars like ANTHROPIC_API_KEY take effect immediately)
+  - Idempotent: only appended if not already present
+  - This is a defense-in-depth: even if HARDENED_PATH missed a directory,
+    the PROMPT_COMMAND hook will catch it within one command execution
+
+  Testing:
+  - Started local server (node --experimental-strip-types server.ts)
+  - Built test client (scripts/test-fixes.mjs) that:
+    1. Connects to server via Socket.IO
+    2. Lists files in workspace
+    3. Writes a file directly to filesystem (simulating wget download)
+    4. Verifies files:changed event fires within 1.5s
+    5. Verifies the file appears in the next file:list response
+  - All tests PASSED: file watcher fires on both create AND delete events
+  - Build verified: `npx next build` succeeds with no errors
+  - Server TypeScript check passes: `node --check server.ts` (no syntax errors)
+
+  Deployment:
+  - Committed: "fix: PATH auto-refresh for curl|bash installers + real-time file watcher"
+  - Pushed to GitHub: origin/main (commit 0dd5cbc)
+  - Pushed to HF Spaces: hf/main (commit 0dd5cbc)
+  - HF Space is rebuilding (current space still responds with HTTP 200 on /api/health)
+
+Stage Summary:
+- opencode, bun, deno, rust, etc. now work IMMEDIATELY after `curl|bash` install — no `reload` needed
+- File sidebar refreshes in real-time (~300ms latency) when files are created/modified/deleted
+  from terminal commands (wget, curl -O, npm install, git clone, etc.)
+- Polling interval (3s) now fires reliably as a fallback (no longer cleared on re-renders)
+- PROMPT_COMMAND hook provides defense-in-depth for PATH auto-refresh
+- HF Space URL: https://mughal03-cloudshell-ide.hf.space (rebuilding)
