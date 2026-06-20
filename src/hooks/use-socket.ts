@@ -397,17 +397,21 @@ export function useSocket() {
         return
       }
 
+      let settled = false
       const handler = (data: { path: string; content: string | null; error: string | null }) => {
-        if (data.path === path) {
-          socket.off('file:content', handler)
-          resolve({ content: data.content, error: data.error })
-        }
+        if (data.path !== path) return   // avoid race condition with concurrent reads
+        if (settled) return
+        settled = true
+        socket.off('file:content', handler)
+        resolve({ content: data.content, error: data.error })
       }
 
       socket.on('file:content', handler)
       socket.emit('file:read', { path })
 
       setTimeout(() => {
+        if (settled) return
+        settled = true
         socket.off('file:content', handler)
         resolve({ content: null, error: 'Timeout reading file' })
       }, 8000)
@@ -422,17 +426,21 @@ export function useSocket() {
         return
       }
 
+      let settled = false
       const handler = (data: { path: string; error: string | null }) => {
-        if (data.path === path) {
-          socket.off('file:written', handler)
-          resolve({ error: data.error })
-        }
+        if (data.path !== path) return
+        if (settled) return
+        settled = true
+        socket.off('file:written', handler)
+        resolve({ error: data.error })
       }
 
       socket.on('file:written', handler)
       socket.emit('file:write', { path, content })
 
       setTimeout(() => {
+        if (settled) return
+        settled = true
         socket.off('file:written', handler)
         resolve({ error: 'Timeout writing file' })
       }, 8000)
@@ -447,15 +455,26 @@ export function useSocket() {
         return
       }
 
+      const requestPath = path || ''
+      let settled = false
+
+      // Match on path to avoid race condition: when multiple listFiles() calls
+      // are in flight (e.g. user clicks a folder while fs.watch fires a refresh),
+      // each handler should only resolve on the response that matches ITS path.
       const handler = (data: { path: string; files: FileInfo[]; error: string | null }) => {
+        if (data.path !== requestPath) return   // not our response — wait
+        if (settled) return
+        settled = true
         socket.off('file:listing', handler)
         resolve({ files: data.files, error: data.error })
       }
 
       socket.on('file:listing', handler)
-      socket.emit('file:list', { path: path || '', showHidden: showHidden === true })
+      socket.emit('file:list', { path: requestPath, showHidden: showHidden === true })
 
       setTimeout(() => {
+        if (settled) return
+        settled = true
         socket.off('file:listing', handler)
         resolve({ files: [], error: 'Timeout listing files' })
       }, 8000)
@@ -470,17 +489,21 @@ export function useSocket() {
         return
       }
 
+      let settled = false
       const handler = (data: { path: string; error: string | null }) => {
-        if (data.path === path) {
-          socket.off('folder:created', handler)
-          resolve({ error: data.error })
-        }
+        if (data.path !== path) return
+        if (settled) return
+        settled = true
+        socket.off('folder:created', handler)
+        resolve({ error: data.error })
       }
 
       socket.on('folder:created', handler)
       socket.emit('folder:create', { path })
 
       setTimeout(() => {
+        if (settled) return
+        settled = true
         socket.off('folder:created', handler)
         resolve({ error: 'Timeout creating folder' })
       }, 8000)
@@ -495,17 +518,21 @@ export function useSocket() {
         return
       }
 
+      let settled = false
       const handler = (data: { path: string; error: string | null }) => {
-        if (data.path === path) {
-          socket.off('file:deleted', handler)
-          resolve({ error: data.error })
-        }
+        if (data.path !== path) return
+        if (settled) return
+        settled = true
+        socket.off('file:deleted', handler)
+        resolve({ error: data.error })
       }
 
       socket.on('file:deleted', handler)
       socket.emit('file:delete', { path })
 
       setTimeout(() => {
+        if (settled) return
+        settled = true
         socket.off('file:deleted', handler)
         resolve({ error: 'Timeout deleting file' })
       }, 8000)
@@ -520,17 +547,21 @@ export function useSocket() {
         return
       }
 
+      let settled = false
       const handler = (data: { path: string; error: string | null }) => {
-        if (data.path === oldPath) {
-          socket.off('file:renamed', handler)
-          resolve({ error: data.error })
-        }
+        if (data.path !== oldPath) return
+        if (settled) return
+        settled = true
+        socket.off('file:renamed', handler)
+        resolve({ error: data.error })
       }
 
       socket.on('file:renamed', handler)
       socket.emit('file:rename', { oldPath, newPath })
 
       setTimeout(() => {
+        if (settled) return
+        settled = true
         socket.off('file:renamed', handler)
         resolve({ error: 'Timeout renaming file' })
       }, 8000)

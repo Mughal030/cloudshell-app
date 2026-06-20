@@ -201,6 +201,9 @@ ls -la
 # Try Claude Code (pre-installed)
 claude
 
+# Try OpenCode (pre-installed)
+opencode
+
 # Install a global npm package (no sudo needed)
 npm install -g typescript
 

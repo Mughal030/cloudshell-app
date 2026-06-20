@@ -68,14 +68,17 @@ export function FileManager({
   useEffect(() => { currentPathRef.current = currentPath }, [currentPath])
   useEffect(() => { showHiddenRef.current = showHidden }, [showHidden])
 
-  const loadFiles = useCallback(async (path?: string, hidden?: boolean) => {
-    setLoading(true)
+  // `silent=true` skips the loading spinner and error toast — used for
+  // background auto-refresh (fs.watch events, fallback polling) so the UI
+  // doesn't flash "Loading..." or pop error toasts on every refresh.
+  const loadFiles = useCallback(async (path?: string, hidden?: boolean, silent: boolean = false) => {
+    if (!silent) setLoading(true)
     try {
       const result = await listFiles(path, hidden)
       if (!result.error) {
         setFiles(result.files)
         setCurrentPath(path || '')
-      } else {
+      } else if (!silent) {
         toast({
           title: 'Failed to load files',
           description: result.error,
@@ -83,7 +86,7 @@ export function FileManager({
         })
       }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [listFiles, toast])
 
@@ -102,23 +105,27 @@ export function FileManager({
     }
   }, [connected, showHidden, requestWorkspaceInfo])
 
-  // Auto-refresh on files:changed event from the server
+  // Auto-refresh on files:changed event from the server (fs.watch).
+  // This is the PRIMARY refresh mechanism — fires within ~300ms of any
+  // file change in the workspace (wget, curl -O, npm install, git clone, etc.).
   useEffect(() => {
     if (!onFilesChanged) return
     const unsubscribe = onFilesChanged(() => {
-      // Reload the current path with the current hidden-files setting
-      loadFilesRef.current(currentPathRef.current || undefined, showHiddenRef.current)
+      // Silent refresh: don't flash loading spinner or pop toasts
+      loadFilesRef.current(currentPathRef.current || undefined, showHiddenRef.current, true)
     })
     return unsubscribe
   }, [onFilesChanged])
 
-  // Polling auto-refresh every 3 seconds (catches changes made from the terminal)
-  // Uses refs so the interval is stable and doesn't get cleared on re-renders
+  // Fallback polling every 30 seconds (only as safety net in case fs.watch
+  // misses events — e.g. network-mounted volumes, very rapid edits).
+  // Uses refs so the interval is stable and doesn't get cleared on re-renders.
+  // Silent: never triggers loading state or error toasts.
   useEffect(() => {
     if (!connected) return
     const interval = setInterval(() => {
-      loadFilesRef.current(currentPathRef.current || undefined, showHiddenRef.current)
-    }, 3000)
+      loadFilesRef.current(currentPathRef.current || undefined, showHiddenRef.current, true)
+    }, 30000)
     return () => clearInterval(interval)
   }, [connected])
 
@@ -514,7 +521,7 @@ export function FileManager({
       {/* Footer hint */}
       <div className="px-2 py-1 border-t border-[var(--nx-border)]/50 bg-[var(--nx-bg-primary)]/40">
         <div className="text-[9px] text-[var(--nx-text-dim)] truncate">
-          {files.length} item{files.length !== 1 ? 's' : ''}{showHidden ? ' • showing hidden' : ''} • auto-refresh 4s
+          {files.length} item{files.length !== 1 ? 's' : ''}{showHidden ? ' • showing hidden' : ''} • live sync
         </div>
       </div>
     </div>

@@ -319,3 +319,55 @@ Stage Summary:
 - Polling interval (3s) now fires reliably as a fallback (no longer cleared on re-renders)
 - PROMPT_COMMAND hook provides defense-in-depth for PATH auto-refresh
 - HF Space URL: https://mughal03-cloudshell-ide.hf.space (rebuilding)
+
+---
+Task ID: fix-auto-refresh-and-preinstall-opencode
+Agent: main
+Task: Fix "auto refreshing causing load error" + pre-install opencode CLI as a built-in tool
+
+Work Log:
+- Analyzed user complaint: "auto refreshing causing load error and other errors in my app"
+- Identified root causes of load errors:
+  1. File manager polled server every 3 seconds (setInterval) with setLoading(true)
+     → Caused constant UI flicker ("Loading..." flashing) perceived as load errors
+  2. listFiles() race condition: handler fired on ANY file:listing event, not just
+     the one matching the requested path. Concurrent calls (user navigation + auto-refresh)
+     would resolve each other's promises with wrong data → wrong file list shown
+  3. OpenOutreach panel polled every 10s — too aggressive on slow connections
+- Implemented fixes:
+
+  Frontend (src/components/terminal/file-manager.tsx):
+  - Removed aggressive 3-second polling interval entirely
+  - Added `silent` parameter to loadFiles() — when true, skips setLoading(true)
+    and skips error toasts (used for background auto-refresh only)
+  - fs.watch event-driven refresh (onFilesChanged) now uses silent mode
+  - Added 30-second fallback polling as safety net (silent, never triggers loading UI)
+  - Updated footer text from "auto-refresh 4s" to "live sync"
+
+  Frontend (src/hooks/use-socket.ts) — race condition fix:
+  - Added `settled` flag and path-matching check to listFiles(), readFile(),
+    writeFile(), createFolder(), deleteFile(), renameFile()
+  - Each handler now ONLY resolves on the response matching ITS requested path
+  - Prevents wrong-data bugs when multiple concurrent requests are in flight
+  - Also prevents double-resolution if both timeout and response fire
+
+  Frontend (src/components/terminal/openoutreach-panel.tsx):
+  - Reduced polling interval from 10s to 30s (status doesn't change that fast)
+
+  Pre-install OpenCode CLI:
+  - Dockerfile: Added `RUN su -c "curl -fsSL https://opencode.ai/install | bash" cloudshell`
+    + symlink to /usr/local/bin/opencode (similar to Claude Code pre-install)
+  - server.ts: Added `opencode` and `claude` to TOOLS array so they appear in
+    the Tool Status sidebar with install status and version
+  - server.ts: Added TOOL_INSTALL_COMMANDS entries for both
+  - server.ts: Updated welcome banner to mention "opencode - OpenCode CLI (pre-installed!)"
+  - docker-entrypoint.sh: Updated README.md template to mention opencode
+
+Stage Summary:
+- Load errors fixed: no more 3-second polling, no more race condition swapping file lists
+- File manager now refreshes silently via fs.watch (~300ms latency, no UI flicker)
+- 30-second fallback polling as safety net (silent, doesn't trigger loading state)
+- OpenCode CLI is now PRE-INSTALLED in the Docker image — just type `opencode` to start
+- OpenCode and Claude Code both appear in Tool Status sidebar
+- Next.js build succeeds (compiled in 3.4s)
+- server.ts syntax check passes (node --check)

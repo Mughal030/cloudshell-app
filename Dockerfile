@@ -176,6 +176,12 @@ RUN mkdir -p /var/lib/apt/lists/partial \
 RUN su -c "npm install -g @anthropic-ai/claude-code 2>&1 | tail -5" cloudshell && \
     ln -sf /home/cloudshell/.npm-global/bin/claude /usr/local/bin/claude 2>/dev/null || true
 
+# ─── Pre-install OpenCode CLI ─────────────────────────────────────
+# Installs to ~/.opencode/bin/opencode (already in PATH via .bashrc_cloudshell)
+# Symlink to /usr/local/bin so it's available even without sourcing bashrc
+RUN su -c "curl -fsSL https://opencode.ai/install | bash" cloudshell && \
+    ln -sf /home/cloudshell/.opencode/bin/opencode /usr/local/bin/opencode 2>/dev/null || true
+
 # ─── Claude Code default environment ──────────────────────────────
 # Users can change these at runtime with: claude-set-url, claude-set-key, claude-set-model
 # Or all at once: setup-claude-env <url> <key> <model>

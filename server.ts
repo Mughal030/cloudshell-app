@@ -274,7 +274,7 @@ function startKeepAlive() {
 startKeepAlive()
 
 // ─── Tool definitions ────────────────────────────────────────────
-const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'python3', 'pip3', 'sudo']
+const TOOLS = ['git', 'docker', 'curl', 'wget', 'vim', 'nano', 'node', 'npm', 'python3', 'pip3', 'sudo', 'claude', 'opencode']
 
 const TOOL_INSTALL_COMMANDS: Record<string, string> = {
   git: 'echo "git is pre-installed"',
@@ -288,6 +288,8 @@ const TOOL_INSTALL_COMMANDS: Record<string, string> = {
   python3: 'echo "python3 is pre-installed"',
   pip3: 'echo "pip3 is pre-installed"',
   sudo: 'echo "sudo is available (passwordless)"',
+  claude: 'echo "Claude Code CLI is pre-installed. Just type: claude"',
+  opencode: 'echo "OpenCode CLI is pre-installed. Just type: opencode"',
 }
 
 function checkTool(name: string): { name: string; installed: boolean; version: string; displayName?: string } {
@@ -458,6 +460,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     userId ? `\x1b[32m║\x1b[0m  \x1b[1;36mUser:\x1b[0m ${userId.split('-')[0]}...  \x1b[1;36mWorkspace:\x1b[0m ${userWorkspace}`.padEnd(66) + '\x1b[32m║\x1b[0m' : '',
     '\x1b[32m║\x1b[0m  \x1b[1;33mnpm install -g\x1b[0m works without sudo!                       \x1b[32m║\x1b[0m',
     '\x1b[32m║\x1b[0m  \x1b[1;32mclaude\x1b[0m              - Claude Code CLI (pre-installed!)  \x1b[32m║\x1b[0m',
+    '\x1b[32m║\x1b[0m  \x1b[1;32mopencode\x1b[0m            - OpenCode CLI (pre-installed!)     \x1b[32m║\x1b[0m',
     '\x1b[32m║\x1b[0m  \x1b[1;36mclaude-show\x1b[0m        - Show current Claude config         \x1b[32m║\x1b[0m',
     '\x1b[32m║\x1b[0m  \x1b[1;36mclaude-set-url\x1b[0m     - Change API endpoint only          \x1b[32m║\x1b[0m',
     '\x1b[32m║\x1b[0m  \x1b[1;36mclaude-set-key\x1b[0m     - Change API key only               \x1b[32m║\x1b[0m',
@@ -470,6 +473,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     '\x1b[32m╚══════════════════════════════════════════════════════════════════╝\x1b[0m',
     '',
     '\x1b[33m  Claude Code CLI is pre-installed! Just type: claude\x1b[0m',
+    '\x1b[33m  OpenCode CLI is pre-installed! Just type: opencode\x1b[0m',
     '\x1b[2m  Change settings individually:\x1b[0m',
     '\x1b[2m    claude-set-url "https://your-endpoint.com/"     (change API endpoint)\x1b[0m',
     '\x1b[2m    claude-set-key "sk-your-key"                    (change API key)\x1b[0m',

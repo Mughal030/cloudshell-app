@@ -59,13 +59,14 @@ export function OpenOutreachPanel({
     }
   }, [connected, checkOoStatus])
 
-  // Auto-refresh status every 10s
+  // Auto-refresh status every 30s (reduced from 10s — frequent polling was
+  // causing load errors on slow connections; status doesn't change that fast).
   useEffect(() => {
     const interval = setInterval(() => {
       if (connected) {
         checkOoStatus()
       }
-    }, 10000)
+    }, 30000)
     return () => clearInterval(interval)
   }, [connected, checkOoStatus])
 
