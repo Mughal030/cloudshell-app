@@ -87,39 +87,45 @@ export function FileManager({
     }
   }, [listFiles, toast])
 
+  // Keep a ref to loadFiles so the polling interval doesn't depend on it
+  // (otherwise the interval gets cleared/recreated every time `toast` or `listFiles` identity changes)
+  const loadFilesRef = useRef(loadFiles)
+  useEffect(() => { loadFilesRef.current = loadFiles }, [loadFiles])
+
   // Initial load when connected
   useEffect(() => {
     if (connected) {
-      loadFiles('', showHidden)
+      loadFilesRef.current('', showHidden)
       if (requestWorkspaceInfo) {
         requestWorkspaceInfo((data) => setWorkspaceRoot(data.workspace))
       }
     }
-  }, [connected, loadFiles, showHidden, requestWorkspaceInfo])
+  }, [connected, showHidden, requestWorkspaceInfo])
 
   // Auto-refresh on files:changed event from the server
   useEffect(() => {
     if (!onFilesChanged) return
     const unsubscribe = onFilesChanged(() => {
       // Reload the current path with the current hidden-files setting
-      loadFiles(currentPathRef.current || undefined, showHiddenRef.current)
+      loadFilesRef.current(currentPathRef.current || undefined, showHiddenRef.current)
     })
     return unsubscribe
-  }, [onFilesChanged, loadFiles])
+  }, [onFilesChanged])
 
-  // Polling auto-refresh every 4 seconds (catches changes made from the terminal)
+  // Polling auto-refresh every 3 seconds (catches changes made from the terminal)
+  // Uses refs so the interval is stable and doesn't get cleared on re-renders
   useEffect(() => {
     if (!connected) return
     const interval = setInterval(() => {
-      loadFiles(currentPathRef.current || undefined, showHiddenRef.current)
-    }, 4000)
+      loadFilesRef.current(currentPathRef.current || undefined, showHiddenRef.current)
+    }, 3000)
     return () => clearInterval(interval)
-  }, [connected, loadFiles])
+  }, [connected])
 
   // Reload when showHidden toggles
   useEffect(() => {
     if (connected) {
-      loadFiles(currentPath, showHidden)
+      loadFilesRef.current(currentPath, showHidden)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showHidden])

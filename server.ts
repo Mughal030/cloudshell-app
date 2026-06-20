@@ -3,7 +3,7 @@ import next from 'next'
 import { Server as SocketIOServer } from 'socket.io'
 import { spawn } from 'node-pty'
 import { v4 as uuidv4 } from 'uuid'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, watch } from 'fs'
 import { join, resolve, relative } from 'path'
 import { execSync } from 'child_process'
 import { verifyToken, getUserById, getUserWorkspaceDir } from './src/lib/auth.ts'
@@ -389,12 +389,30 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
 
   const NPM_GLOBAL = join(APP_HOME, '.npm-global')
 
+  // Comprehensive PATH that includes ALL common curl|bash installer destinations.
+  // This ensures that when a user runs `curl ... | bash` (e.g. opencode, bun, rust, deno),
+  // the installed binary is IMMEDIATELY available — no need to `source ~/.bashrc` first.
+  // Non-existent directories are silently ignored by bash, so including them is harmless.
   const HARDENED_PATH = [
     BIN_DIR,
     LOCAL_BIN,
     `${NPM_GLOBAL}/bin`,
     VENV_BIN,
+    // Common curl|bash installer destinations
+    `${APP_HOME}/.opencode/bin`,
     `${APP_HOME}/.bun/bin`,
+    `${APP_HOME}/.cargo/bin`,
+    `${APP_HOME}/.deno/bin`,
+    `${APP_HOME}/.local/go/bin`,
+    `${APP_HOME}/go/bin`,
+    `${APP_HOME}/.krew/bin`,
+    `${APP_HOME}/.nvm/versions/node/v22/bin`,
+    `${APP_HOME}/.nvm/versions/node/v20/bin`,
+    `${APP_HOME}/.nvm/versions/node/v18/bin`,
+    `${APP_HOME}/.local/share/npm/bin`,
+    `${APP_HOME}/.yarn/bin`,
+    `${APP_HOME}/.pnpm`,
+    // System paths (last priority)
     '/usr/local/sbin', '/usr/local/bin',
     '/usr/sbin', '/usr/bin', '/sbin', '/bin',
   ].join(':')
@@ -460,7 +478,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     '\x1b[2m  Or set all at once:\x1b[0m',
     '\x1b[2m    setup-claude-env "https://your-endpoint/" "sk-your-key" "claude-opus-4-7"\x1b[0m',
     '\x1b[2m  Copy/Paste: Ctrl+Shift+C = Copy, Ctrl+Shift+V = Paste\x1b[0m',
-    '\x1b[2m  After curl|bash installers: type `reload` to refresh PATH\x1b[0m',
+    '\x1b[2m  Tools like opencode/bun/deno work right after install — PATH auto-refreshes.\x1b[0m',
     '',
   ].filter(Boolean).join('\r\n')
 
@@ -600,6 +618,38 @@ app.prepare().then(() => {
     socket.emit('terminal:connected', { sudoMode, workspace: userWorkspace })
     // Send workspace info immediately so the file manager can display the absolute path
     socket.emit('workspace:info', { workspace: userWorkspace, defaultWorkspace: DEFAULT_WORKSPACE_DIR })
+
+    // ─── File Watcher: Broadcast files:changed when workspace changes ───
+    // This catches files created/modified/deleted by TERMINAL commands (wget, curl, npm install, etc.)
+    // so the sidebar file manager auto-refreshes without waiting for the 4s polling interval.
+    let workspaceWatcher: any = null
+    let watcherDebounce: ReturnType<typeof setTimeout> | null = null
+    try {
+      if (existsSync(userWorkspace)) {
+        workspaceWatcher = watch(userWorkspace, { recursive: true }, (eventType, filename) => {
+          // Debounce — many events fire in rapid succession for a single operation
+          if (watcherDebounce) clearTimeout(watcherDebounce)
+          watcherDebounce = setTimeout(() => {
+            try {
+              socket.emit('files:changed', { path: filename || '', workspace: userWorkspace, eventType })
+            } catch {}
+          }, 300)
+        })
+        // Clean up watcher on disconnect
+        socket.on('disconnect', () => {
+          if (workspaceWatcher) {
+            try { workspaceWatcher.close() } catch {}
+            workspaceWatcher = null
+          }
+          if (watcherDebounce) {
+            clearTimeout(watcherDebounce)
+            watcherDebounce = null
+          }
+        })
+      }
+    } catch (watchErr) {
+      console.warn('[FileWatcher] Could not watch workspace:', watchErr)
+    }
 
     // Terminal: Create (with user-specific workspace)
     socket.on('terminal:create', (data?: { cols?: number; rows?: number }) => {

@@ -268,6 +268,41 @@ fi
 npm-install() { npm install -g "$@"; }
 pip-install() { pip3 install --user "$@" && export PATH="${HOME}/.local/bin:${PATH}"; }
 
+# ─── Auto-refresh PATH before each prompt ────────────────────────
+# Most 'curl | bash' installers (opencode, bun, rust, deno, etc.) add a new
+# PATH entry to ~/.bashrc but the running shell doesn't pick it up until you
+# manually `source ~/.bashrc`. This PROMPT_COMMAND hook checks for any
+# newly-created installer directories and adds them to PATH automatically,
+# so tools work IMMEDIATELY after install — no `reload` needed.
+__cloudshell_refresh_path() {
+    local d
+    for d in "${HOME}/.opencode/bin" "${HOME}/.bun/bin" "${HOME}/.cargo/bin" \
+             "${HOME}/.deno/bin" "${HOME}/.local/bin" "${HOME}/.npm-global/bin" \
+             "${HOME}/bin" "${HOME}/go/bin" "${HOME}/.local/go/bin" \
+             "${HOME}/.krew/bin" "${HOME}/.yarn/bin"; do
+        [ -d "$d" ] || continue
+        case ":${PATH}:" in
+            *":${d}:"*) ;;
+            *) export PATH="${d}:${PATH}" ;;
+        esac
+    done
+    # Also re-source bashrc_env if it changed (for newly-set env vars)
+    if [ -f "${HOME}/.bashrc_env" ]; then
+        local env_mtime=$(stat -c %Y "${HOME}/.bashrc_env" 2>/dev/null || echo 0)
+        if [ -z "${__BASHRC_ENV_MTIME:-}" ] || [ "$env_mtime" -gt "$__BASHRC_ENV_MTIME" ]; then
+            source "${HOME}/.bashrc_env" 2>/dev/null
+            __BASHRC_ENV_MTIME="$env_mtime"
+        fi
+    fi
+}
+# Preserve any existing PROMPT_COMMAND and chain ours
+if [ -n "${PROMPT_COMMAND:-}" ]; then
+    PROMPT_COMMAND="__cloudshell_refresh_path; ${PROMPT_COMMAND}"
+else
+    PROMPT_COMMAND="__cloudshell_refresh_path"
+fi
+export PROMPT_COMMAND
+
 # ─── Reload PATH / source bashrc (after curl|bash installers) ────
 # Most 'curl | bash' installers (opencode, bun, rust, deno, etc.)
 # add a new PATH entry to ~/.bashrc but the change doesn't take
@@ -684,6 +719,46 @@ whereis-tool() {
 BASHRC_APPEND
     chown cloudshell:cloudshell "/home/cloudshell/.bashrc_cloudshell" 2>/dev/null || true
     echo "[Entrypoint] reload() and whereis-tool() helpers appended"
+fi
+
+# ─── Ensure PROMPT_COMMAND auto-refresh hook is present ──────────
+# This makes freshly-installed tools (opencode, bun, etc.) available
+# in the current shell WITHOUT requiring the user to run `reload`.
+if ! grep -q "__cloudshell_refresh_path" "/home/cloudshell/.bashrc_cloudshell" 2>/dev/null; then
+    cat >> "/home/cloudshell/.bashrc_cloudshell" << 'BASHRC_PROMPT'
+
+# ─── Auto-refresh PATH before each prompt ────────────────────────
+# Catches newly-installed tools (from curl|bash installers) without
+# requiring the user to manually `source ~/.bashrc` or `reload`.
+__cloudshell_refresh_path() {
+    local d
+    for d in "${HOME}/.opencode/bin" "${HOME}/.bun/bin" "${HOME}/.cargo/bin" \
+             "${HOME}/.deno/bin" "${HOME}/.local/bin" "${HOME}/.npm-global/bin" \
+             "${HOME}/bin" "${HOME}/go/bin" "${HOME}/.local/go/bin" \
+             "${HOME}/.krew/bin" "${HOME}/.yarn/bin"; do
+        [ -d "$d" ] || continue
+        case ":${PATH}:" in
+            *":${d}:"*) ;;
+            *) export PATH="${d}:${PATH}" ;;
+        esac
+    done
+    if [ -f "${HOME}/.bashrc_env" ]; then
+        local env_mtime=$(stat -c %Y "${HOME}/.bashrc_env" 2>/dev/null || echo 0)
+        if [ -z "${__BASHRC_ENV_MTIME:-}" ] || [ "$env_mtime" -gt "$__BASHRC_ENV_MTIME" ]; then
+            source "${HOME}/.bashrc_env" 2>/dev/null
+            __BASHRC_ENV_MTIME="$env_mtime"
+        fi
+    fi
+}
+if [ -n "${PROMPT_COMMAND:-}" ]; then
+    PROMPT_COMMAND="__cloudshell_refresh_path; ${PROMPT_COMMAND}"
+else
+    PROMPT_COMMAND="__cloudshell_refresh_path"
+fi
+export PROMPT_COMMAND
+BASHRC_PROMPT
+    chown cloudshell:cloudshell "/home/cloudshell/.bashrc_cloudshell" 2>/dev/null || true
+    echo "[Entrypoint] PROMPT_COMMAND auto-refresh hook appended"
 fi
 
 # Append to .bashrc if not already done
