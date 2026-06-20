@@ -492,6 +492,34 @@ app.prepare().then(() => {
       }
     })
 
+    // Folder: Create (scoped to user workspace)
+    socket.on('folder:create', (data: { path: string }) => {
+      const resolvedPath = resolveWorkspacePath(data.path, userWorkspace)
+      if (!resolvedPath) { socket.emit('folder:created', { path: data.path, error: 'Path traversal not allowed' }); return }
+      try {
+        if (existsSync(resolvedPath)) { socket.emit('folder:created', { path: data.path, error: 'Already exists' }); return }
+        mkdirSync(resolvedPath, { recursive: true })
+        socket.emit('folder:created', { path: data.path, error: null })
+      } catch (err) {
+        socket.emit('folder:created', { path: data.path, error: String(err) })
+      }
+    })
+
+    // File: Delete (scoped to user workspace)
+    socket.on('file:delete', (data: { path: string }) => {
+      const resolvedPath = resolveWorkspacePath(data.path, userWorkspace)
+      if (!resolvedPath) { socket.emit('file:deleted', { path: data.path, error: 'Path traversal not allowed' }); return }
+      try {
+        if (!existsSync(resolvedPath)) { socket.emit('file:deleted', { path: data.path, error: 'Not found' }); return }
+        const stat = statSync(resolvedPath)
+        const { rmSync, unlinkSync } = require('fs')
+        if (stat.isDirectory()) { rmSync(resolvedPath, { recursive: true, force: true }) } else { unlinkSync(resolvedPath) }
+        socket.emit('file:deleted', { path: data.path, error: null })
+      } catch (err) {
+        socket.emit('file:deleted', { path: data.path, error: String(err) })
+      }
+    })
+
     // Tools: Check
     socket.on('tools:check', () => {
       try { socket.emit('tools:status', TOOLS.map(checkTool)) } catch { socket.emit('tools:status', []) }

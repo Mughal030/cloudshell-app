@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Save, Play, X, FileCode } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useToast } from '@/hooks/use-toast'
 
 interface CodeEditorProps {
   filePath: string | null
@@ -14,6 +15,7 @@ interface CodeEditorProps {
 }
 
 export function CodeEditor({ filePath, fileContent: initialContent, onSave, onRun, onClose, readFile }: CodeEditorProps) {
+  const { toast } = useToast()
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -48,26 +50,44 @@ export function CodeEditor({ filePath, fileContent: initialContent, onSave, onRu
 
   const handleSave = useCallback(async () => {
     if (!filePath) return
+    if (saving) return
     setSaving(true)
     try {
       const result = await onSave(filePath, content)
       if (!result.error) {
         setDirty(false)
+        toast({
+          title: 'Saved',
+          description: filePath.split('/').pop() || filePath,
+        })
+      } else {
+        toast({
+          title: 'Save failed',
+          description: result.error,
+          variant: 'destructive',
+        })
       }
+    } catch (err) {
+      toast({
+        title: 'Save error',
+        description: String(err),
+        variant: 'destructive',
+      })
     } finally {
       setSaving(false)
     }
-  }, [filePath, content, onSave])
+  }, [filePath, content, onSave, saving, toast])
 
   const handleRun = useCallback(() => {
     if (!filePath) return
     const fileName = filePath.split('/').pop() || ''
+    const dir = filePath.includes('/') ? filePath.split('/').slice(0, -1).join('/') : '.'
     if (fileName.toLowerCase().includes('dockerfile')) {
-      const name = fileName.replace(/\.dockerfile$/i, '').toLowerCase()
-      onRun(`cd /home/z/my-project/workspace && docker build -f ${filePath} -t ${name}:latest .`)
+      const name = fileName.replace(/\.dockerfile$/i, '').toLowerCase() || 'app'
+      onRun(`cd ${dir} && docker build -f ${fileName} -t ${name}:latest .`)
     } else {
       // Run as script
-      onRun(`cd /home/z/my-project/workspace && chmod +x ${filePath} && ./${fileName}`)
+      onRun(`cd ${dir} && chmod +x ${fileName} && ./${fileName}`)
     }
   }, [filePath, onRun])
 

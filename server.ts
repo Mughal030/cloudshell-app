@@ -653,6 +653,68 @@ app.prepare().then(() => {
       }
     })
 
+    // Folder: Create (scoped to user workspace)
+    socket.on('folder:create', (data: { path: string }) => {
+      const resolvedPath = resolveWorkspacePath(data.path, userWorkspace)
+      if (!resolvedPath) {
+        socket.emit('folder:created', { path: data.path, error: 'Path traversal not allowed' })
+        return
+      }
+      try {
+        if (existsSync(resolvedPath)) {
+          socket.emit('folder:created', { path: data.path, error: 'Already exists' })
+          return
+        }
+        mkdirSync(resolvedPath, { recursive: true })
+        socket.emit('folder:created', { path: data.path, error: null })
+      } catch (err) {
+        socket.emit('folder:created', { path: data.path, error: String(err) })
+      }
+    })
+
+    // File: Delete (scoped to user workspace)
+    socket.on('file:delete', (data: { path: string }) => {
+      const resolvedPath = resolveWorkspacePath(data.path, userWorkspace)
+      if (!resolvedPath) {
+        socket.emit('file:deleted', { path: data.path, error: 'Path traversal not allowed' })
+        return
+      }
+      try {
+        if (!existsSync(resolvedPath)) {
+          socket.emit('file:deleted', { path: data.path, error: 'Not found' })
+          return
+        }
+        const stat = statSync(resolvedPath)
+        if (stat.isDirectory()) {
+          const { rmSync } = require('fs')
+          rmSync(resolvedPath, { recursive: true, force: true })
+        } else {
+          const { unlinkSync } = require('fs')
+          unlinkSync(resolvedPath)
+        }
+        socket.emit('file:deleted', { path: data.path, error: null })
+      } catch (err) {
+        socket.emit('file:deleted', { path: data.path, error: String(err) })
+      }
+    })
+
+    // File: Rename (scoped to user workspace)
+    socket.on('file:rename', (data: { oldPath: string; newPath: string }) => {
+      const resolvedOld = resolveWorkspacePath(data.oldPath, userWorkspace)
+      const resolvedNew = resolveWorkspacePath(data.newPath, userWorkspace)
+      if (!resolvedOld || !resolvedNew) {
+        socket.emit('file:renamed', { path: data.oldPath, error: 'Path traversal not allowed' })
+        return
+      }
+      try {
+        const { renameSync } = require('fs')
+        renameSync(resolvedOld, resolvedNew)
+        socket.emit('file:renamed', { path: data.oldPath, error: null })
+      } catch (err) {
+        socket.emit('file:renamed', { path: data.oldPath, error: String(err) })
+      }
+    })
+
     // Tools: Check
     socket.on('tools:check', () => {
       try {

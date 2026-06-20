@@ -462,6 +462,81 @@ export function useSocket() {
     })
   }, [])
 
+  const createFolder = useCallback((path: string): Promise<{ error: string | null }> => {
+    return new Promise((resolve) => {
+      const socket = socketRef.current
+      if (!socket) {
+        resolve({ error: 'Socket not connected' })
+        return
+      }
+
+      const handler = (data: { path: string; error: string | null }) => {
+        if (data.path === path) {
+          socket.off('folder:created', handler)
+          resolve({ error: data.error })
+        }
+      }
+
+      socket.on('folder:created', handler)
+      socket.emit('folder:create', { path })
+
+      setTimeout(() => {
+        socket.off('folder:created', handler)
+        resolve({ error: 'Timeout creating folder' })
+      }, 8000)
+    })
+  }, [])
+
+  const deleteFile = useCallback((path: string): Promise<{ error: string | null }> => {
+    return new Promise((resolve) => {
+      const socket = socketRef.current
+      if (!socket) {
+        resolve({ error: 'Socket not connected' })
+        return
+      }
+
+      const handler = (data: { path: string; error: string | null }) => {
+        if (data.path === path) {
+          socket.off('file:deleted', handler)
+          resolve({ error: data.error })
+        }
+      }
+
+      socket.on('file:deleted', handler)
+      socket.emit('file:delete', { path })
+
+      setTimeout(() => {
+        socket.off('file:deleted', handler)
+        resolve({ error: 'Timeout deleting file' })
+      }, 8000)
+    })
+  }, [])
+
+  const renameFile = useCallback((oldPath: string, newPath: string): Promise<{ error: string | null }> => {
+    return new Promise((resolve) => {
+      const socket = socketRef.current
+      if (!socket) {
+        resolve({ error: 'Socket not connected' })
+        return
+      }
+
+      const handler = (data: { path: string; error: string | null }) => {
+        if (data.path === oldPath) {
+          socket.off('file:renamed', handler)
+          resolve({ error: data.error })
+        }
+      }
+
+      socket.on('file:renamed', handler)
+      socket.emit('file:rename', { oldPath, newPath })
+
+      setTimeout(() => {
+        socket.off('file:renamed', handler)
+        resolve({ error: 'Timeout renaming file' })
+      }, 8000)
+    })
+  }, [])
+
   const sendCommandToTerminal = useCallback((command: string) => {
     const sid = activeSessionIdRef.current
     if (sid) {
@@ -542,6 +617,9 @@ export function useSocket() {
     readFile,
     writeFile,
     listFiles,
+    createFolder,
+    deleteFile,
+    renameFile,
     sendCommandToTerminal,
     ooStatus,
     checkOoStatus,
