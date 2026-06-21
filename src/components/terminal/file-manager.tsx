@@ -68,15 +68,67 @@ export function FileManager({
   useEffect(() => { currentPathRef.current = currentPath }, [currentPath])
   useEffect(() => { showHiddenRef.current = showHidden }, [showHidden])
 
+  // ─── Auto-refresh crash-prevention machinery ───────────────────────
+  // Without these guards, npm install / git clone events flood the server
+  // with hundreds of concurrent listFiles() requests, which causes the
+  // app to slow down, hang, or crash (the user-reported "auto-reloading
+  // causing caching app" issue).
+  //
+  // 1. `silentRefreshInFlight` — if a silent refresh is already running,
+  //    skip new requests until it completes. Prevents request pile-up.
+  // 2. `pendingRefreshTimer` — debounce: collapse a burst of fs.watch
+  //    events (e.g., npm install touching 200 files) into ONE refresh
+  //    fired 200ms after the last event.
+  // 3. We never overwrite `files` with `[]` from a silent refresh — if
+  //    the server returned no files, keep the previous list (likely a
+  //    transient error, not actually an empty dir).
+  // 4. We preserve scroll position by only re-rendering when the file
+  //    list actually changed (shallow compare by name+type+mtime).
+  const silentRefreshInFlight = useRef(false)
+  const pendingRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  /** Stable shallow comparator for FileInfo arrays — avoids re-renders when the data hasn't actually changed. */
+  function fileListsEqual(a: FileInfo[], b: FileInfo[]): boolean {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+      if (a[i].name !== b[i].name) return false
+      if (a[i].type !== b[i].type) return false
+      if (a[i].size !== b[i].size) return false
+      // Skip mtime — most edits don't change order, and we don't want to
+      // re-render just because mtime updated.
+    }
+    return true
+  }
+
   // `silent=true` skips the loading spinner and error toast — used for
   // background auto-refresh (fs.watch events, fallback polling) so the UI
   // doesn't flash "Loading..." or pop error toasts on every refresh.
   const loadFiles = useCallback(async (path?: string, hidden?: boolean, silent: boolean = false) => {
+    // Crash-prevention guard #1: skip silent refresh if one is in flight
+    if (silent && silentRefreshInFlight.current) return
+    if (silent) silentRefreshInFlight.current = true
+
     if (!silent) setLoading(true)
     try {
       const result = await listFiles(path, hidden)
       if (!result.error) {
-        setFiles(result.files)
+        // Crash-prevention guard #3: don't overwrite existing list with
+        // empty array from silent refresh — that wipes the sidebar if the
+        // server briefly hiccups.
+        if (silent && result.files.length === 0) {
+          // Only wipe if we genuinely have no files at root (path == '')
+          // AND there are currently no files shown. Otherwise keep existing.
+          // Use functional update to compare safely.
+          setFiles(prev => {
+            // If we're at root and server says empty, that may be valid.
+            // Heuristic: only update if previous was also empty.
+            if (prev.length === 0) return result.files
+            return prev
+          })
+        } else {
+          // Crash-prevention guard #4: avoid re-render if file list unchanged
+          setFiles(prev => fileListsEqual(prev, result.files) ? prev : result.files)
+        }
         setCurrentPath(path || '')
       } else if (!silent) {
         toast({
@@ -86,14 +138,36 @@ export function FileManager({
         })
       }
     } finally {
+      if (silent) silentRefreshInFlight.current = false
       if (!silent) setLoading(false)
     }
   }, [listFiles, toast])
+
+  /**
+   * Debounced silent refresh — collapses bursts of fs.watch events into a
+   * single network request. Without this, `npm install` (which writes
+   * hundreds of files in ~1s) was triggering 100+ concurrent requests.
+   */
+  const debouncedSilentRefresh = useCallback(() => {
+    if (pendingRefreshTimer.current) clearTimeout(pendingRefreshTimer.current)
+    pendingRefreshTimer.current = setTimeout(() => {
+      loadFiles(currentPathRef.current || undefined, showHiddenRef.current, true)
+    }, 200)
+  }, [loadFiles])
 
   // Keep a ref to loadFiles so the polling interval doesn't depend on it
   // (otherwise the interval gets cleared/recreated every time `toast` or `listFiles` identity changes)
   const loadFilesRef = useRef(loadFiles)
   useEffect(() => { loadFilesRef.current = loadFiles }, [loadFiles])
+  const debouncedRefreshRef = useRef(debouncedSilentRefresh)
+  useEffect(() => { debouncedRefreshRef.current = debouncedSilentRefresh }, [debouncedSilentRefresh])
+
+  // Cleanup any pending debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingRefreshTimer.current) clearTimeout(pendingRefreshTimer.current)
+    }
+  }, [])
 
   // Initial load when connected
   useEffect(() => {
@@ -108,11 +182,13 @@ export function FileManager({
   // Auto-refresh on files:changed event from the server (fs.watch).
   // This is the PRIMARY refresh mechanism — fires within ~300ms of any
   // file change in the workspace (wget, curl -O, npm install, git clone, etc.).
+  // DEBOUNCED — bursts (e.g., npm install touching 200 files) collapse
+  // into a single refresh, preventing the request-flood crash.
   useEffect(() => {
     if (!onFilesChanged) return
     const unsubscribe = onFilesChanged(() => {
-      // Silent refresh: don't flash loading spinner or pop toasts
-      loadFilesRef.current(currentPathRef.current || undefined, showHiddenRef.current, true)
+      // Silent + debounced refresh: prevents UI flicker AND request pile-up
+      debouncedRefreshRef.current()
     })
     return unsubscribe
   }, [onFilesChanged])

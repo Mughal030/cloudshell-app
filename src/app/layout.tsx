@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
@@ -18,13 +18,46 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Jasbol Hack — Nexus Eclipse Terminal IDE",
-  description: "Professional web-based terminal IDE with intelligent command highlighting, file management, Docker support, and tool installation by Jasbol Hack.",
-  keywords: ["Jasbol Hack", "CloudShell", "terminal", "IDE", "web terminal", "Nexus Eclipse", "Docker", "development"],
+  description:
+    "Professional web-based terminal IDE with intelligent command highlighting, file management, Docker support, and tool installation by Jasbol Hack.",
+  keywords: [
+    "Jasbol Hack",
+    "CloudShell",
+    "terminal",
+    "IDE",
+    "web terminal",
+    "Nexus Eclipse",
+    "Docker",
+    "development",
+  ],
   authors: [{ name: "Jasbol Hack" }],
+  applicationName: "Jasbol Hack",
+  generator: "Next.js",
+  referrer: "strict-origin-when-cross-origin",
+  formatDetection: {
+    telephone: false,
+    address: false,
+    email: false,
+  },
   icons: {
     icon: "/favicon.png",
     apple: "/jasbol-hack-logo.png",
   },
+  robots: {
+    index: false, // Do not index — this is a private IDE
+    follow: false,
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0F1117" },
+    { media: "(prefers-color-scheme: light)", color: "#FAFAF8" },
+  ],
+  colorScheme: "dark light",
 };
 
 export default function RootLayout({

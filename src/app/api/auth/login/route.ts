@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { signIn } from '@/lib/auth'
+import { signIn, getClientIp } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request)
+    const userAgent = request.headers.get('user-agent') || 'unknown'
     const body = await request.json()
     const { username, password } = body
 
@@ -13,13 +15,29 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = signIn(username, password)
+    if (typeof username !== 'string' || typeof password !== 'string') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid input format' },
+        { status: 400 }
+      )
+    }
+
+    // Cap input lengths to prevent abuse
+    const usernameTrim = username.slice(0, 60)
+    const passwordTrim = password.slice(0, 200)
+
+    const result = signIn(usernameTrim, passwordTrim, ip, userAgent)
 
     if (!result.success) {
-      return NextResponse.json(
+      const status = result.retryAfterMs ? 429 : 401
+      const response = NextResponse.json(
         { success: false, error: result.error },
-        { status: 401 }
+        { status }
       )
+      if (result.retryAfterMs) {
+        response.headers.set('Retry-After', String(Math.ceil(result.retryAfterMs / 1000)))
+      }
+      return response
     }
 
     const response = NextResponse.json({
@@ -31,16 +49,32 @@ export async function POST(request: NextRequest) {
         role: result.user!.role,
       },
       token: result.token,
+      // refreshToken is sent ONLY as httpOnly cookie — never in JSON body
     })
 
-    // Set HTTP-only cookie for extra security
-    response.cookies.set('jasbol-token', result.token!, {
+    // Set HTTP-only cookies for extra security — token + refresh token
+    // Use __Host- prefix in production (requires Secure + root path + no Domain)
+    const isProd = process.env.NODE_ENV === 'production'
+    const cookiePrefix = isProd ? '__Host-' : ''
+    const secure = isProd
+
+    response.cookies.set(`${cookiePrefix}jasbol-token`, result.token!, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      secure,
+      sameSite: 'strict',
+      maxAge: 60 * 60 * 24, // 1 day — matches JWT_EXPIRES_IN
       path: '/',
     })
+
+    if (result.refreshToken) {
+      response.cookies.set(`${cookiePrefix}jasbol-refresh`, result.refreshToken, {
+        httpOnly: true,
+        secure,
+        sameSite: 'strict',
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+        path: '/',
+      })
+    }
 
     return response
   } catch (error) {

@@ -1,12 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { signUp } from '@/lib/auth'
+import { signUp, getClientIp } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = getClientIp(request)
     const body = await request.json()
     const { username, email, password } = body
 
-    const result = signUp(username, email, password)
+    if (
+      typeof username !== 'string' ||
+      typeof email !== 'string' ||
+      typeof password !== 'string'
+    ) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid input format' },
+        { status: 400 }
+      )
+    }
+
+    // Cap input lengths
+    const result = signUp(
+      username.slice(0, 60),
+      email.slice(0, 254),
+      password.slice(0, 200),
+      ip
+    )
 
     if (!result.success) {
       return NextResponse.json(

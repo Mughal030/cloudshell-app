@@ -438,3 +438,151 @@ Stage Summary:
 - Socket traffic: ~60% reduction (less ping/latency polling)
 - Build verified: `next build` succeeds in 4.2s
 - server.ts syntax check passes
+
+---
+Task ID: terminal-demo-security-polish
+Agent: main
+Task: Add MagicUI Terminal demo + boost auth security + polish UI + fix auto-reload caching crashes
+
+Work Log:
+- User pasted a MagicUI Terminal demo (shadcn-init style) and asked to:
+  1) add it to the project,
+  2) increase app quality / professional looks / fully arranged pages,
+  3) increase signup/login security so no one can interfere with others' work,
+  4) fix "auto reloading causing caching app" (the file sidebar was crashing
+     under burst events like `npm install`).
+
+  ── 1. MagicUI Terminal component ──────────────────────────────────
+  - Created `src/registry/magicui/terminal.tsx` with three exportable
+    primitives — `Terminal` (window chrome with traffic-light dots +
+    "nexus-eclipse" badge + Jasbol branding), `TypingAnimation` (types
+    out text char-by-char with a pulsing cursor), `AnimatedSpan` (fade-
+    in lines with delay). Faithful to the user's pasted snippet but
+    ported to TypeScript + the Nexus Eclipse color system.
+  - Created `src/registry/magicui/terminal-demo.tsx` — a Jasbol-branded
+    scripted session that boots the workspace, verifies the toolchain,
+    attaches the file watcher, prints the success banner, and ends
+    with the `adminmughal03@jasbol:~/projects $` prompt. Used on the
+    auth pages as a beautiful showcase of what the IDE does.
+
+  ── 2. Auth security overhaul (`src/lib/auth.ts`) ──────────────────
+  - Rate limiting: 10 login attempts per IP per minute. Buckets are
+    in-memory, GC'd every 5 min. Returns 429 + Retry-After header.
+  - Account lockout: 5 failed attempts → 15-min lock. Counter resets
+    on successful login. Lockout persisted to users.json.
+  - IP fingerprinting: each JWT includes a hashed /24-or-/64 prefix
+    of the issuer IP + the JWT secret. `verifyToken(token, ip)`
+    rejects tokens that come from a different network — defeats
+    token theft.
+  - Stronger password policy: 8-200 chars, must include upper + lower
+    + digit + special char. Common-password blacklist. Rejects
+    "password" / "12345" substrings.
+  - Reserved usernames: admin/root/system/cloudshell/jasbol/etc.
+  - Constant-time username/email comparison (timingSafeEqual) so
+    attackers can't enumerate accounts by response timing.
+  - Always-run bcrypt compare (even on no-such-user) to prevent
+    timing attacks revealing which usernames exist.
+  - Audit log: append-only `~/.jasbol-users/audit.log` records
+    every login.success / login.failed / login.locked /
+    login.ratelimited / signup.* / logout / token.invalid event
+    with timestamp + IP + UA + meta.
+  - Atomic user-file save: write-to-tmp + rename. Previously a
+    crash mid-write could wipe the entire users.json.
+  - Token TTL shortened: 7d → 24h. Refresh tokens (separate,
+    httpOnly cookie, 7d, hashed in DB) added for session continuity.
+  - Refresh-token invalidation on logout.
+
+  ── 3. Auth API routes hardened ────────────────────────────────────
+  - `/api/auth/login`: pulls client IP via x-real-ip / x-forwarded-for /
+    cf-connecting-ip / x-client-ip. Sets cookies with `__Host-` prefix
+    in prod (requires Secure + root path + no Domain). sameSite=strict.
+  - `/api/auth/signup`: passes IP for audit log, caps input lengths.
+  - `/api/auth/verify`: 3-stage check — JWT signature → user exists in
+    DB → IP fingerprint matches. Returns 401 with friendly message on
+    network change so user knows to re-auth.
+  - `/api/auth/logout`: invalidates refresh token server-side + clears
+    both cookies.
+
+  ── 4. New auth UI (`src/components/auth/auth-layout.tsx`) ─────────
+  - Split-screen layout: left = MagicUI Terminal demo + 4 security
+    feature badges (Encrypted Session / IP Fingerprint / Account
+    Lockout / Isolated Workspace) + trust strip ("bcrypt(12) +
+    JWT+IP-bound"). Right = the actual form.
+  - On mobile, the showcase panel collapses to a compact header so
+    the auth flow stays fast and visible.
+  - Login page rewritten: shows attempts-remaining hint when wrong
+    password, retry-after countdown when rate-limited, Lock/Unlock
+    icons. maxLength on all inputs.
+  - Signup page rewritten: live password checklist (5 rules with
+    ✓/✗ indicators), strength meter (5 bars with gradient), button
+    disabled until all rules met, confirm-password match indicator.
+  - Both pages use the shared AuthLayout for visual consistency.
+
+  ── 5. Security headers + middleware (`src/proxy.ts`) ─────────────
+  - New `proxy.ts` (Next.js 16 renamed `middleware.ts` → `proxy.ts`)
+    applies on every response:
+      * Content-Security-Policy (default-src 'self', script-src
+        'self' + 'unsafe-inline' [+'unsafe-eval' in dev], style-src
+        'self' 'unsafe-inline' fonts.googleapis.com, frame-ancestors
+        'none', object-src 'none', upgrade-insecure-requests)
+      * X-Content-Type-Options: nosniff
+      * X-Frame-Options: DENY (defense-in-depth alongside CSP frame-ancestors)
+      * X-XSS-Protection: 1; mode=block
+      * Referrer-Policy: strict-origin-when-cross-origin
+      * Permissions-Policy: camera/mic/geo/payment/usb all disabled
+      * Strict-Transport-Security: 1y + includeSubDomains + preload
+      * Cross-Origin-Opener-Policy: same-origin
+      * Cross-Origin-Resource-Policy: same-origin
+    - Auth routes + /login + /signup get
+      `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`
+      so back/forward navigation never re-displays stale auth state.
+  - `layout.tsx` metadata updated: robots noindex/nofollow (private
+    IDE), themeColor for browser chrome, referrer strict-origin,
+    formatDetection off (no auto-linking of phone/email).
+
+  ── 6. Auto-reload crash fix (`file-manager.tsx`) ──────────────────
+  The user's "auto reloading causing caching app" complaint traced
+  to fs.watch firing HUNDREDS of events during `npm install` /
+  `git clone`, each triggering a separate `listFiles()` socket
+  request. The server flooded, the event loop stalled, and the UI
+  appeared to freeze ("caching").
+  
+  Four-part fix:
+  1) DEBOUNCE: fs.watch events now go through `debouncedSilentRefresh`
+     which collapses bursts into a single request 200ms after the
+     last event. `npm install` (200 files) → 1 request instead of 200.
+  2) IN-FLIGHT GUARD: `silentRefreshInFlight` ref skips new silent
+     refreshes if one is already running. Prevents request pile-up
+     when fs.watch fires faster than the server can respond.
+  3) EMPTY-LIST PROTECTION: a silent refresh that returns `[]` no
+     longer overwrites the existing file list — if the server briefly
+     hiccups, the sidebar keeps showing what was there. Only an
+     already-empty list can be re-confirmed as empty.
+  4) SHALLOW-COMPARE RE-RENDER GUARD: `fileListsEqual()` compares
+     name+type+size of every entry; if nothing changed, the same
+     array reference is returned from `setFiles(prev => ...)`, which
+     skips the re-render entirely. Preserves scroll position,
+     selection, expanded folders, etc.
+  5) Unmount cleanup: pending debounce timer is cleared on unmount
+     so it can't fire after the panel is gone.
+
+Stage Summary:
+- MagicUI Terminal demo now lives at `src/registry/magicui/terminal.tsx`
+  + `terminal-demo.tsx` and renders on both /login and /signup as the
+  left-side showcase panel.
+- Auth security went from "JWT + bcrypt" to a defense-in-depth stack:
+  rate limiting + lockout + IP fingerprint + audit log + reserved
+  usernames + strong password rules + atomic file writes + secure
+  cookies + CSP + HSTS + frame-ancestors none + no-store cache headers
+  on auth routes.
+- Login page shows attempts-remaining + retry-after feedback. Signup
+  page shows live password-rule checklist + strength meter.
+- File sidebar no longer crashes during `npm install` / `git clone`:
+  bursts are debounced, in-flight requests are deduplicated, and
+  unchanged data doesn't trigger re-renders (preserving scroll +
+  selection state).
+- Next.js production build: ✓ Compiled successfully in 4.9s
+- `node --check server.ts`: ✓ passes
+- Smoke-tested auth.ts: weak password rejected, strong accepted,
+  reserved username rejected, signIn works, wrong password rejected,
+  IP mismatch correctly invalidates token.
