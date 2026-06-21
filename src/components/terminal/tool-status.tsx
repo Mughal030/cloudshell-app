@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import { RefreshCw, CheckCircle2, XCircle, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -16,12 +15,11 @@ interface ToolStatusProps {
 }
 
 export function ToolStatus({ tools, checkTools, onInstall, sendCommandToTerminal, loading }: ToolStatusProps) {
-  // Auto-check tools when component mounts and when it becomes visible
-  useEffect(() => {
-    if (!loading) {
-      checkTools()
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Don't auto-check on mount — server now serves tool status from a 60s cache
+  // and pushes updates via the 'tools:status' socket event whenever a client
+  // connects. Auto-checking here just caused unnecessary re-renders and
+  // latency on page load. User can still click the refresh button.
+  // (Removed the empty-deps useEffect that was calling checkTools() on mount.)
 
   const handleInstall = async (toolName: string) => {
     const command = await onInstall(toolName)

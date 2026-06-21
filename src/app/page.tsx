@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, memo } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import {
@@ -19,15 +19,25 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSocket } from '@/hooks/use-socket'
 import { FileManager } from '@/components/terminal/file-manager'
 import { ToolStatus } from '@/components/terminal/tool-status'
-import { DockerPanel } from '@/components/terminal/docker-panel'
-import { OpenOutreachPanel } from '@/components/terminal/openoutreach-panel'
-import { CodeEditor } from '@/components/terminal/code-editor'
 import { PackageSidebar } from '@/components/terminal/package-sidebar'
+
+// Lazy-load heavy sidebar panels — they only mount when their tab is activated.
+// This cuts initial JS parse/execute time and avoids spawning socket requests
+// for panels the user never opens.
+const DockerPanel = dynamic(() => import('@/components/terminal/docker-panel').then(m => ({ default: m.DockerPanel })), { ssr: false })
+const CodeEditor = dynamic(() => import('@/components/terminal/code-editor').then(m => ({ default: m.CodeEditor })), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-full text-xs text-[var(--nx-text-dim)]">Loading editor...</div>,
+})
 
 const XtermTerminal = dynamic(
   () => import('@/components/terminal/xterm-terminal').then(mod => ({ default: mod.XtermTerminal })),
   { ssr: false, loading: () => <div className="w-full h-full bg-[#0F1117]" /> }
 )
+// Memoize so terminal instances don't re-render when parent state changes
+// (e.g. sidebar tab switches, file editor opens/closes). Only re-renders
+// when its own props (sessionId, isActive) change.
+const MemoizedXtermTerminal = memo(XtermTerminal)
 
 const QUICK_INSTALL = {
   'AI & CLI Tools': [
@@ -311,7 +321,7 @@ export default function Home() {
                     </div>
                   ) : (
                     sessions.map((session) => (
-                      <XtermTerminal key={session.sessionId} sessionId={session.sessionId} onOutput={onOutput} onClearBuffer={onClearBuffer} sendInput={sendInput} resizeTerminal={resizeTerminal} isActive={activeSessionId === session.sessionId} installedPackages={installedPkgs} />
+                      <MemoizedXtermTerminal key={session.sessionId} sessionId={session.sessionId} onOutput={onOutput} onClearBuffer={onClearBuffer} sendInput={sendInput} resizeTerminal={resizeTerminal} isActive={activeSessionId === session.sessionId} installedPackages={installedPkgs} />
                     ))
                   )}
                 </div>

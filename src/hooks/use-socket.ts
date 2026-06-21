@@ -198,7 +198,7 @@ export function useSocket() {
       socket.emit('tools:check')
     }
 
-    // Latency measurement
+    // Latency measurement (every 30s — was 5s; less socket traffic on slow links)
     if (latencyIntervalRef.current) {
       clearInterval(latencyIntervalRef.current)
     }
@@ -211,7 +211,7 @@ export function useSocket() {
           }
         })
       }
-    }, 5000)
+    }, 30000)
 
     return () => {
       mountedRef.current = false
@@ -359,8 +359,8 @@ export function useSocket() {
     }
   }, [])
 
-  const checkTools = useCallback(() => {
-    socketRef.current?.emit('tools:check')
+  const checkTools = useCallback((forceRefresh: boolean = false) => {
+    socketRef.current?.emit('tools:check', { forceRefresh })
   }, [])
 
   const installTool = useCallback((tool: string): Promise<string> => {

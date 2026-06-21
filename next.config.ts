@@ -16,9 +16,17 @@ const nextConfig: NextConfig = {
   // Performance optimizations
   poweredByHeader: false,
   compress: true,
+  // Strip source maps from production build (smaller bundles, faster loads)
+  productionBrowserSourceMaps: false,
   // Optimize images
   images: {
     unoptimized: true, // Skip image optimization for faster builds in Docker
+  },
+  // experimental.optimizePackageImports handles lucide-react / radix icons
+  // tree-shaking correctly (modularizeImports was too aggressive and broke
+  // icon name resolution).
+  experimental: {
+    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
   },
 };
 

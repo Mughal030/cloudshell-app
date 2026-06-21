@@ -77,9 +77,13 @@ function updateServiceStatus() {
   const dockerInBin = existsSync(`${BIN_DIR}/docker`)
   const dockerUsr = existsSync('/usr/bin/docker')
   serviceInstallStatus.docker.installed = dockerInPath || dockerInBin || dockerUsr
+  // Use async execFile via child_process to avoid blocking the event loop.
+  // We just set running=false optimistically and let the callback update it.
   try {
-    execSync('docker info 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
-    serviceInstallStatus.docker.running = true
+    const { exec } = require('child_process')
+    exec('docker info 2>/dev/null', { timeout: 5000 }, (err: any) => {
+      serviceInstallStatus.docker.running = !err
+    })
   } catch { serviceInstallStatus.docker.running = false }
 }
 
@@ -320,6 +324,28 @@ function checkTool(name: string): { name: string; installed: boolean; version: s
   }
 }
 
+// ─── Tool status cache (performance: avoid 13 execSync calls per tools:check event) ──
+// Refreshed in the background every 60s. Serves all clients from cache so they
+// get an instant response instead of triggering 13 `which` + 13 `<tool> --version`
+// shell spawns on every page load.
+let toolsStatusCache: { name: string; installed: boolean; version: string; displayName?: string }[] = []
+let toolsStatusCacheTime = 0
+const TOOLS_CACHE_TTL = 60_000  // 60 seconds
+
+function refreshToolsStatusCache() {
+  try {
+    toolsStatusCache = TOOLS.map(checkTool)
+    toolsStatusCacheTime = Date.now()
+  } catch (err) {
+    console.error('[Tools] Error refreshing cache:', err)
+  }
+}
+
+// Initial population
+refreshToolsStatusCache()
+// Background refresh — never blocks the event loop on client requests
+setInterval(refreshToolsStatusCache, TOOLS_CACHE_TTL)
+
 // ─── Helper: safely resolve path within a workspace ──────────────
 function resolveWorkspacePath(inputPath: string, workspaceDir: string): string | null {
   const target = inputPath ? resolve(workspaceDir, inputPath) : workspaceDir
@@ -527,7 +553,7 @@ const handle = app.getRequestHandler()
 app.prepare().then(() => {
   console.log('[Server] Next.js prepared')
   updateServiceStatus()
-  setInterval(updateServiceStatus, 15000)
+  setInterval(updateServiceStatus, 60000)  // 60s — was 15s (too aggressive, blocks event loop)
 
   const mainServer = createServer((req, res) => {
     const url = req.url || '/'
@@ -539,7 +565,8 @@ app.prepare().then(() => {
     }
 
     if (url === '/api/services') {
-      updateServiceStatus()
+      // Don't call updateServiceStatus() here — it would block the event loop
+      // with execSync. The background interval keeps status fresh enough.
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(serviceInstallStatus))
       return
@@ -551,7 +578,7 @@ app.prepare().then(() => {
   const io = new SocketIOServer(mainServer, {
     cors: { origin: true, methods: ['GET', 'POST'], credentials: true },
     path: '/socket.io/',
-    pingInterval: 15000,
+    pingInterval: 25000,  // 25s — was 15s (less polling overhead on slow links)
     pingTimeout: 30000,
     upgradeTimeout: 15000,
     maxHttpBufferSize: 1e7,
@@ -840,13 +867,17 @@ app.prepare().then(() => {
       socket.emit('workspace:info', { workspace: userWorkspace, defaultWorkspace: DEFAULT_WORKSPACE_DIR })
     })
 
-    // Tools: Check
-    socket.on('tools:check', () => {
+    // Tools: Check — serves from cache (refreshed every 60s in background).
+    // `forceRefresh=true` opts out of cache for the manual "refresh" button.
+    socket.on('tools:check', (data?: { forceRefresh?: boolean }) => {
       try {
-        socket.emit('tools:status', TOOLS.map(checkTool))
+        if (data?.forceRefresh || Date.now() - toolsStatusCacheTime > TOOLS_CACHE_TTL) {
+          refreshToolsStatusCache()
+        }
+        socket.emit('tools:status', toolsStatusCache)
       } catch (err) {
         console.error('[Tools] Error checking tools:', err)
-        socket.emit('tools:status', [])
+        socket.emit('tools:status', toolsStatusCache || [])
       }
     })
 
