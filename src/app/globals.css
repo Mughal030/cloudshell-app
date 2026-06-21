@@ -4,15 +4,22 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ================================================================
-   NEXUS ECLIPSE — Professional Dark Theme System
+   AURORA ECLIPSE — Premium Dark Theme System v2
    ────────────────────────────────────────────────
-   Primary:    #0F1117  Deep obsidian
-   Secondary:  #161B22  Carbon steel
-   Accent:     #00E5C0 → #6366F1  Teal-to-Indigo gradient
-   Success:    #34D399  Emerald
-   Error:      #F87171  Coral red
-   Keywords:   #A5B4FC  Soft indigo
-   Strings:    #7DD3FC  Sky blue
+   Inspired by Linear / Raycast / Vercel — a deeper, more vibrant
+   palette than Nexus Eclipse with a flowing aurora gradient accent.
+
+   Background:   #070811  Deep space obsidian (with subtle purple tint)
+   Surface:      #0E1020  Elevated panels
+   Surface 2:    #161A2E  Cards / inputs
+   Border:       #232842  Soft indigo border
+   Text:         #E8E9F5  Crisp white with violet tint
+   Muted:        #8B8DA8  Secondary text
+   Aurora:       linear-gradient(135deg, #5EEAD4 0%, #818CF8 50%, #F472B6 100%)
+                 teal → indigo → pink (flowing, premium)
+   Success:      #4ADE80  Emerald
+   Warning:      #FBBF24  Amber
+   Error:        #FB7185  Rose
    ================================================================ */
 
 @theme inline {
@@ -56,164 +63,170 @@
 }
 
 /* ──────────────────────────────────────────────
-   LIGHT MODE — Ivory / Navy
+   LIGHT MODE — Pearl / Indigo (refined)
    ────────────────────────────────────────────── */
 :root {
   --radius: 0.625rem;
   /* Core surfaces */
-  --nx-bg-primary: #FAFAF8;
-  --nx-bg-secondary: #F0EDE6;
-  --nx-bg-surface: #E8E4DC;
-  --nx-bg-hover: #DDD8CE;
-  --nx-bg-active: #D0CBBF;
+  --nx-bg-primary: #FAFAFC;
+  --nx-bg-secondary: #F1F2F8;
+  --nx-bg-surface: #E7E9F2;
+  --nx-bg-hover: #DCDFEE;
+  --nx-bg-active: #CDD1E5;
   /* Borders */
-  --nx-border: #C8C2B4;
+  --nx-border: #D1D4E5;
   --nx-border-focus: #6366F1;
   /* Text */
-  --nx-text: #1A1A2E;
-  --nx-text-secondary: #4A4A5A;
-  --nx-text-muted: #8A8A9A;
-  --nx-text-dim: #B0B0BC;
-  /* Accents */
+  --nx-text: #14162B;
+  --nx-text-secondary: #444A6B;
+  --nx-text-muted: #6F7593;
+  --nx-text-dim: #9CA0BB;
+  /* Accents — aurora gradient */
   --nx-accent: #6366F1;
-  --nx-accent-teal: #00B89C;
-  --nx-accent-glow: rgba(99, 102, 241, 0.15);
+  --nx-accent-teal: #14B8A6;
+  --nx-accent-pink: #EC4899;
+  --nx-accent-glow: rgba(99, 102, 241, 0.18);
   --nx-success: #059669;
-  --nx-error: #DC2626;
+  --nx-error: #E11D48;
   --nx-warning: #D97706;
   /* Syntax */
   --nx-keyword: #4338CA;
   --nx-string: #0369A1;
   --nx-number: #7C3AED;
-  --nx-comment: #9CA3AF;
+  --nx-comment: #94A3B8;
   --nx-function: #4F46E5;
   --nx-variable: #0E7490;
   /* Command Intelligence */
   --nx-cmd-installed: #059669;
   --nx-cmd-known: #4338CA;
-  --nx-cmd-unknown: #9CA3AF;
+  --nx-cmd-unknown: #94A3B8;
   --nx-cmd-unknown-danger: #DC2626;
   --nx-cmd-flag: #6366F1;
   /* UI */
   --nx-cursor: #6366F1;
   --nx-selection: rgba(99, 102, 241, 0.18);
-  --nx-scrollbar: rgba(99, 102, 241, 0.2);
-  --nx-scrollbar-hover: rgba(99, 102, 241, 0.4);
-  /* Gradient */
-  --nx-gradient-accent: linear-gradient(135deg, #00B89C, #6366F1);
+  --nx-scrollbar: rgba(99, 102, 241, 0.22);
+  --nx-scrollbar-hover: rgba(99, 102, 241, 0.42);
+  /* Aurora gradient — the signature accent */
+  --nx-aurora: linear-gradient(135deg, #14B8A6 0%, #6366F1 50%, #EC4899 100%);
+  --nx-aurora-soft: linear-gradient(135deg, rgba(20,184,166,0.12) 0%, rgba(99,102,241,0.12) 50%, rgba(236,72,153,0.12) 100%);
+  --nx-gradient-accent: linear-gradient(135deg, #14B8A6, #6366F1);
 
   /* shadcn compatibility */
-  --background: #FAFAF8;
-  --foreground: #1A1A2E;
-  --card: #F0EDE6;
-  --card-foreground: #1A1A2E;
-  --popover: #F0EDE6;
-  --popover-foreground: #1A1A2E;
+  --background: #FAFAFC;
+  --foreground: #14162B;
+  --card: #F1F2F8;
+  --card-foreground: #14162B;
+  --popover: #FFFFFF;
+  --popover-foreground: #14162B;
   --primary: #6366F1;
   --primary-foreground: #FFFFFF;
-  --secondary: #E8E4DC;
-  --secondary-foreground: #1A1A2E;
-  --muted: #E8E4DC;
-  --muted-foreground: #6B7280;
-  --accent: #E8E4DC;
-  --accent-foreground: #1A1A2E;
-  --destructive: #DC2626;
-  --border: #C8C2B4;
-  --input: #C8C2B4;
+  --secondary: #E7E9F2;
+  --secondary-foreground: #14162B;
+  --muted: #E7E9F2;
+  --muted-foreground: #6F7593;
+  --accent: #E7E9F2;
+  --accent-foreground: #14162B;
+  --destructive: #E11D48;
+  --border: #D1D4E5;
+  --input: #D1D4E5;
   --ring: #6366F1;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #F0EDE6;
-  --sidebar-foreground: #1A1A2E;
+  --chart-1: #6366F1;
+  --chart-2: #14B8A6;
+  --chart-3: #F59E0B;
+  --chart-4: #EC4899;
+  --chart-5: #8B5CF6;
+  --sidebar: #F1F2F8;
+  --sidebar-foreground: #14162B;
   --sidebar-primary: #6366F1;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #E8E4DC;
-  --sidebar-accent-foreground: #1A1A2E;
-  --sidebar-border: #C8C2B4;
+  --sidebar-accent: #E7E9F2;
+  --sidebar-accent-foreground: #14162B;
+  --sidebar-border: #D1D4E5;
   --sidebar-ring: #6366F1;
 }
 
 /* ──────────────────────────────────────────────
-   DARK MODE — Nexus Eclipse (default)
+   DARK MODE — Aurora Eclipse (default)
    ────────────────────────────────────────────── */
 .dark {
-  /* Core surfaces */
-  --nx-bg-primary: #0F1117;
-  --nx-bg-secondary: #161B22;
-  --nx-bg-surface: #1C2333;
-  --nx-bg-hover: #242D3D;
-  --nx-bg-active: #2A3450;
-  /* Borders */
-  --nx-border: #2A3142;
-  --nx-border-focus: #6366F1;
-  /* Text */
-  --nx-text: #E2E8F0;
-  --nx-text-secondary: #94A3B8;
-  --nx-text-muted: #64748B;
-  --nx-text-dim: #475569;
-  /* Accents */
-  --nx-accent: #6366F1;
-  --nx-accent-teal: #00E5C0;
-  --nx-accent-glow: rgba(0, 229, 192, 0.12);
-  --nx-success: #34D399;
-  --nx-error: #F87171;
+  /* Core surfaces — deep space with purple tint */
+  --nx-bg-primary: #070811;
+  --nx-bg-secondary: #0E1020;
+  --nx-bg-surface: #161A2E;
+  --nx-bg-hover: #1E2238;
+  --nx-bg-active: #282D48;
+  /* Borders — soft indigo */
+  --nx-border: #232842;
+  --nx-border-focus: #818CF8;
+  /* Text — crisp with cool tint */
+  --nx-text: #E8E9F5;
+  --nx-text-secondary: #A5A8C4;
+  --nx-text-muted: #6B7090;
+  --nx-text-dim: #4A4F6E;
+  /* Accents — aurora */
+  --nx-accent: #818CF8;        /* indigo */
+  --nx-accent-teal: #5EEAD4;   /* teal */
+  --nx-accent-pink: #F472B6;   /* pink */
+  --nx-accent-glow: rgba(129, 140, 248, 0.18);
+  --nx-success: #4ADE80;
+  --nx-error: #FB7185;
   --nx-warning: #FBBF24;
-  /* Syntax */
-  --nx-keyword: #A5B4FC;
-  --nx-string: #7DD3FC;
-  --nx-number: #C084FC;
-  --nx-comment: #64748B;
-  --nx-function: #818CF8;
-  --nx-variable: #67E8F9;
+  /* Syntax — aurora-infused */
+  --nx-keyword: #C4B5FD;       /* violet */
+  --nx-string: #5EEAD4;        /* teal */
+  --nx-number: #F472B6;        /* pink */
+  --nx-comment: #6B7090;
+  --nx-function: #818CF8;      /* indigo */
+  --nx-variable: #67E8F9;      /* cyan */
   /* Command Intelligence */
-  --nx-cmd-installed: #00E5C0;
-  --nx-cmd-known: #A5B4FC;
-  --nx-cmd-unknown: #64748B;
-  --nx-cmd-unknown-danger: #F87171;
+  --nx-cmd-installed: #5EEAD4;
+  --nx-cmd-known: #C4B5FD;
+  --nx-cmd-unknown: #6B7090;
+  --nx-cmd-unknown-danger: #FB7185;
   --nx-cmd-flag: #818CF8;
   /* UI */
-  --nx-cursor: #00E5C0;
-  --nx-selection: rgba(99, 102, 241, 0.25);
-  --nx-scrollbar: rgba(0, 229, 192, 0.12);
-  --nx-scrollbar-hover: rgba(0, 229, 192, 0.28);
-  /* Gradient */
-  --nx-gradient-accent: linear-gradient(135deg, #00E5C0, #6366F1);
+  --nx-cursor: #5EEAD4;
+  --nx-selection: rgba(129, 140, 248, 0.25);
+  --nx-scrollbar: rgba(129, 140, 248, 0.15);
+  --nx-scrollbar-hover: rgba(129, 140, 248, 0.32);
+  /* Aurora gradient — the signature accent */
+  --nx-aurora: linear-gradient(135deg, #5EEAD4 0%, #818CF8 50%, #F472B6 100%);
+  --nx-aurora-soft: linear-gradient(135deg, rgba(94,234,212,0.10) 0%, rgba(129,140,248,0.10) 50%, rgba(244,114,182,0.10) 100%);
+  --nx-gradient-accent: linear-gradient(135deg, #5EEAD4, #818CF8);
 
   /* shadcn compatibility */
-  --background: #0F1117;
-  --foreground: #E2E8F0;
-  --card: #161B22;
-  --card-foreground: #E2E8F0;
-  --popover: #161B22;
-  --popover-foreground: #E2E8F0;
-  --primary: #6366F1;
-  --primary-foreground: #FFFFFF;
-  --secondary: #1C2333;
-  --secondary-foreground: #E2E8F0;
-  --muted: #1C2333;
-  --muted-foreground: #94A3B8;
-  --accent: #1C2333;
-  --accent-foreground: #E2E8F0;
-  --destructive: #F87171;
-  --border: #2A3142;
-  --input: #2A3142;
-  --ring: #6366F1;
-  --chart-1: #A5B4FC;
-  --chart-2: #34D399;
+  --background: #070811;
+  --foreground: #E8E9F5;
+  --card: #0E1020;
+  --card-foreground: #E8E9F5;
+  --popover: #161A2E;
+  --popover-foreground: #E8E9F5;
+  --primary: #818CF8;
+  --primary-foreground: #070811;
+  --secondary: #161A2E;
+  --secondary-foreground: #E8E9F5;
+  --muted: #161A2E;
+  --muted-foreground: #A5A8C4;
+  --accent: #1E2238;
+  --accent-foreground: #E8E9F5;
+  --destructive: #FB7185;
+  --border: #232842;
+  --input: #232842;
+  --ring: #818CF8;
+  --chart-1: #818CF8;
+  --chart-2: #5EEAD4;
   --chart-3: #FBBF24;
-  --chart-4: #F87171;
-  --chart-5: #C084FC;
-  --sidebar: #161B22;
-  --sidebar-foreground: #E2E8F0;
-  --sidebar-primary: #6366F1;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1C2333;
-  --sidebar-accent-foreground: #E2E8F0;
-  --sidebar-border: #2A3142;
-  --sidebar-ring: #6366F1;
+  --chart-4: #FB7185;
+  --chart-5: #C4B5FD;
+  --sidebar: #0E1020;
+  --sidebar-foreground: #E8E9F5;
+  --sidebar-primary: #818CF8;
+  --sidebar-primary-foreground: #070811;
+  --sidebar-accent: #161A2E;
+  --sidebar-accent-foreground: #E8E9F5;
+  --sidebar-border: #232842;
+  --sidebar-ring: #818CF8;
 }
 
 @layer base {
@@ -223,16 +236,22 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-inter), system-ui, sans-serif;
+    /* Aurora ambient backdrop — fixed, very subtle, low-cost */
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(129,140,248,0.08), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 0% 100%, rgba(94,234,212,0.05), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 100% 100%, rgba(244,114,182,0.05), transparent 60%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
   }
 }
 
 /* ================================================================
-   NEXUS ECLIPSE — Command Intelligence Token Classes
-   Applied dynamically by JS on each keystroke via tokenization
+   AURORA ECLIPSE — Command Intelligence Token Classes
    ================================================================ */
 .cmd-installed {
   color: var(--nx-cmd-installed);
-  text-shadow: 0 0 8px var(--nx-accent-glow);
+  text-shadow: 0 0 10px rgba(94,234,212,0.4);
   font-weight: 600;
 }
 .cmd-known {
@@ -270,10 +289,10 @@
 }
 
 /* ================================================================
-   NEXUS ECLIPSE — Custom Component Styles
+   AURORA ECLIPSE — Custom Component Styles
    ================================================================ */
 
-/* Pulsing cursor effect */
+/* Pulsing cursor — aurora colored */
 .nx-cursor-pulse {
   animation: nx-cursor-pulse 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
@@ -282,40 +301,40 @@
   50% { opacity: 0.3; }
 }
 
-/* Status indicator pulse */
+/* Status indicator pulse — aurora ring */
 .nx-status-pulse {
   animation: nx-status-pulse 2s ease-in-out infinite;
 }
 @keyframes nx-status-pulse {
   0%, 100% { box-shadow: 0 0 0 0 var(--nx-accent-glow); }
-  50% { box-shadow: 0 0 0 4px var(--nx-accent-glow); }
+  50% { box-shadow: 0 0 0 5px var(--nx-accent-glow); }
 }
 
-/* Panel entrance animation */
+/* Panel entrance animation — slide + fade */
 .nx-panel-enter {
-  animation: nx-panel-slide 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: nx-panel-slide 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes nx-panel-slide {
-  from { opacity: 0; transform: translateX(-8px); }
+  from { opacity: 0; transform: translateX(-10px); }
   to { opacity: 1; transform: translateX(0); }
 }
 
-/* Smooth hover lift for interactive items */
+/* Hover lift — premium feel */
 .nx-hover-lift {
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .nx-hover-lift:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1.5px);
+  box-shadow: 0 4px 16px rgba(129, 140, 248, 0.18), 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 /* Glow border on focus */
 .nx-glow-focus:focus-within {
-  box-shadow: 0 0 0 2px var(--nx-accent-glow), 0 0 12px var(--nx-accent-glow);
+  box-shadow: 0 0 0 2px var(--nx-accent-glow), 0 0 16px var(--nx-accent-glow);
   border-color: var(--nx-border-focus);
 }
 
-/* Animated gradient border */
+/* Aurora flowing border — the signature gradient border */
 .nx-gradient-border {
   position: relative;
 }
@@ -325,47 +344,52 @@
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, #00E5C0, #6366F1, #A5B4FC, #00E5C0);
+  background: linear-gradient(135deg, #5EEAD4, #818CF8, #F472B6, #5EEAD4);
   background-size: 300% 300%;
-  animation: nx-border-flow 6s ease infinite;
+  animation: nx-aurora-flow 8s ease infinite;
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
 }
-@keyframes nx-border-flow {
+@keyframes nx-aurora-flow {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
 
-/* 3D floating shapes for auth pages */
+/* 3D floating shapes for auth pages — slower, more elegant */
 @keyframes nx-float {
-  0%, 100% { transform: perspective(600px) translateY(0px) rotateX(0deg) rotateY(0deg); }
-  25% { transform: perspective(600px) translateY(-20px) rotateX(3deg) rotateY(8deg); }
-  50% { transform: perspective(600px) translateY(-35px) rotateX(-2deg) rotateY(14deg); }
-  75% { transform: perspective(600px) translateY(-14px) rotateX(5deg) rotateY(4deg); }
+  0%, 100% { transform: perspective(800px) translateY(0px) rotateX(0deg) rotateY(0deg); }
+  25% { transform: perspective(800px) translateY(-25px) rotateX(4deg) rotateY(10deg); }
+  50% { transform: perspective(800px) translateY(-40px) rotateX(-3deg) rotateY(18deg); }
+  75% { transform: perspective(800px) translateY(-18px) rotateX(6deg) rotateY(5deg); }
 }
 
-/* Shimmer for buttons */
+/* Shimmer for buttons — aurora sweep */
 @keyframes nx-shimmer {
   0% { background-position: -200% center; }
   100% { background-position: 200% center; }
 }
 .nx-shimmer {
   background-size: 200% 100%;
-  animation: nx-shimmer 3s ease-in-out infinite;
+  animation: nx-shimmer 4s ease-in-out infinite;
 }
 
-/* Subtle ambient panel glow */
+/* Ambient panel glow — aurora-tinted */
 .nx-panel-glow {
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 0 24px rgba(0, 229, 192, 0.02);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.04),
+    0 0 28px rgba(129, 140, 248, 0.04),
+    0 0 60px rgba(94, 234, 212, 0.02);
 }
 :root .nx-panel-glow {
-  box-shadow: inset 0 1px 0 rgba(0,0,0,0.03), 0 0 24px rgba(99, 102, 241, 0.04);
+  box-shadow:
+    inset 0 1px 0 rgba(0,0,0,0.03),
+    0 0 28px rgba(99, 102, 241, 0.06);
 }
 
-/* Tab active underline */
+/* Active tab underline — aurora gradient */
 .nx-tab-active {
   position: relative;
 }
@@ -376,14 +400,15 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, #00E5C0, #6366F1);
+  background: linear-gradient(90deg, #5EEAD4, #818CF8, #F472B6);
   border-radius: 2px 2px 0 0;
+  box-shadow: 0 0 8px rgba(129, 140, 248, 0.5);
 }
 
-/* Custom scrollbar — matches theme */
+/* Custom scrollbar — aurora-themed */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -391,6 +416,7 @@
 ::-webkit-scrollbar-thumb {
   background: var(--nx-scrollbar);
   border-radius: 4px;
+  border: 1px solid transparent;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--nx-scrollbar-hover);
@@ -401,10 +427,10 @@
 
 /* Light mode scrollbar */
 :root::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.18);
+  background: rgba(99, 102, 241, 0.20);
 }
 :root::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.40);
 }
 
 /* ──────────────────────────────────────────────
@@ -415,20 +441,21 @@
   z-index: 50;
   background: var(--nx-bg-secondary);
   border: 1px solid var(--nx-border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 4px;
   max-height: 240px;
   overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(129,140,248,0.08);
   font-family: var(--font-jetbrains), monospace;
   font-size: 13px;
+  backdrop-filter: blur(12px);
 }
 .nx-suggest-item {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 5px 10px;
-  border-radius: 5px;
+  border-radius: 6px;
   cursor: pointer;
   transition: background 0.1s;
 }
@@ -443,12 +470,12 @@
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  border-radius: 3px;
+  border-radius: 4px;
   flex-shrink: 0;
 }
-.nx-suggest-icon.installed { background: rgba(0, 229, 192, 0.15); color: #00E5C0; }
-.nx-suggest-icon.known { background: rgba(165, 180, 252, 0.15); color: #A5B4FC; }
-.nx-suggest-icon.unknown { background: rgba(100, 116, 139, 0.15); color: #64748B; }
+.nx-suggest-icon.installed { background: rgba(94, 234, 212, 0.15); color: #5EEAD4; }
+.nx-suggest-icon.known { background: rgba(196, 181, 253, 0.15); color: #C4B5FD; }
+.nx-suggest-icon.unknown { background: rgba(107, 112, 144, 0.15); color: #6B7090; }
 .nx-suggest-name { color: var(--nx-text); }
 .nx-suggest-desc { color: var(--nx-text-muted); font-size: 11px; margin-left: auto; }
 
@@ -460,31 +487,31 @@
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 6px;
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 7px;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: default;
 }
 .nx-pkg-item:hover {
   background: var(--nx-bg-hover);
-  transform: translateX(2px);
+  transform: translateX(3px);
 }
 .nx-pkg-icon {
   width: 22px;
   height: 22px;
-  border-radius: 5px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 11px;
   flex-shrink: 0;
 }
-.nx-pkg-icon.npm { background: rgba(203, 56, 56, 0.15); color: #CB3837; }
-.nx-pkg-icon.pip { background: rgba(55, 118, 171, 0.15); color: #3776AB; }
-.nx-pkg-icon.system { background: rgba(165, 180, 252, 0.15); color: #A5B4FC; }
-.nx-pkg-icon.lang { background: rgba(0, 229, 192, 0.12); color: #00E5C0; }
+.nx-pkg-icon.npm { background: rgba(203, 56, 56, 0.15); color: #F87171; }
+.nx-pkg-icon.pip { background: rgba(55, 118, 171, 0.15); color: #60A5FA; }
+.nx-pkg-icon.system { background: rgba(196, 181, 253, 0.15); color: #C4B5FD; }
+.nx-pkg-icon.lang { background: rgba(94, 234, 212, 0.12); color: #5EEAD4; }
 .nx-pkg-icon.devops { background: rgba(251, 191, 36, 0.12); color: #FBBF24; }
 
-/* Status bar environment indicator */
+/* Status bar environment indicators — aurora palette */
 .nx-env-dot {
   width: 6px;
   height: 6px;
@@ -492,6 +519,74 @@
   display: inline-block;
   animation: nx-status-pulse 2s ease-in-out infinite;
 }
-.nx-env-dot.node { background: #34D399; }
-.nx-env-dot.python { background: #7DD3FC; }
+.nx-env-dot.node { background: #4ADE80; }
+.nx-env-dot.python { background: #5EEAD4; }
 .nx-env-dot.docker { background: #FBBF24; }
+
+/* ──────────────────────────────────────────────
+   Aurora-specific utilities
+   ────────────────────────────────────────────── */
+
+/* Aurora text gradient — use sparingly for hero headlines */
+.nx-text-aurora {
+  background: var(--nx-aurora);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Aurora solid button background */
+.nx-bg-aurora {
+  background: var(--nx-aurora);
+  background-size: 200% 200%;
+  animation: nx-aurora-flow 6s ease infinite;
+}
+
+/* Aurora soft overlay (for panels that should glow softly) */
+.nx-bg-aurora-soft {
+  background: var(--nx-aurora-soft);
+}
+
+/* Glassmorphism panel — frosted glass effect */
+.nx-glass {
+  background: rgba(14, 16, 32, 0.65);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(129, 140, 248, 0.12);
+}
+:root .nx-glass {
+  background: rgba(241, 242, 248, 0.75);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+/* Aurora divider — thin gradient line */
+.nx-divider-aurora {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #5EEAD4, #818CF8, #F472B6, transparent);
+  opacity: 0.5;
+}
+
+/* Aurora glow shadow — for buttons / important CTAs */
+.nx-shadow-aurora {
+  box-shadow:
+    0 4px 20px rgba(129, 140, 248, 0.35),
+    0 0 40px rgba(94, 234, 212, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.nx-shadow-aurora:hover {
+  box-shadow:
+    0 6px 28px rgba(129, 140, 248, 0.45),
+    0 0 60px rgba(94, 234, 212, 0.20),
+    0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Subtle aurora orb — for backgrounds (decorative, fixed position) */
+.nx-aurora-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 0;
+}

@@ -28,7 +28,7 @@ export function Terminal({
       )}
       style={{
         boxShadow:
-          '0 0 60px rgba(0,229,192,0.10), 0 0 120px rgba(99,102,241,0.06), 0 25px 60px rgba(0,0,0,0.55)',
+          '0 0 60px rgba(94,234,212,0.10), 0 0 120px rgba(129,140,248,0.06), 0 25px 60px rgba(0,0,0,0.55)',
       }}
     >
       {/* Title bar */}
@@ -43,8 +43,8 @@ export function Terminal({
           jasbol@hack — zsh
         </div>
         <div className="ml-auto flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-[var(--nx-text-dim)]">
-          <span className="text-[var(--nx-accent-teal)]">●</span>
-          <span>nexus-eclipse</span>
+          <span style={{ color: '#5EEAD4' }}>●</span>
+          <span>aurora-eclipse</span>
         </div>
       </div>
 
@@ -65,11 +65,13 @@ export function Terminal({
 export function TypingAnimation({
   children,
   className,
+  style,
   duration = 45,
   delay = 0,
 }: {
   children: string
   className?: string
+  style?: React.CSSProperties
   duration?: number
   delay?: number
 }) {
@@ -104,7 +106,7 @@ export function TypingAnimation({
   }, [started, children, duration])
 
   return (
-    <span className={cn('inline-block', className)}>
+    <span className={cn('inline-block', className)} style={style}>
       {displayed}
       {displayed.length < String(children).length && (
         <span className="ml-0.5 inline-block h-3.5 w-1.5 -mb-0.5 animate-pulse bg-[var(--nx-accent-teal)]" />
@@ -119,10 +121,12 @@ export function TypingAnimation({
 export function AnimatedSpan({
   children,
   className,
+  style,
   delay = 0,
 }: {
   children: ReactNode
   className?: string
+  style?: React.CSSProperties
   delay?: number
 }) {
   const [shown, setShown] = useState(false)
@@ -139,6 +143,7 @@ export function AnimatedSpan({
         shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1',
         className
       )}
+      style={style}
     >
       {children}
     </span>

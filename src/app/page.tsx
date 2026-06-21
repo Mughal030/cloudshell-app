@@ -143,9 +143,9 @@ export default function Home() {
       <header className="flex items-center justify-between px-4 h-11 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/90 backdrop-blur-md shrink-0 nx-panel-glow">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Image src="/jasbol-hack-logo.png" alt="Jasbol Hack" width={28} height={28} className="rounded-md" priority />
+            <Image src="/jasbol-hack-logo.png" alt="Jasbol Hack" width={28} height={28} className="rounded-md" priority style={{ filter: 'drop-shadow(0 0 8px rgba(129,140,248,0.4))' }} />
             <h1 className="text-sm font-bold tracking-wide">
-              <span className="bg-gradient-to-r from-[#00E5C0] to-[#6366F1] bg-clip-text text-transparent">Jasbol</span>
+              <span className="nx-text-aurora">Jasbol</span>
               <span className="text-[var(--nx-text)] ml-0.5">Hack</span>
             </h1>
           </div>
@@ -182,7 +182,7 @@ export default function Home() {
               <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] nx-hover-lift">
                 {currentUser.role === 'admin' ? <Shield className="h-3 w-3 text-[var(--nx-accent)]" /> : <User className="h-3 w-3 text-[var(--nx-accent-teal)]" />}
                 <span className="text-[10px] font-medium">{currentUser.username}</span>
-                {currentUser.role === 'admin' && <span className="text-[8px] px-1 py-0.5 rounded bg-[var(--nx-accent)]/15 text-[var(--nx-accent)] font-bold tracking-wider">ADMIN</span>}
+                {currentUser.role === 'admin' && <span className="text-[8px] px-1 py-0.5 rounded font-bold tracking-wider" style={{ background: 'rgba(129,140,248,0.18)', color: 'var(--nx-accent)' }}>ADMIN</span>}
               </div>
               <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-muted)] hover:text-[var(--nx-error)] hover:bg-[var(--nx-bg-hover)] transition-colors" onClick={handleLogout} title="Logout">
                 <LogOut className="h-3.5 w-3.5" />

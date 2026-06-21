@@ -17,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Jasbol Hack — Nexus Eclipse Terminal IDE",
+  title: "Jasbol Hack — Aurora Eclipse Terminal IDE",
   description:
     "Professional web-based terminal IDE with intelligent command highlighting, file management, Docker support, and tool installation by Jasbol Hack.",
   keywords: [
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     "terminal",
     "IDE",
     "web terminal",
-    "Nexus Eclipse",
+    "Aurora Eclipse",
     "Docker",
     "development",
   ],
@@ -54,8 +54,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#0F1117" },
-    { media: "(prefers-color-scheme: light)", color: "#FAFAF8" },
+    { media: "(prefers-color-scheme: dark)", color: "#070811" },
+    { media: "(prefers-color-scheme: light)", color: "#FAFAFC" },
   ],
   colorScheme: "dark light",
 };

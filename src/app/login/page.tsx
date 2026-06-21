@@ -53,30 +53,22 @@ export default function LoginPage() {
   return (
     <AuthLayout accent="teal">
       <div
-        className="relative bg-[var(--nx-bg-secondary)]/80 backdrop-blur-xl border border-[var(--nx-border)]/60 rounded-2xl shadow-2xl overflow-hidden nx-gradient-border"
-        style={{
-          boxShadow: `
-            0 0 40px rgba(0,229,192,0.06),
-            0 0 80px rgba(99,102,241,0.03),
-            0 25px 50px rgba(0,0,0,0.5),
-            inset 0 1px 0 rgba(255,255,255,0.04)
-          `,
-        }}
+        className="relative nx-glass rounded-2xl shadow-2xl overflow-hidden nx-gradient-border nx-shadow-aurora"
       >
-        {/* Top glow bar */}
-        <div className="h-1 bg-gradient-to-r from-[#00E5C0] via-[#6366F1] to-[#00E5C0] animate-pulse" />
+        {/* Top aurora bar */}
+        <div className="h-1 nx-bg-aurora" />
 
         {/* Header */}
         <div className="p-8 pb-4 text-center">
           <h2 className="text-2xl font-bold mb-1">
-            <span className="bg-gradient-to-r from-[#00E5C0] to-[#6366F1] bg-clip-text text-transparent">Welcome</span> <span className="text-white">Back</span>
+            <span className="nx-text-aurora">Welcome</span> <span className="text-white">Back</span>
           </h2>
           <p className="text-[var(--nx-text-secondary)] text-sm">Sign in to your secure terminal</p>
 
           {/* Security badge */}
-          <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full bg-[#00E5C0]/10 border border-[#00E5C0]/20">
-            <Lock className="w-3 h-3 text-[#00E5C0]" />
-            <span className="text-[10px] text-[#00E5C0] font-medium tracking-wider uppercase">Encrypted Connection</span>
+          <div className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full border" style={{ background: 'rgba(94,234,212,0.10)', borderColor: 'rgba(94,234,212,0.30)' }}>
+            <Lock className="w-3 h-3" style={{ color: '#5EEAD4' }} />
+            <span className="text-[10px] font-medium tracking-wider uppercase" style={{ color: '#5EEAD4' }}>Encrypted Connection</span>
           </div>
         </div>
 
@@ -105,14 +97,14 @@ export default function LoginPage() {
           <div className="mb-4">
             <label className="block text-xs font-medium text-[var(--nx-text-secondary)] mb-1.5 uppercase tracking-wider">Username</label>
             <div className="relative group">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] group-focus-within:text-[#00E5C0] transition-colors">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] group-focus-within:text-[#5EEAD4] transition-colors">
                 <User className="w-4 h-4" />
               </div>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] rounded-xl text-[var(--nx-text)] text-sm placeholder-[var(--nx-text-dim)] focus:outline-none focus:border-[#00E5C0]/50 focus:ring-1 focus:ring-[#00E5C0]/20 transition-all"
+                className="w-full pl-10 pr-4 py-3 bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] rounded-xl text-[var(--nx-text)] text-sm placeholder-[var(--nx-text-dim)] focus:outline-none focus:border-[#5EEAD4]/50 focus:ring-1 focus:ring-[#5EEAD4]/20 transition-all"
                 placeholder="Enter your username"
                 required
                 maxLength={60}
@@ -127,14 +119,14 @@ export default function LoginPage() {
           <div className="mb-6">
             <label className="block text-xs font-medium text-[var(--nx-text-secondary)] mb-1.5 uppercase tracking-wider">Password</label>
             <div className="relative group">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] group-focus-within:text-[#00E5C0] transition-colors">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] group-focus-within:text-[#5EEAD4] transition-colors">
                 <Lock className="w-4 h-4" />
               </div>
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-12 py-3 bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] rounded-xl text-[var(--nx-text)] text-sm placeholder-[var(--nx-text-dim)] focus:outline-none focus:border-[#00E5C0]/50 focus:ring-1 focus:ring-[#00E5C0]/20 transition-all"
+                className="w-full pl-10 pr-12 py-3 bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] rounded-xl text-[var(--nx-text)] text-sm placeholder-[var(--nx-text-dim)] focus:outline-none focus:border-[#5EEAD4]/50 focus:ring-1 focus:ring-[#5EEAD4]/20 transition-all"
                 placeholder="Enter your password"
                 required
                 maxLength={200}
@@ -143,7 +135,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] hover:text-[#00E5C0] transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] hover:text-[#5EEAD4] transition-colors"
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -156,13 +148,13 @@ export default function LoginPage() {
             ref={submitRef}
             type="submit"
             disabled={loading}
-            className="w-full py-3.5 rounded-xl font-semibold text-sm relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3.5 rounded-xl font-semibold text-sm relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed nx-shadow-aurora"
             style={{
-              background: 'linear-gradient(135deg, #00E5C0, #6366F1)',
-              boxShadow: '0 4px 15px rgba(0,229,192,0.3), 0 0 30px rgba(0,229,192,0.1)',
+              background: 'linear-gradient(135deg, #5EEAD4 0%, #818CF8 50%, #F472B6 100%)',
+              backgroundSize: '200% 200%',
             }}
           >
-            <span className="relative z-10 flex items-center justify-center gap-2 text-[#080A12] font-bold">
+            <span className="relative z-10 flex items-center justify-center gap-2 text-[#070811] font-bold">
               {loading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-[#080A12]/30 border-t-[#080A12] rounded-full animate-spin" />
@@ -192,7 +184,8 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => router.push('/signup')}
-              className="text-[#00E5C0] text-sm font-medium hover:underline inline-flex items-center gap-1"
+              className="text-sm font-medium hover:underline inline-flex items-center gap-1 nx-text-aurora"
+              style={{ fontWeight: 600 }}
             >
               <Activity className="w-3 h-3" />
               Create Account
