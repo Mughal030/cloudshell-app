@@ -712,3 +712,93 @@ Stage Summary:
 - Build: ✓ Compiled successfully in 3.8s, 11/11 routes generated.
 - Pushed to both GitHub (origin/main) and HF Spaces (hf/main).
 - HF Space status: RUNNING_BUILDING — rebuild in progress.
+
+---
+Task ID: warland-whole-app + login-redirect-fix-v2
+Agent: Main Agent
+Task: Apply Warland theme to whole IDE + fix persistent login redirect bug
+
+Work Log:
+
+── Login redirect bug — root cause ──────────────────────────────
+- Initial hypothesis (IP fingerprint in /api/auth/verify) was correct
+  but INCOMPLETE. The verify route was fixed in the previous commit,
+  but TWO other code paths still used the IP-fingerprint-checking
+  verifyToken():
+    1. /api/admin/users route (GET + DELETE)
+    2. server.ts socket.io middleware (line 610)
+- On HuggingFace Spaces, requests are load-balanced across multiple
+  internal proxies with different /24 subnets. The bcrypt IP
+  fingerprint (/24 prefix match) changed between requests, causing
+  verifyToken to return null → socket.io rejected the connection →
+  the IDE would disconnect and the / page would bounce back to /login.
+- The "signup succeeds but login fails" symptom was a RED HERRING
+  caused by the OLD container crash-looping and wiping users.json
+  on each restart. The new stable deployment has been verified
+  end-to-end: signup → login → verify (200) → / page (200).
+
+── Login redirect bug — final fix ──────────────────────────────
+- src/app/api/admin/users/route.ts: verifyToken → verifyTokenBasic
+  for BOTH GET and DELETE methods. Also added __Host-jasbol-token
+  cookie fallback.
+- server.ts line 9: import verifyTokenBasic instead of verifyToken.
+- server.ts line 610: socket.io middleware uses verifyTokenBasic.
+- The IP fingerprint code remains in auth.ts for future opt-in use,
+  but NO code path enforces it anymore.
+
+── Verification (live on production) ───────────────────────────
+- Signup new user → 200, user written to users.json
+- Login with same credentials → 200, token issued
+- Verify via Authorization: Bearer header → 200 ✓
+- Verify via cookie → 200 ✓
+- GET / → 200 ✓
+- New user appears in /api/admin/users list ✓
+
+── Warland theme applied to whole IDE ──────────────────────────
+- globals.css .dark section: swapped Aurora Eclipse palette →
+  Warland Forge. Same CSS variable names so all existing components
+  pick up the new palette automatically:
+    * Background: #070811 → #07040A (obsidian)
+    * Surface: #0E1020 → #110A0C (stone)
+    * Border: #232842 → #3A2624 (burnt bronze)
+    * Text: #E8E9F5 → #F5E6D3 (warm parchment)
+    * Accent: #818CF8 → #F5B342 (royal gold)
+    * Accent-teal: #5EEAD4 → #FF6B1A (ember)
+    * Accent-pink: #F472B6 → #DC2626 (crimson)
+    * Aurora gradient: teal/indigo/pink → gold/ember
+    * All syntax highlighting, scrollbars, selections, cursors
+- globals.css body background: changed from teal/indigo/pink top
+  glow → ember/gold/crimson bottom-anchored fire glow.
+- globals.css component styles: updated all hardcoded gradients
+  and shadows (gradient-border, tab-active, panel-glow, divider,
+  shadow-aurora, hover-lift, suggest-icon, pkg-icon, env-dot, glass)
+  to Warland palette.
+- xterm-terminal.tsx: new Warland Forge ANSI theme (obsidian bg,
+  parchment fg, gold cursor, gold/ember/green ANSI palette).
+  Updated command-intelligence ANSI codes to Warland palette
+  (installed=green, known=gold, flag=gold, variable=ember, etc.)
+- page.tsx: terminal loading bg → obsidian (#07040A).
+- Deleted old unused auth-layout.tsx + terminal.tsx + terminal-demo.tsx
+  (replaced by Warland versions in previous commit).
+
+── Cleanup ─────────────────────────────────────────────────────
+- Removed debug console.error logging from signUp() and signIn()
+  (was added for diagnosis).
+- Removed /api/admin/debug endpoint (was temporary for diagnosis).
+- Removed tool-results/ artifact directory (accidentally committed).
+- Added tool-results/ to .gitignore.
+
+Stage Summary:
+- Login redirect bug FIXED — root cause was the IP-fingerprint check
+  surviving in /api/admin/users and server.ts socket.io middleware.
+  All auth checks now use verifyTokenBasic (JWT signature only).
+  Verified end-to-end on production: signup → login → verify → / page.
+- Warland Forge theme now applied across the WHOLE app:
+  - Auth pages (login/signup): full Warland design with embers,
+    fire-glow, ornate cards, gold-foil buttons, Cinzel serif
+  - IDE workspace: gold/ember/crimson palette via CSS variable swap
+  - Terminal: Warland Forge ANSI theme
+  - All gradients, borders, shadows, syntax highlighting updated
+- Build: ✓ Compiled successfully, 10 routes generated.
+- Pushed to both GitHub (origin/main) and HF Spaces (hf/main).
+- HF Space status: RUNNING (stable, no longer crash-looping).
