@@ -70,3 +70,5 @@ agent-ctx/
 workspace/
 skills/ppt/scripts/tectonic
 skills/
+tool-results/
+.tool-results/
