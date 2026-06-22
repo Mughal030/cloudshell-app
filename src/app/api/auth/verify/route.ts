@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken, verifyTokenBasic, getClientIp, getUserById } from '@/lib/auth'
+import { verifyTokenBasic, getClientIp, getUserById } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
-    const ip = getClientIp(request)
     let token = request.cookies.get('jasbol-token')?.value ||
       request.cookies.get('__Host-jasbol-token')?.value
 
@@ -21,17 +20,17 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // First, verify the JWT signature is valid (basic check)
-    const basicDecoded = verifyTokenBasic(token)
-    if (!basicDecoded) {
+    // Verify the JWT signature is valid
+    const decoded = verifyTokenBasic(token)
+    if (!decoded) {
       return NextResponse.json(
         { success: false, error: 'Invalid or expired token' },
         { status: 401 }
       )
     }
 
-    // Next, verify the user still exists and is in good standing
-    const user = getUserById(basicDecoded.userId)
+    // Verify the user still exists
+    const user = getUserById(decoded.userId)
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Account not found' },
@@ -39,20 +38,18 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Verify IP fingerprint (skipped if 'unknown' — e.g. test env)
-    // We allow IP mismatch to degrade gracefully: still authenticated but
-    // we'll log it. Production deployments with stable IPs can enforce hard.
-    const decoded = (ip && ip !== 'unknown')
-      ? verifyToken(token, ip)
-      : basicDecoded
-
-    if (!decoded) {
-      // IP mismatch — token may have been stolen. Force re-auth.
-      return NextResponse.json(
-        { success: false, error: 'Session changed network — please sign in again' },
-        { status: 401 }
-      )
-    }
+    // NOTE: We intentionally do NOT enforce the IP fingerprint here.
+    // On hosting platforms like Hugging Face Spaces, requests are routed
+    // through multiple internal proxies/load balancers using different
+    // subnets. The /24 prefix of the client IP can change between
+    // requests even for the same user, which would incorrectly
+    // invalidate legitimate sessions and bounce users back to /login.
+    //
+    // Security is still strong: JWT signature verification + bcrypt
+    // password hashing + rate limiting + account lockout + httpOnly
+    // __Host- prefixed cookies + SameSite=strict. The IP fingerprint
+    // code remains in auth.ts for future opt-in use.
+    void getClientIp // keep import for backward compat
 
     return NextResponse.json({
       success: true,
@@ -60,7 +57,6 @@ export async function GET(request: NextRequest) {
         userId: decoded.userId,
         username: decoded.username,
         role: decoded.role,
-        // Surface these so the frontend can show security indicators
         lastLogin: user.lastLogin,
         lockedUntil: user.lockedUntil,
       },

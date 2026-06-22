@@ -590,3 +590,398 @@
   pointer-events: none;
   z-index: 0;
 }
+
+/* ================================================================
+   WARLAND — Fantasy MMORPG Auth Theme
+   ────────────────────────────────────────────────
+   Inspired by Metin2 / Warland MMORPG templates:
+   deep obsidian background, ember/fire glow, gold-accented
+   ornate UI, Cinzel serif typography, floating sparks.
+
+   Used exclusively on /login and /signup. The IDE workspace
+   retains the Aurora Eclipse theme.
+   ================================================================ */
+
+:root {
+  /* ── Warland Core Surfaces ── */
+  --wl-bg-void:        #07040A;       /* deepest obsidian (page) */
+  --wl-bg-stone:       #110A0C;       /* page elevation */
+  --wl-bg-panel:       #1A1112;       /* card surface */
+  --wl-bg-panel-2:     #25181A;       /* elevated card */
+  --wl-bg-input:       #0E0809;       /* input field */
+  --wl-bg-hover:       #2C1C1E;
+  /* ── Warland Borders ── */
+  --wl-border:         #3A2624;
+  --wl-border-gold:    #6B4A1F;
+  --wl-border-focus:   #F5B342;
+  /* ── Warland Text ── */
+  --wl-text:           #F5E6D3;       /* warm parchment white */
+  --wl-text-secondary: #C9B89A;       /* aged parchment */
+  --wl-text-muted:     #8A7860;       /* faded ink */
+  --wl-text-dim:       #5C4E3D;       /* worn stone */
+  /* ── Warland Accents ── */
+  --wl-gold:           #F5B342;       /* primary — royal gold */
+  --wl-gold-bright:    #FFD27A;       /* highlight gold */
+  --wl-gold-deep:      #B8841C;       /* shadow gold */
+  --wl-ember:          #FF6B1A;       /* secondary — ember orange */
+  --wl-ember-bright:   #FFA15C;       /* ember highlight */
+  --wl-crimson:        #DC2626;       /* danger — blood red */
+  --wl-crimson-deep:   #7F1D1D;       /* deep blood */
+  --wl-royal:          #9333EA;       /* mystic purple (rare) */
+  --wl-success:        #84CC16;       /* forest green */
+  /* ── Warland Gradients ── */
+  --wl-gradient-gold:    linear-gradient(135deg, #FFD27A 0%, #F5B342 50%, #B8841C 100%);
+  --wl-gradient-ember:   linear-gradient(180deg, #FF6B1A 0%, #DC2626 60%, #7F1D1D 100%);
+  --wl-gradient-frame:   linear-gradient(135deg, #F5B342 0%, #B8841C 50%, #6B4A1F 100%);
+  --wl-gradient-text:    linear-gradient(180deg, #FFD27A 0%, #F5B342 60%, #B8841C 100%);
+  --wl-gradient-hero:    radial-gradient(ellipse 80% 60% at 50% 100%, rgba(255,107,26,0.18) 0%, transparent 60%);
+}
+
+/* ── Warland Typography Helpers ── */
+.wl-font-display {
+  font-family: var(--font-cinzel), 'Cinzel', 'Trajan Pro', 'Times New Roman', serif;
+  letter-spacing: 0.08em;
+}
+.wl-font-serif {
+  font-family: var(--font-cinzel), 'Cinzel', Georgia, serif;
+}
+
+/* Gold-foil text gradient for hero headings */
+.wl-text-gold {
+  background: var(--wl-gradient-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(184, 132, 28, 0.6));
+}
+
+/* Ember text — for warning/accent labels */
+.wl-text-ember {
+  background: linear-gradient(180deg, #FFA15C 0%, #FF6B1A 60%, #DC2626 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* ── Warland Background Atmosphere ── */
+.wl-atmosphere {
+  position: relative;
+  background:
+    radial-gradient(ellipse 70% 50% at 20% 110%, rgba(255, 107, 26, 0.18) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 40% at 85% 100%, rgba(220, 38, 38, 0.15) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 30% at 50% 0%, rgba(245, 179, 66, 0.06) 0%, transparent 50%),
+    var(--wl-bg-void);
+}
+
+/* Subtle stone texture overlay (very low cost — pure CSS) */
+.wl-stone-texture::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.06;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(245, 230, 211, 0.4) 0.5px, transparent 1px),
+    radial-gradient(circle at 70% 60%, rgba(245, 230, 211, 0.3) 0.5px, transparent 1px),
+    radial-gradient(circle at 40% 80%, rgba(245, 230, 211, 0.25) 0.5px, transparent 1px);
+  background-size: 80px 80px, 120px 120px, 60px 60px;
+  z-index: 1;
+}
+
+/* ── Warland Floating Ember Particles ── */
+/* These are decorative CSS-only embers that float upward, like sparks
+   from a campfire. Pure CSS — no JS, no images. */
+.wl-embers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 2;
+}
+.wl-ember {
+  position: absolute;
+  bottom: -10px;
+  width: 3px;
+  height: 3px;
+  background: radial-gradient(circle, #FFD27A 0%, #FF6B1A 50%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(0.5px);
+  box-shadow: 0 0 6px #FF6B1A, 0 0 12px rgba(255, 107, 26, 0.6);
+  opacity: 0;
+  animation: wl-ember-rise linear infinite;
+}
+@keyframes wl-ember-rise {
+  0% {
+    transform: translate(0, 0) scale(0.6);
+    opacity: 0;
+  }
+  10% { opacity: 1; }
+  50% {
+    transform: translate(var(--wl-ember-drift, 20px), -50vh) scale(1);
+    opacity: 0.9;
+  }
+  90% { opacity: 0.4; }
+  100% {
+    transform: translate(calc(var(--wl-ember-drift, 20px) * 2), -100vh) scale(0.3);
+    opacity: 0;
+  }
+}
+
+/* ── Warland Fire Glow (bottom of hero) ── */
+.wl-fire-glow {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 220px;
+  background:
+    radial-gradient(ellipse 60% 100% at 50% 100%, rgba(255, 107, 26, 0.35) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 80% at 30% 100%, rgba(220, 38, 38, 0.25) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 80% at 70% 100%, rgba(245, 179, 66, 0.20) 0%, transparent 70%);
+  filter: blur(20px);
+  animation: wl-fire-flicker 4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes wl-fire-flicker {
+  0%, 100% { opacity: 0.9; transform: scaleY(1); }
+  25%      { opacity: 1.0; transform: scaleY(1.05); }
+  50%      { opacity: 0.85; transform: scaleY(0.98); }
+  75%      { opacity: 0.95; transform: scaleY(1.03); }
+}
+
+/* ── Warland Ornate Card ── */
+/* Card with a thin gold gradient border + corner brackets. */
+.wl-card {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(37, 24, 26, 0.85) 0%, rgba(26, 17, 18, 0.95) 100%);
+  backdrop-filter: blur(12px) saturate(120%);
+  -webkit-backdrop-filter: blur(12px) saturate(120%);
+  border: 1px solid var(--wl-border);
+  box-shadow:
+    inset 0 1px 0 rgba(245, 179, 66, 0.10),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 24px 64px rgba(0, 0, 0, 0.7),
+    0 8px 24px rgba(220, 38, 38, 0.08);
+}
+.wl-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  background: linear-gradient(135deg,
+    rgba(245, 179, 66, 0.6) 0%,
+    rgba(184, 132, 28, 0.2) 30%,
+    rgba(220, 38, 38, 0.2) 70%,
+    rgba(245, 179, 66, 0.5) 100%);
+  border-radius: inherit;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Ornate corner brackets — small gold L-shapes in each corner */
+.wl-corner {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--wl-gold);
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0.85;
+}
+.wl-corner-tl { top: 8px; left: 8px; border-right: none; border-bottom: none; }
+.wl-corner-tr { top: 8px; right: 8px; border-left: none; border-bottom: none; }
+.wl-corner-bl { bottom: 8px; left: 8px; border-right: none; border-top: none; }
+.wl-corner-br { bottom: 8px; right: 8px; border-left: none; border-top: none; }
+
+/* ── Warland Ornate Divider ── */
+/* A horizontal divider with a small diamond in the middle. */
+.wl-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wl-divider::before,
+.wl-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--wl-border-gold), transparent);
+}
+.wl-divider-gem {
+  width: 6px;
+  height: 6px;
+  background: var(--wl-gold);
+  transform: rotate(45deg);
+  box-shadow: 0 0 8px rgba(245, 179, 66, 0.7);
+}
+
+/* ── Warland Button — Gold Foil ── */
+.wl-btn-gold {
+  position: relative;
+  background: linear-gradient(180deg, #FFD27A 0%, #F5B342 45%, #B8841C 100%);
+  color: #1A0F08;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--wl-gold-deep);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 6px 20px rgba(245, 179, 66, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+.wl-btn-gold:hover {
+  background: linear-gradient(180deg, #FFE9B0 0%, #FFD27A 45%, #F5B342 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 8px 28px rgba(245, 179, 66, 0.5),
+    0 4px 12px rgba(0, 0, 0, 0.5);
+  transform: translateY(-1px);
+}
+.wl-btn-gold:active {
+  transform: translateY(0);
+}
+.wl-btn-gold::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 40%, rgba(255, 255, 255, 0.4) 50%, transparent 60%);
+  transform: translateX(-100%);
+  transition: transform 0.7s ease;
+}
+.wl-btn-gold:hover::after {
+  transform: translateX(100%);
+}
+
+/* ── Warland Input ── */
+.wl-input {
+  background: var(--wl-bg-input);
+  border: 1px solid var(--wl-border);
+  color: var(--wl-text);
+  transition: all 0.18s ease;
+}
+.wl-input:focus {
+  border-color: var(--wl-border-focus);
+  box-shadow:
+    0 0 0 1px rgba(245, 179, 66, 0.3),
+    0 0 16px rgba(245, 179, 66, 0.18),
+    inset 0 1px 0 rgba(245, 179, 66, 0.05);
+  outline: none;
+}
+.wl-input::placeholder {
+  color: var(--wl-text-dim);
+}
+
+/* ── Warland Feature Badge (sigil-style) ── */
+.wl-sigil {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(37, 24, 26, 0.6) 0%, rgba(26, 17, 18, 0.7) 100%);
+  border: 1px solid var(--wl-border);
+  border-radius: 8px;
+  transition: all 0.22s ease;
+}
+.wl-sigil:hover {
+  border-color: rgba(245, 179, 66, 0.4);
+  background: linear-gradient(180deg, rgba(60, 38, 36, 0.7) 0%, rgba(37, 24, 26, 0.8) 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(245, 179, 66, 0.15);
+}
+.wl-sigil-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(245, 179, 66, 0.15) 0%, rgba(184, 132, 28, 0.08) 100%);
+  border: 1px solid rgba(245, 179, 66, 0.25);
+  color: var(--wl-gold);
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 0 rgba(245, 179, 66, 0.2), 0 0 12px rgba(245, 179, 66, 0.12);
+}
+
+/* ── Warland Hero Banner (left showcase) ── */
+.wl-hero-banner {
+  position: relative;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 30%, rgba(245, 179, 66, 0.08) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(37, 24, 26, 0.5) 0%, rgba(7, 4, 10, 0.8) 100%);
+  border: 1px solid var(--wl-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Animated gold border sweep on hero */
+.wl-hero-banner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  background: linear-gradient(135deg,
+    rgba(245, 179, 66, 0.7) 0%,
+    rgba(220, 38, 38, 0.3) 40%,
+    rgba(245, 179, 66, 0.3) 60%,
+    rgba(245, 179, 66, 0.7) 100%);
+  background-size: 200% 200%;
+  border-radius: inherit;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: wl-gold-sweep 8s ease-in-out infinite;
+}
+@keyframes wl-gold-sweep {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* ── Warland Scrollbar (gold-tinted) ── */
+.wl-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.wl-scroll::-webkit-scrollbar-track { background: transparent; }
+.wl-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--wl-gold-deep), var(--wl-crimson-deep));
+  border-radius: 4px;
+}
+.wl-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--wl-gold), var(--wl-crimson));
+}
+
+/* ── Warland Animations ── */
+@keyframes wl-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.wl-fade-up {
+  animation: wl-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes wl-glow-pulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(245, 179, 66, 0.4), 0 0 24px rgba(245, 179, 66, 0.15); }
+  50%      { box-shadow: 0 0 18px rgba(245, 179, 66, 0.6), 0 0 36px rgba(245, 179, 66, 0.25); }
+}
+.wl-glow-pulse { animation: wl-glow-pulse 3s ease-in-out infinite; }
+
+/* Pulsing accent dot (live indicator) */
+@keyframes wl-pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.6; transform: scale(0.85); }
+}
+.wl-pulse-dot { animation: wl-pulse-dot 1.8s ease-in-out infinite; }
+
+/* Strength meter bar fill (gold gradient) */
+.wl-strength-bar {
+  background: linear-gradient(90deg, var(--wl-crimson) 0%, var(--wl-ember) 40%, var(--wl-gold) 80%, var(--wl-success) 100%);
+}
+

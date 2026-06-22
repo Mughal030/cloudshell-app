@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Cinzel, Cinzel_Decorative } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "next-themes";
@@ -16,8 +16,25 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+// Cinzel — Roman-inscription-style serif display font, used for the
+// Warland MMORPG-themed auth pages (hero headings, wordmark, labels).
+const cinzel = Cinzel({
+  variable: "--font-cinzel",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+  display: "swap",
+});
+
+// Cinzel Decorative — ornamental variant for the occasional flourish.
+const cinzelDecorative = Cinzel_Decorative({
+  variable: "--font-cinzel-deco",
+  subsets: ["latin"],
+  weight: ["400", "700", "900"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Jasbol Hack — Aurora Eclipse Terminal IDE",
+  title: "Jasbol Hack — Forged Terminal IDE",
   description:
     "Professional web-based terminal IDE with intelligent command highlighting, file management, Docker support, and tool installation by Jasbol Hack.",
   keywords: [
@@ -26,7 +43,7 @@ export const metadata: Metadata = {
     "terminal",
     "IDE",
     "web terminal",
-    "Aurora Eclipse",
+    "Warland",
     "Docker",
     "development",
   ],
@@ -54,8 +71,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#070811" },
-    { media: "(prefers-color-scheme: light)", color: "#FAFAFC" },
+    { media: "(prefers-color-scheme: dark)", color: "#07040A" },
+    { media: "(prefers-color-scheme: light)", color: "#07040A" },
   ],
   colorScheme: "dark light",
 };
@@ -68,7 +85,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
+        className={`${inter.variable} ${jetbrainsMono.variable} ${cinzel.variable} ${cinzelDecorative.variable} antialiased`}
       >
         <ThemeProvider
           attribute="class"
