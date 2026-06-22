@@ -112,19 +112,19 @@ interface Token {
   type: TokenType
 }
 
-// ANSI escape codes matching the Nexus Eclipse palette
+// ANSI escape codes matching the Warland Forge palette
 const ANSI = {
-  installed: '\x1b[38;5;80m',   // Vibrant teal #00E5C0
-  known:     '\x1b[38;5;147m',  // Soft indigo #A5B4FC
-  unknown:   '\x1b[38;5;102m',  // Gray #64748B
-  danger:    '\x1b[38;5;210m',  // Coral #F87171
-  flag:      '\x1b[38;5;111m',  // Lavender #818CF8
-  pkgmgr:    '\x1b[38;5;80m',   // Teal (same as installed but bold)
-  subcmd:    '\x1b[38;5;111m',  // Indigo #818CF8
-  core:      '\x1b[38;5;147m',  // Indigo #A5B4FC
-  string:    '\x1b[38;5;117m',  // Sky #7DD3FC
-  variable:  '\x1b[38;5;123m',  // Cyan #67E8F9
-  comment:   '\x1b[38;5;102m',  // Gray #64748B
+  installed: '\x1b[38;5;113m',  // Forest green #84CC16
+  known:     '\x1b[38;5;221m',  // Bright gold #FFD27A
+  unknown:   '\x1b[38;5;95m',   // Faded ink #8A7860
+  danger:    '\x1b[38;5;160m',  // Blood red #DC2626
+  flag:      '\x1b[38;5;220m',  // Royal gold #F5B342
+  pkgmgr:    '\x1b[38;5;113m',  // Forest green (bold)
+  subcmd:    '\x1b[38;5;220m',  // Royal gold #F5B342
+  core:      '\x1b[38;5;221m',  // Bright gold #FFD27A
+  string:    '\x1b[38;5;113m',  // Forest green #84CC16
+  variable:  '\x1b[38;5;208m',  // Ember #FF6B1A
+  comment:   '\x1b[38;5;95m',   // Faded ink #8A7860
   pipe:      '\x1b[38;5;188m',  // Light gray
   path:      '\x1b[38;5;188m',  // Light gray
   reset:     '\x1b[0m',
@@ -388,29 +388,30 @@ export function XtermTerminal({
       lineHeight: 1.45,
       fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace",
       theme: {
-        // ─── Nexus Eclipse Dark (default) ───
-        background: '#0F1117',
-        foreground: '#E2E8F0',
-        cursor: '#00E5C0',
-        cursorAccent: '#0F1117',
-        selectionBackground: 'rgba(99, 102, 241, 0.30)',
+        // ─── Warland Forge Dark ───
+        // Deep obsidian background, warm parchment text, gold/ember/crimson ANSI palette
+        background: '#07040A',
+        foreground: '#F5E6D3',
+        cursor: '#F5B342',
+        cursorAccent: '#07040A',
+        selectionBackground: 'rgba(245, 179, 66, 0.25)',
         selectionForeground: '#FFFFFF',
-        black: '#0F1117',
-        red: '#F87171',
-        green: '#34D399',
+        black: '#07040A',
+        red: '#DC2626',
+        green: '#84CC16',
         yellow: '#FBBF24',
-        blue: '#818CF8',
-        magenta: '#C084FC',
-        cyan: '#00E5C0',
-        white: '#E2E8F0',
-        brightBlack: '#475569',
-        brightRed: '#FCA5A5',
-        brightGreen: '#6EE7B7',
+        blue: '#FFD27A',
+        magenta: '#FF6B1A',
+        cyan: '#F5B342',
+        white: '#F5E6D3',
+        brightBlack: '#5C4E3D',
+        brightRed: '#F87171',
+        brightGreen: '#A3E635',
         brightYellow: '#FDE68A',
-        brightBlue: '#A5B4FC',
-        brightMagenta: '#D8B4FE',
-        brightCyan: '#5EEAD4',
-        brightWhite: '#F1F5F9',
+        brightBlue: '#FFE9B0',
+        brightMagenta: '#FFA15C',
+        brightCyan: '#FFD27A',
+        brightWhite: '#FFFAF0',
       },
       allowTransparency: true,
       scrollback: 10000, // Extended scrollback persistence

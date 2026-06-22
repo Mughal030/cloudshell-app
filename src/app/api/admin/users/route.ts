@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken, getAllUsers, deleteUser } from '@/lib/auth'
+import { verifyTokenBasic, getAllUsers, deleteUser } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
     // Verify admin access
-    let token = request.cookies.get('jasbol-token')?.value
+    let token = request.cookies.get('jasbol-token')?.value ||
+      request.cookies.get('__Host-jasbol-token')?.value
     if (!token) {
       const authHeader = request.headers.get('authorization')
       if (authHeader?.startsWith('Bearer ')) {
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
     }
 
-    const decoded = verifyToken(token)
+    const decoded = verifyTokenBasic(token)
     if (!decoded || decoded.role !== 'admin') {
       return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 })
     }
@@ -32,7 +33,8 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     // Verify admin access
-    let token = request.cookies.get('jasbol-token')?.value
+    let token = request.cookies.get('jasbol-token')?.value ||
+      request.cookies.get('__Host-jasbol-token')?.value
     if (!token) {
       const authHeader = request.headers.get('authorization')
       if (authHeader?.startsWith('Bearer ')) {
@@ -44,7 +46,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Not authenticated' }, { status: 401 })
     }
 
-    const decoded = verifyToken(token)
+    const decoded = verifyTokenBasic(token)
     if (!decoded || decoded.role !== 'admin') {
       return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 })
     }

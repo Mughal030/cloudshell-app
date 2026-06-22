@@ -32,7 +32,7 @@ const CodeEditor = dynamic(() => import('@/components/terminal/code-editor').the
 
 const XtermTerminal = dynamic(
   () => import('@/components/terminal/xterm-terminal').then(mod => ({ default: mod.XtermTerminal })),
-  { ssr: false, loading: () => <div className="w-full h-full bg-[#0F1117]" /> }
+  { ssr: false, loading: () => <div className="w-full h-full bg-[#07040A]" /> }
 )
 // Memoize so terminal instances don't re-render when parent state changes
 // (e.g. sidebar tab switches, file editor opens/closes). Only re-renders

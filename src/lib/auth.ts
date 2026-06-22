@@ -325,6 +325,11 @@ export function signUp(
   saveUsers(users)
   ensureWorkspace(newUser.workspaceDir)
 
+  // Debug: verify the user was actually written
+  const verify = loadUsers()
+  const saved = verify.find(u => u.id === newUser.id)
+  console.error(`[auth.signUp] DEBUG: saved ${verify.length} users. New user present: ${!!saved}. File: ${USERS_FILE}`)
+
   appendAudit('signup.success', username, ip)
   return { success: true, user: newUser }
 }
@@ -349,12 +354,20 @@ export function signIn(
   const users = loadUsers()
   const user = users.find(u => u.username.toLowerCase() === username.toLowerCase())
 
+  // Debug: log what we found
+  console.error(`[auth.signIn] DEBUG: looking for username="${username}" (lowercase="${username.toLowerCase()}")`)
+  console.error(`[auth.signIn] DEBUG: loaded ${users.length} users from ${USERS_FILE}`)
+  console.error(`[auth.signIn] DEBUG: usernames in DB: ${users.map(u => u.username).join(', ')}`)
+  console.error(`[auth.signIn] DEBUG: user found: ${!!user}${user ? ` (id=${user.id})` : ''}`)
+
   // 2) Always run bcrypt compare — even if user doesn't exist — to avoid timing
   // attacks that reveal which usernames are registered. Compare against a dummy hash.
   const dummyHash = '$2a$12$' + 'x'.repeat(53)
   const validPassword = user
     ? bcrypt.compareSync(password, user.passwordHash)
     : (bcrypt.compareSync(password, dummyHash), false)
+
+  console.error(`[auth.signIn] DEBUG: validPassword=${validPassword}`)
 
   // 3) Account lockout check
   if (user && user.lockedUntil && user.lockedUntil > Date.now()) {

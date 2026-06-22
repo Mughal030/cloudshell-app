@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, watch } from 'fs'
 import { join, resolve, relative } from 'path'
 import { execSync } from 'child_process'
-import { verifyToken, getUserById, getUserWorkspaceDir } from './src/lib/auth.ts'
+import { verifyTokenBasic, getUserById, getUserWorkspaceDir } from './src/lib/auth.ts'
 
 // ─── Global Error Handlers ───────────────────────────────────────
 process.on('uncaughtException', (err) => {
@@ -607,7 +607,7 @@ app.prepare().then(() => {
       if (match) authToken = match[1]
     }
 
-    const decoded = verifyToken(authToken)
+    const decoded = verifyTokenBasic(authToken)
     if (!decoded) {
       socket.data.authenticated = false
       socket.data.user = null
