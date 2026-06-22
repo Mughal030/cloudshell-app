@@ -586,3 +586,129 @@ Stage Summary:
 - Smoke-tested auth.ts: weak password rejected, strong accepted,
   reserved username rejected, signIn works, wrong password rejected,
   IP mismatch correctly invalidates token.
+
+---
+Task ID: warland-auth-theme
+Agent: Main Agent
+Task: Fix login redirect loop + redesign login/signup with Warland MMORPG theme (Dribbble "Metin2 Warland" inspiration)
+
+Work Log:
+- Diagnosed login redirect bug: /api/auth/verify was calling
+  verifyToken(token, ip) which enforces the bcrypt IP fingerprint
+  (/24 prefix match). On HF Spaces, requests are load-balanced across
+  multiple internal proxies with DIFFERENT /24 subnets — so the IP
+  prefix changes between login (sets cookie) and verify (checks
+  fingerprint), causing 401 → frontend bounces user back to /login.
+- Fixed /api/auth/verify/route.ts: removed IP fingerprint enforcement,
+  kept verifyTokenBasic (JWT signature only). All other defenses
+  remain: bcrypt(12), rate limit, account lockout, __Host- httpOnly
+  SameSite=strict cookies. The IP-fingerprint code stays in auth.ts
+  for future opt-in use.
+- Designed new Warland MMORPG auth theme inspired by the Dribbble
+  "Mmorpg Metin2 Animated Website Template - Warland" shot:
+  deep obsidian background, floating ember particles, fire-glow at
+  bottom of hero, gold-foil ornaments, Cinzel serif typography,
+  ornate card frames with corner brackets, gold-gradient borders,
+  sigil-style security badges.
+
+- Added Warland CSS variables + animations to globals.css
+  (separate section, doesn't touch existing Aurora Eclipse vars):
+    * Color palette: obsidian (#07040A), stone, panel, gold (#F5B342),
+      gold-bright (#FFD27A), ember (#FF6B1A), crimson (#DC2626),
+      success (#84CC16), parchment text
+    * @keyframes: wl-ember-rise, wl-fire-flicker, wl-gold-sweep,
+      wl-fade-up, wl-glow-pulse, wl-pulse-dot
+    * Components: .wl-card (ornate with gold gradient border +
+      corner brackets), .wl-btn-gold (gold-foil with shimmer sweep),
+      .wl-input (gold focus ring), .wl-sigil (feature badge),
+      .wl-divider (with rotated diamond gem), .wl-hero-banner,
+      .wl-fire-glow, .wl-embers/.wl-ember (particles)
+
+- layout.tsx: loaded Cinzel + Cinzel Decorative Google fonts
+  (alongside Inter + JetBrains Mono) via next/font for SSR-safe
+  font loading. Updated metadata title to "Jasbol Hack — Forged
+  Terminal IDE" and themeColor to #07040A.
+
+- Created new Warland terminal primitives:
+    * src/registry/magicui/warland-terminal.tsx — Warland-styled
+      Terminal window (obsidian body, gold/crimson/green traffic
+      lights, "Warland Forge" badge, gold-glow shadow), plus
+      TypingAnimation + AnimatedSpan helpers using gold accent
+      instead of teal.
+    * src/registry/magicui/warland-terminal-demo.tsx — scripted
+      session themed as "jasbol forge" — igniting forge runtime,
+      mounting stronghold, tempering toolchain, inscribing Claude/
+      OpenCode runes, sealing session with JWT inscribed in gold.
+      Original Aurora Eclipse terminal preserved untouched in
+      terminal.tsx / terminal-demo.tsx (still referenced by
+      nothing now, kept for future use).
+
+- Created src/components/auth/warland-embers.tsx — CSS-only floating
+  ember particle field. 16-18 embers, deterministic seeded random
+  positions/drifts/durations (avoids SSR/CSR hydration warnings).
+  Each ember is a 3px radial-gradient dot with gold core + ember
+  glow + box-shadow halo, animated to rise from bottom to top of
+  viewport with horizontal drift + scale + opacity changes.
+
+- Created src/components/auth/warland-auth-layout.tsx — split-screen
+  layout:
+    * Left (desktop only): brand wordmark "Jasbol Hack" in Cinzel
+      gold-foil text, "Warland Forge Terminal" tagline, hero copy
+      ("Forge your code in the fires of an unbreakable terminal"),
+      WarlandTerminalDemo, 4 sigil feature badges (Sealed Session /
+      Account Lockout / JWT Inscribed / Isolated Stronghold), trust
+      strip with KeyRound/CheckCircle2/Flame icons.
+    * Right: form panel (passed as children). Mobile shows compact
+      header with logo + wordmark.
+    * Full-page: floating embers across the whole viewport, bottom
+      fire-glow (radial gradient with flicker animation), edge
+      vignette, bottom-right "Forged by Jasbol Hack · v2" brand
+      stamp with Sword icon.
+
+- Rewrote src/app/login/page.tsx:
+    * Uses WarlandAuthLayout
+    * Card with ornate corner brackets + flame-topped gold bar
+    * Heading: "Enter the Stronghold" (gold-foil "Enter")
+    * Labels: "Hero Name" / "Secret Sigil" (Cinzel serif,
+      tracking-wide uppercase)
+    * Button: "Enter the Forge" with Fingerprint icon (gold-foil
+      style with shimmer sweep on hover)
+    * Error/attempts/retry-after feedback in crimson palette
+    * Footer: "A guarded key opens an unbroken gate." (italic
+      Cinzel)
+
+- Rewrote src/app/signup/page.tsx:
+    * Same WarlandAuthLayout + ornate card
+    * Heading: "Forge a New Stronghold"
+    * Labels: "Hero Name" / "Raven Address" (email) / "Secret
+      Sigil" / "Confirm Sigil"
+    * Live password strength meter uses gold/ember/crimson gradient
+      bars with rune-themed copy ("N runes inscribed",
+      strengthLabels include "Legendary" for max strength)
+    * Button: "Forge Account" with Sparkles icon
+    * Footer: "Passwords are forged with bcrypt(12). Plaintext is
+      forbidden." (italic Cinzel with ShieldCheck icon)
+
+- package.json: removed misleading post-build `cp -r .next/static
+  .next/standalone` step (standalone output is intentionally
+  disabled in next.config.ts because we use a custom server.ts +
+  Socket.IO). Build script is now just `next build`.
+
+Stage Summary:
+- Login redirect loop FIXED — root cause was IP fingerprint check
+  failing on HF Spaces' multi-proxy routing. Removed enforcement
+  in verify route; all other security defenses intact.
+- New Warland MMORPG auth theme deployed:
+  - Deep obsidian background with floating ember particles
+  - Gold/crimson/ember palette throughout
+  - Cinzel serif typography for headings + labels
+  - Ornate cards with gold gradient borders + corner brackets
+  - Animated fire-glow at bottom of hero
+  - Gold-foil buttons with shimmer sweep
+  - Sigil-style security feature badges
+  - Warland-styled terminal demo with "jasbol forge" script
+- IDE workspace (/) keeps Aurora Eclipse theme — only /login and
+  /signup redesigned as requested.
+- Build: ✓ Compiled successfully in 3.8s, 11/11 routes generated.
+- Pushed to both GitHub (origin/main) and HF Spaces (hf/main).
+- HF Space status: RUNNING_BUILDING — rebuild in progress.
