@@ -933,6 +933,7 @@ app.prepare().then(() => {
     console.log(`[Server]   Socket.IO path: /socket.io/`)
     console.log(`[Server]   Default Workspace: ${DEFAULT_WORKSPACE_DIR}`)
     console.log(`[Server]   User Workspaces: ${WORKSPACE_BASE}`)
+    console.log(`[Server]   HOME=${process.env.HOME} APP_HOME=${process.env.APP_HOME} USERS_DIR=${process.env.USERS_DIR || '(default)'} cwd=${process.cwd()}`)
   })
 
   mainServer.on('error', (err: any) => {
