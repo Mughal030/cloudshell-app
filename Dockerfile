@@ -177,41 +177,15 @@ RUN su -c "npm install -g @anthropic-ai/claude-code 2>&1 | tail -5" cloudshell &
     ln -sf /home/cloudshell/.npm-global/bin/claude /usr/local/bin/claude 2>/dev/null || true
 
 # ─── Pre-install OpenCode CLI ─────────────────────────────────────
-# OpenCode installs to ~/.opencode/bin/opencode. We use a robust multi-step
-# install:
-#   1. Try the official install script with explicit HOME set
-#   2. If that fails, fall back to direct GitHub release download
-#   3. Verify the binary actually exists at the end (build fails if not)
-#   4. Symlink to /usr/local/bin so it's on PATH for everyone
-# Previously the install silently failed (the `|| true` swallowed errors)
-# and the symlink became a dangling pointer, so `opencode` was "installed"
-# in name only. This version FAILS the Docker build if opencode doesn't
-# actually run.
-RUN set -eux; \
-    # Step 1: Try the official installer with proper HOME
-    export HOME=/home/cloudshell; \
-    (su cloudshell -c "HOME=/home/cloudshell curl -fsSL https://opencode.ai/install | HOME=/home/cloudshell bash" \
-      || echo "Official installer failed, falling back to direct download"); \
-    # Step 2: If ~/.opencode/bin/opencode doesn't exist, try direct GitHub download
-    if [ ! -f /home/cloudshell/.opencode/bin/opencode ]; then \
-      echo "OpenCode binary missing — fetching directly from GitHub releases..."; \
-      mkdir -p /home/cloudshell/.opencode/bin; \
-      cd /tmp; \
-      OPENCODE_VERSION=$(curl -sIL https://github.com/anomalyco/opencode/releases/latest | grep -i "^location:" | tail -1 | sed 's|.*/tag/v||' | tr -d '\r\n'); \
-      echo "OpenCode version: $OPENCODE_VERSION"; \
-      curl -fsSL "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-x64.tar.gz" -o /tmp/opencode.tar.gz; \
-      tar -xzf /tmp/opencode.tar.gz -C /tmp/; \
-      mv /tmp/opencode /home/cloudshell/.opencode/bin/opencode; \
-      chmod 755 /home/cloudshell/.opencode/bin/opencode; \
-      rm -f /tmp/opencode.tar.gz; \
-    fi; \
-    # Step 3: Verify the binary is actually executable
-    test -f /home/cloudshell/.opencode/bin/opencode; \
-    /home/cloudshell/.opencode/bin/opencode --version 2>&1 | head -3; \
-    # Step 4: Symlink to /usr/local/bin so it's on PATH for all users
-    ln -sf /home/cloudshell/.opencode/bin/opencode /usr/local/bin/opencode; \
-    chown -R cloudshell:cloudshell /home/cloudshell/.opencode; \
-    # Step 5: Final verification — must work as both root and cloudshell user
+# User explicitly requested the simple official installer:
+#   curl -fsSL https://opencode.ai/install | bash
+# OpenCode installs to ~/.opencode/bin/opencode. We:
+#   1. Run the official installer as cloudshell user (correct HOME)
+#   2. Symlink to /usr/local/bin so `opencode` works for all users
+#   3. FAIL the build if the binary doesn't actually run
+RUN su cloudshell -c "curl -fsSL https://opencode.ai/install | bash" && \
+    ln -sf /home/cloudshell/.opencode/bin/opencode /usr/local/bin/opencode && \
+    chown -R cloudshell:cloudshell /home/cloudshell/.opencode && \
     opencode --version && \
     su cloudshell -c "opencode --version"
 

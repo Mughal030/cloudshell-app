@@ -4,14 +4,14 @@ import { useState, useEffect, useCallback, memo } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import {
-  Terminal, Sun, Moon, Plus, X, ChevronLeft, ChevronRight,
-  Wifi, WifiOff, Wrench, FolderTree, Container, Zap,
-  SquareTerminal, Globe, LogOut, Shield, User, Package,
-  Cpu, Database, Cloud, Code2, Sparkles,
+  Terminal, Sun, Moon, Plus, X,
+  Wifi, WifiOff, Wrench, FolderTree,
+  SquareTerminal, LogOut, Shield, User, Package,
+  Cpu, Database, Cloud, Code2, Sparkles, Zap,
+  ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
@@ -21,10 +21,9 @@ import { FileManager } from '@/components/terminal/file-manager'
 import { ToolStatus } from '@/components/terminal/tool-status'
 import { PackageSidebar } from '@/components/terminal/package-sidebar'
 
-// Lazy-load heavy sidebar panels — they only mount when their tab is activated.
+// Lazy-load heavy panels — they only mount when their tab is activated.
 // This cuts initial JS parse/execute time and avoids spawning socket requests
 // for panels the user never opens.
-const DockerPanel = dynamic(() => import('@/components/terminal/docker-panel').then(m => ({ default: m.DockerPanel })), { ssr: false })
 const CodeEditor = dynamic(() => import('@/components/terminal/code-editor').then(m => ({ default: m.CodeEditor })), {
   ssr: false,
   loading: () => <div className="flex items-center justify-center h-full text-xs text-[var(--nx-text-dim)]">Loading editor...</div>,
@@ -35,33 +34,49 @@ const XtermTerminal = dynamic(
   { ssr: false, loading: () => <div className="w-full h-full bg-[#07040A]" /> }
 )
 // Memoize so terminal instances don't re-render when parent state changes
-// (e.g. sidebar tab switches, file editor opens/closes). Only re-renders
-// when its own props (sessionId, isActive) change.
 const MemoizedXtermTerminal = memo(XtermTerminal)
 
+// ─── Quick Install Toolkit (ALL sudo/apt/docker-FREE) ───────────────
+// Every command below runs as the regular cloudshell user with NO root,
+// NO apt, NO docker. Installations go to ~/.local/bin, ~/.npm-global/bin,
+// ~/.cargo/bin, ~/.bun/bin, etc. — all on PATH via the entrypoint.
 const QUICK_INSTALL = {
   'AI & CLI Tools': [
     { name: 'Claude Code', cmd: 'setup-claude-code', icon: 'sparkles' },
-    { name: 'TypeScript', cmd: 'npm install -g typescript && echo "TypeScript installed!"', icon: 'code' },
-    { name: 'Vercel CLI', cmd: 'npm install -g vercel', icon: 'cloud' },
-    { name: 'Netlify CLI', cmd: 'npm install -g netlify-cli', icon: 'cloud' },
-    { name: 'AWS CLI v2', cmd: 'curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip" && cd /tmp && unzip -q awscliv2.zip && ./aws/install -i ~/.local/aws-cli -b ~/.local/bin', icon: 'cloud' },
-    { name: 'GitHub CLI', cmd: 'sudo apt update && sudo apt install gh -y', icon: 'code' },
+    { name: 'TypeScript', cmd: 'npm install -g typescript && echo "TypeScript installed to ~/.npm-global!"', icon: 'code' },
+    { name: 'Vercel CLI', cmd: 'npm install -g vercel && echo "Vercel CLI installed!"', icon: 'cloud' },
+    { name: 'Netlify CLI', cmd: 'npm install -g netlify-cli && echo "Netlify CLI installed!"', icon: 'cloud' },
+    // AWS CLI via pip3 --user (NO sudo, NO apt)
+    { name: 'AWS CLI v2', cmd: 'pip3 install --user awscli && echo "AWS CLI installed to ~/.local/bin/aws"', icon: 'cloud' },
+    // GitHub CLI via direct binary download (NO sudo, NO apt)
+    { name: 'GitHub CLI (gh)', cmd: 'GH_VER=$(curl -s https://api.github.com/repos/cli/cli/releases/latest | grep -oP \'"tag_name":\\s*"v\\K[^"]+\') && curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VER}/gh_${GH_VER}_linux_amd64.tar.gz" -o /tmp/gh.tgz && tar -xzf /tmp/gh.tgz -C /tmp && cp /tmp/gh_${GH_VER}_linux_amd64/bin/gh ~/.local/bin/gh && chmod +x ~/.local/bin/gh && rm -rf /tmp/gh* && echo "gh v${GH_VER} installed to ~/.local/bin/gh"', icon: 'code' },
   ],
   'Dev Tools': [
     { name: 'Node.js (nvm)', cmd: 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash && source ~/.bashrc && nvm install --lts', icon: 'node' },
     { name: 'Rust', cmd: 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && source $HOME/.cargo/env', icon: 'lang' },
     { name: 'Bun', cmd: 'curl -fsSL https://bun.sh/install | bash && source ~/.bashrc', icon: 'node' },
     { name: 'Deno', cmd: 'curl -fsSL https://deno.land/install.sh | sh', icon: 'lang' },
-    { name: 'Go', cmd: 'curl -fsSL https://go.dev/dl/go1.22.0.linux-amd64.tar.gz | tar -C ~/.local -xzf - && echo "export PATH=$HOME/.local/go/bin:$PATH" >> ~/.bashrc', icon: 'lang' },
+    { name: 'Go', cmd: 'curl -fsSL https://go.dev/dl/go1.22.0.linux-amd64.tar.gz | tar -C ~/.local -xzf - && echo "export PATH=$HOME/.local/go/bin:$PATH" >> ~/.bashrc && echo "Go installed to ~/.local/go"', icon: 'lang' },
+    { name: 'Python pip pkgs', cmd: 'pip3 install --user pipx httpx requests rich && echo "pip pkgs installed to ~/.local/bin"', icon: 'lang' },
   ],
   'Databases': [
-    { name: 'PostgreSQL Client', cmd: 'pip3 install pgcli', icon: 'db' },
-    { name: 'MySQL Client', cmd: 'pip3 install mycli', icon: 'db' },
-    { name: 'Redis Tools', cmd: 'pip3 install iredis', icon: 'db' },
-    { name: 'SQLite Browser', cmd: 'pip3 install sqlite-web', icon: 'db' },
+    { name: 'PostgreSQL Client', cmd: 'pip3 install --user pgcli && echo "pgcli installed to ~/.local/bin"', icon: 'db' },
+    { name: 'MySQL Client', cmd: 'pip3 install --user mycli && echo "mycli installed to ~/.local/bin"', icon: 'db' },
+    { name: 'Redis Tools', cmd: 'pip3 install --user iredis && echo "iredis installed to ~/.local/bin"', icon: 'db' },
+    { name: 'SQLite Browser', cmd: 'pip3 install --user sqlite-web && echo "sqlite-web installed to ~/.local/bin"', icon: 'db' },
+    { name: 'DBeaver (CLI)', cmd: 'pip3 install --user sqlfluff sqlparse && echo "SQL utils installed to ~/.local/bin"', icon: 'db' },
   ],
 }
+
+// ─── Horizontal Menu Items ─────────────────────────────────────────
+// Replaces the old vertical sidebar. Each item is a horizontal tab;
+// clicking toggles a slide-down panel.
+const MENU_ITEMS = [
+  { value: 'packages', label: 'Packages', icon: Package },
+  { value: 'tools',    label: 'Tools',    icon: Wrench },
+  { value: 'files',    label: 'Files',    icon: FolderTree },
+  { value: 'quick',    label: 'Toolkit',  icon: Zap },
+] as const
 
 export default function Home() {
   const {
@@ -70,13 +85,12 @@ export default function Home() {
     onOutput, onClearBuffer, checkTools, installTool, readFile, writeFile,
     listFiles, createFolder, deleteFile, renameFile, sendCommandToTerminal,
     onFilesChanged, requestWorkspaceInfo,
-    ooStatus, checkOoStatus, startOoServices, startOoDaemon,
   } = useSocket()
 
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [sidebarTab, setSidebarTab] = useState('packages')
+  // Active horizontal menu tab; null = panel collapsed
+  const [activeMenu, setActiveMenu] = useState<string | null>(null)
   const [editorFile, setEditorFile] = useState<string | null>(null)
   const [editorContent, setEditorContent] = useState<string | null>(null)
   const [creatingTerminal, setCreatingTerminal] = useState(false)
@@ -87,9 +101,8 @@ export default function Home() {
   useEffect(() => {
     const pkgs = new Set<string>()
     tools.forEach(t => { if (t.installed) pkgs.add(t.name) })
-    // Also add common known installed tools
     ;['node', 'npm', 'npx', 'python3', 'pip3', 'git', 'curl', 'wget', 'bash', 'vim', 'nano',
-      'docker', 'ssh', 'scp', 'rsync', 'make', 'gcc', 'jq'].forEach(c => pkgs.add(c))
+      'ssh', 'scp', 'rsync', 'make', 'gcc', 'jq'].forEach(c => pkgs.add(c))
     setInstalledPkgs(pkgs)
   }, [tools])
 
@@ -134,7 +147,10 @@ export default function Home() {
 
   const handleEditorClose = useCallback(() => { setEditorFile(null); setEditorContent(null) }, [])
 
-  // Determine if dark mode
+  const handleMenuClick = (value: string) => {
+    setActiveMenu(prev => prev === value ? null : value)
+  }
+
   const isDark = !mounted || theme === 'dark'
 
   return (
@@ -143,7 +159,7 @@ export default function Home() {
       <header className="flex items-center justify-between px-4 h-11 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/90 backdrop-blur-md shrink-0 nx-panel-glow">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Image src="/jasbol-hack-logo.png" alt="Jasbol Hack" width={28} height={28} className="rounded-md" priority style={{ filter: 'drop-shadow(0 0 8px rgba(129,140,248,0.4))' }} />
+            <Image src="/jasbol-hack-logo.png" alt="Jasbol Hack" width={28} height={28} className="rounded-md" priority style={{ filter: 'drop-shadow(0 0 8px rgba(245,179,66,0.4))' }} />
             <h1 className="text-sm font-bold tracking-wide">
               <span className="nx-text-aurora">Jasbol</span>
               <span className="text-[var(--nx-text)] ml-0.5">Hack</span>
@@ -182,7 +198,7 @@ export default function Home() {
               <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] nx-hover-lift">
                 {currentUser.role === 'admin' ? <Shield className="h-3 w-3 text-[var(--nx-accent)]" /> : <User className="h-3 w-3 text-[var(--nx-accent-teal)]" />}
                 <span className="text-[10px] font-medium">{currentUser.username}</span>
-                {currentUser.role === 'admin' && <span className="text-[8px] px-1 py-0.5 rounded font-bold tracking-wider" style={{ background: 'rgba(129,140,248,0.18)', color: 'var(--nx-accent)' }}>ADMIN</span>}
+                {currentUser.role === 'admin' && <span className="text-[8px] px-1 py-0.5 rounded font-bold tracking-wider" style={{ background: 'rgba(245,179,66,0.18)', color: 'var(--nx-accent)' }}>ADMIN</span>}
               </div>
               <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-muted)] hover:text-[var(--nx-error)] hover:bg-[var(--nx-bg-hover)] transition-colors" onClick={handleLogout} title="Logout">
                 <LogOut className="h-3.5 w-3.5" />
@@ -192,63 +208,51 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ═══ MAIN CONTENT ═══ */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar Toggle (collapsed) */}
-        {sidebarCollapsed && (
-          <div className="flex flex-col items-center py-2 border-r border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/80 w-8 shrink-0 nx-panel-enter">
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)] transition-colors" onClick={() => setSidebarCollapsed(false)}>
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-            <div className="flex flex-col gap-1 mt-2">
-              {[
-                { icon: Package, tab: 'packages' },
-                { icon: Wrench, tab: 'tools' },
-                { icon: FolderTree, tab: 'files' },
-                { icon: Container, tab: 'docker' },
-                { icon: Zap, tab: 'quick' },
-              ].map(({ icon: Icon, tab }) => (
-                <Button key={tab} variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)] hover:bg-[var(--nx-bg-hover)] transition-colors" onClick={() => { setSidebarTab(tab); setSidebarCollapsed(false) }}>
-                  <Icon className="h-3.5 w-3.5" />
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* ═══ HORIZONTAL MENU BAR (replaces vertical sidebar) ═══ */}
+      <nav className="flex items-center gap-0.5 px-2 h-9 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/60 backdrop-blur-md shrink-0 overflow-x-auto">
+        {MENU_ITEMS.map(({ value, label, icon: Icon }) => {
+          const isActive = activeMenu === value
+          return (
+            <button
+              key={value}
+              onClick={() => handleMenuClick(value)}
+              className={`flex items-center gap-1.5 px-3 h-7 rounded-md text-xs font-medium transition-all shrink-0 ${
+                isActive
+                  ? 'bg-[var(--nx-bg-active)] text-[var(--nx-accent-teal)] nx-tab-active shadow-sm'
+                  : 'text-[var(--nx-text-muted)] hover:text-[var(--nx-text)] hover:bg-[var(--nx-bg-hover)]'
+              }`}
+              aria-pressed={isActive}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              <span>{label}</span>
+              {isActive ? <ChevronUp className="h-3 w-3 ml-0.5 opacity-70" /> : <ChevronDown className="h-3 w-3 ml-0.5 opacity-50" />}
+            </button>
+          )
+        })}
+        <div className="flex-1" />
+        <span className="text-[10px] text-[var(--nx-text-dim)] pr-2 hidden sm:inline">Click a tab to expand panel</span>
+      </nav>
 
-        {/* Sidebar */}
-        {!sidebarCollapsed && (
-          <div className="flex flex-col border-r border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/80 backdrop-blur-md shrink-0 overflow-hidden nx-panel-glow nx-panel-enter" style={{ width: 280 }}>
-            <div className="flex items-center justify-between px-3 h-9 border-b border-[var(--nx-border)] shrink-0">
-              <span className="text-xs font-semibold text-[var(--nx-text-muted)] uppercase tracking-wider">Explorer</span>
-              <Button variant="ghost" size="icon" className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-text)] transition-colors" onClick={() => setSidebarCollapsed(true)}>
-                <ChevronLeft className="h-3.5 w-3.5" />
+      {/* ═══ SLIDE-DOWN PANEL (horizontal, full-width) ═══ */}
+      {activeMenu && (
+        <div className="border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/80 backdrop-blur-md shrink-0 nx-panel-enter" style={{ height: 280 }}>
+          <div className="h-full flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-3 h-7 border-b border-[var(--nx-border)] shrink-0">
+              <span className="text-[10px] font-semibold text-[var(--nx-text-muted)] uppercase tracking-wider">
+                {MENU_ITEMS.find(m => m.value === activeMenu)?.label}
+              </span>
+              <Button variant="ghost" size="icon" className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-text)]" onClick={() => setActiveMenu(null)}>
+                <X className="h-3 w-3" />
               </Button>
             </div>
-
-            <Tabs value={sidebarTab} onValueChange={setSidebarTab} className="flex flex-col flex-1 overflow-hidden">
-              <TabsList className="w-full h-8 bg-[var(--nx-bg-primary)] rounded-none border-b border-[var(--nx-border)] p-0 shrink-0">
-                {[
-                  { value: 'packages', icon: Package },
-                  { value: 'tools', icon: Wrench },
-                  { value: 'files', icon: FolderTree },
-                  { value: 'docker', icon: Container },
-                  { value: 'quick', icon: Zap },
-                ].map(({ value, icon: Icon }) => (
-                  <TabsTrigger key={value} value={value} className="h-8 flex-1 text-[10px] gap-1 data-[state=active]:bg-[var(--nx-bg-active)] data-[state=active]:text-[var(--nx-accent-teal)] rounded-none transition-colors">
-                    <Icon className="h-3 w-3" />
-                    <span className="hidden sm:inline">{value.charAt(0).toUpperCase() + value.slice(1)}</span>
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-
-              <TabsContent value="packages" className="flex-1 overflow-hidden mt-0">
+            <div className="flex-1 overflow-hidden">
+              {activeMenu === 'packages' && (
                 <PackageSidebar installedPackages={installedPkgs} sendCommandToTerminal={sendCommandToTerminal} connected={connected} />
-              </TabsContent>
-              <TabsContent value="tools" className="flex-1 overflow-hidden mt-0">
+              )}
+              {activeMenu === 'tools' && (
                 <ToolStatus tools={tools} checkTools={checkTools} onInstall={installTool} sendCommandToTerminal={sendCommandToTerminal} loading={!mounted || !connected} />
-              </TabsContent>
-              <TabsContent value="files" className="flex-1 overflow-hidden mt-0">
+              )}
+              {activeMenu === 'files' && (
                 <FileManager
                   listFiles={listFiles}
                   onFileOpen={handleFileOpen}
@@ -261,18 +265,17 @@ export default function Home() {
                   requestWorkspaceInfo={requestWorkspaceInfo}
                   sendCommandToTerminal={sendCommandToTerminal}
                 />
-              </TabsContent>
-              <TabsContent value="docker" className="flex-1 overflow-hidden mt-0">
-                <DockerPanel listFiles={listFiles} onFileOpen={handleFileOpen} sendCommandToTerminal={sendCommandToTerminal} connected={connected} />
-              </TabsContent>
-              <TabsContent value="quick" className="flex-1 overflow-hidden mt-0">
+              )}
+              {activeMenu === 'quick' && (
                 <QuickInstallPanel sendCommandToTerminal={sendCommandToTerminal} connected={connected} />
-              </TabsContent>
-            </Tabs>
+              )}
+            </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Main Area */}
+      {/* ═══ MAIN CONTENT (terminal + editor) ═══ */}
+      <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 flex flex-col overflow-hidden">
           <ResizablePanelGroup direction="vertical" className="flex-1">
             <ResizablePanel defaultSize={65} minSize={30}>
@@ -348,7 +351,6 @@ export default function Home() {
           <Separator orientation="vertical" className="h-3 bg-[var(--nx-border)]" />
           <span>/workspace</span>
           <Separator orientation="vertical" className="h-3 bg-[var(--nx-border)]" />
-          {/* Environment indicators */}
           <div className="flex items-center gap-1.5">
             <span className="nx-env-dot node" />
             <span>Node</span>
@@ -393,23 +395,29 @@ function QuickInstallPanel({ sendCommandToTerminal, connected }: { sendCommandTo
 
   return (
     <ScrollArea className="h-full">
-      <div className="p-2 space-y-3">
-        {Object.entries(QUICK_INSTALL).map(([category, items]) => (
-          <div key={category}>
-            <h3 className="text-[10px] font-semibold text-[var(--nx-text-muted)] uppercase tracking-wider px-1 mb-1.5">{category}</h3>
-            <div className="space-y-0.5">
-              {items.map((item) => (
-                <button key={item.name} className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs hover:bg-[var(--nx-bg-hover)] transition-colors disabled:opacity-50 nx-hover-lift" onClick={() => sendCommandToTerminal(item.cmd)} disabled={!connected}>
-                  <span className="flex items-center gap-2 text-[var(--nx-text)]">
-                    <span className="text-[var(--nx-accent-teal)]">{iconMap[item.icon] || <Zap className="h-3 w-3" />}</span>
-                    {item.name}
-                  </span>
-                  <Zap className="h-3 w-3 text-[var(--nx-accent)] opacity-40" />
-                </button>
-              ))}
+      <div className="p-3">
+        {/* Horizontal grid: categories side-by-side instead of stacked */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {Object.entries(QUICK_INSTALL).map(([category, items]) => (
+            <div key={category} className="space-y-1.5">
+              <h3 className="text-[10px] font-semibold text-[var(--nx-text-muted)] uppercase tracking-wider px-1 pb-1 border-b border-[var(--nx-border)]">
+                {category}
+                <span className="ml-1.5 text-[var(--nx-text-dim)] normal-case tracking-normal">no sudo · no apt · no docker</span>
+              </h3>
+              <div className="space-y-0.5">
+                {items.map((item) => (
+                  <button key={item.name} className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs hover:bg-[var(--nx-bg-hover)] transition-colors disabled:opacity-50 nx-hover-lift" onClick={() => sendCommandToTerminal(item.cmd)} disabled={!connected} title={item.cmd}>
+                    <span className="flex items-center gap-2 text-[var(--nx-text)] truncate">
+                      <span className="text-[var(--nx-accent-teal)] shrink-0">{iconMap[item.icon] || <Zap className="h-3 w-3" />}</span>
+                      <span className="truncate">{item.name}</span>
+                    </span>
+                    <Zap className="h-3 w-3 text-[var(--nx-accent)] opacity-40 shrink-0" />
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </ScrollArea>
   )

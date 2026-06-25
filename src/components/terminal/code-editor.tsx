@@ -83,8 +83,9 @@ export function CodeEditor({ filePath, fileContent: initialContent, onSave, onRu
     const fileName = filePath.split('/').pop() || ''
     const dir = filePath.includes('/') ? filePath.split('/').slice(0, -1).join('/') : '.'
     if (fileName.toLowerCase().includes('dockerfile')) {
-      const name = fileName.replace(/\.dockerfile$/i, '').toLowerCase() || 'app'
-      onRun(`cd ${dir} && docker build -f ${fileName} -t ${name}:latest .`)
+      // Docker is NOT available in this environment — show a helpful
+      // no-docker alternative instead of running a failing command.
+      onRun(`echo "⚠ Docker is not available in this environment." && echo "👉 Alternative: use 'podman' or run the binary directly with './${fileName.replace(/\.dockerfile$/i, '')}'" && echo "💡 Or use nixpacks / buildpacks for imageless builds."`)
     } else {
       // Run as script
       onRun(`cd ${dir} && chmod +x ${fileName} && ./${fileName}`)
