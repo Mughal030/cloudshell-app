@@ -905,3 +905,62 @@ Stage Summary:
 - Build: ✓ Compiled successfully in 4.2s, 11/11 routes, zero warnings.
 - Pushed to both GitHub (origin/main) and HF Spaces (hf/main).
 - HF Space status: RUNNING_BUILDING (rebuilding with new image).
+
+---
+Task ID: fix-file-load-fail
+Agent: Main Agent
+Task: Fix "files is not loading each time it show error like load file fail"
+
+Work Log:
+
+── Root cause analysis ────────────────────────────────────────
+- User reported Files tab showing "Failed to load files" error
+  every time they opened it.
+- The horizontal menu design (previous commit) toggles the panel
+  on each click — every Files-tab click remounts the FileManager,
+  which fires a fresh loadFiles() call.
+- Old behavior: 8-second timeout, no retry, no inline error UI.
+  HF Spaces free-tier CPU is heavily throttled, so fs.readdirSync
+  on a workspace with many files can take 5-10s. Any transient
+  slowness → toast popped every single time.
+
+── Three-layer fix ───────────────────────────────────────────
+
+1. use-socket.ts (listFiles + readFile):
+   - Timeout 8s → 15s for both functions
+   - listFiles now auto-retries 3x with exponential backoff
+     (300ms, 600ms) on ANY server-returned error before giving up
+   - Each retry re-arms the 15s timeout so total worst-case wait
+     is ~45s instead of 8s
+   - Timeout error messages now include "(waited 15s)" or
+     "(after N attempts)" so the user knows what happened
+
+2. file-manager.tsx (UI):
+   - New 'loadError' state — when loadFiles fails, show an inline
+     error card with the actual error message + a 'Retry' button
+   - The card stays visible until the next successful load, so
+     the user can recover without re-opening the tab
+   - Toast is now SUPPRESSED for timeout errors (already retried
+     3x inside listFiles; spamming a toast is annoying)
+   - Loading state properly clears loadError on each new attempt
+   - 'Empty directory' message only shows when there's no error
+   - Added AlertTriangle icon for the error state
+
+3. server.ts (file:list handler):
+   - Auto-create the workspace directory if it doesn't exist
+     (handles first-login for new users + container restart with
+     wiped volume — previously returned "Directory not found")
+   - If mkdir fails (e.g. permission denied on parent), return a
+     clear error message "Cannot create workspace directory: ..."
+     instead of a confusing "Directory not found"
+
+Stage Summary:
+- File loading is now resilient to HF Spaces free-tier slowness:
+  - 15s timeout per attempt (was 8s)
+  - 3 auto-retries with backoff (was 0)
+  - Inline error UI with Retry button (was toast-only)
+  - Auto-creates missing workspace dir (was hard error)
+- Build: ✓ 4.2s compile, 11/11 routes, zero warnings.
+- Pushed to HF Spaces (hf/main). GitHub push failed because the
+  user's previous GitHub token was revoked (as warned). HF Spaces
+  is the primary deployment and is now rebuilding with the fix.
