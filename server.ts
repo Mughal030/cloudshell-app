@@ -3,10 +3,10 @@ import next from 'next'
 import { Server as SocketIOServer } from 'socket.io'
 import { spawn } from 'node-pty'
 import { v4 as uuidv4 } from 'uuid'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, watch } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, lstatSync, watch } from 'fs'
 import { join, resolve, relative } from 'path'
 import { execSync } from 'child_process'
-import { verifyTokenBasic, getUserById, getUserWorkspaceDir } from './src/lib/auth.ts'
+import { verifyTokenBasic, getUserById, getUserWorkspaceDir, ensureToolSymlinks } from './src/lib/auth.ts'
 
 // ─── Global Error Handlers ───────────────────────────────────────
 process.on('uncaughtException', (err) => {
@@ -363,15 +363,27 @@ function listDirectory(dirPath: string, showHidden: boolean = false): { name: st
     return entries
       .filter((entry) => {
         if (showHidden) return true
-        // Hide dotfiles by default, but always show .dockerfiles (legacy)
+        // Hide dotfiles by default, but always show .tools (symlinked
+        // install dirs) and .dockerfiles (legacy) so users can browse
+        // their manually-installed tools without toggling hidden files.
         if (!entry.name.startsWith('.')) return true
-        return entry.name === '.dockerfiles'
+        return entry.name === '.tools' || entry.name === '.dockerfiles'
       })
       .map((entry) => {
         const fullPath = join(dirPath, entry.name)
         try {
           const stats = statSync(fullPath)
-          return { name: entry.name, type: (entry.isDirectory() ? 'directory' : 'file') as 'file' | 'directory', size: stats.size, modified: stats.mtime.toISOString() }
+          // Use lstat to detect symlinks — entry.isDirectory() returns
+          // false for symlinks to directories, so we need to check both.
+          let isDir = entry.isDirectory()
+          try {
+            const lstats = lstatSync(fullPath)
+            if (lstats.isSymbolicLink()) {
+              // Follow the symlink to determine if it points to a dir
+              isDir = stats.isDirectory()
+            }
+          } catch {}
+          return { name: entry.name, type: (isDir ? 'directory' : 'file') as 'file' | 'directory', size: stats.size, modified: stats.mtime.toISOString() }
         } catch {
           return { name: entry.name, type: (entry.isDirectory() ? 'directory' : 'file') as 'file' | 'directory', size: 0, modified: '' }
         }
@@ -793,6 +805,14 @@ app.prepare().then(() => {
             socket.emit('file:listing', { path: inputPath, files: [], error: `Cannot create workspace directory: ${mkdirErr}` })
             return
           }
+        }
+        // When listing the workspace root, ensure tool symlinks exist so
+        // manually-installed tools (~/.local/bin, ~/.npm-global/bin,
+        // ~/.cargo/bin, ~/.opencode/bin, etc.) are visible inside the
+        // workspace under the .tools/ directory. This runs on every root
+        // listing so newly-installed tools appear immediately.
+        if (inputPath === '') {
+          try { ensureToolSymlinks(userWorkspace) } catch { /* best-effort */ }
         }
         const stat = statSync(resolvedPath)
         if (!stat.isDirectory()) {

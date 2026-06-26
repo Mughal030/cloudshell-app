@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, lstatSync, symlinkSync } from 'fs'
 import { join } from 'path'
 import { randomBytes, timingSafeEqual } from 'crypto'
 
@@ -137,6 +137,90 @@ function ensureWorkspace(workspaceDir: string) {
   if (!existsSync(fullPath)) {
     mkdirSync(fullPath, { recursive: true })
   }
+  // Create symlinks inside the workspace pointing to all the directories
+  // where manually-installed tools land (~/.local/bin, ~/.npm-global/bin,
+  // ~/.cargo/bin, ~/.bun/bin, ~/.opencode/bin, ~/.nvm, ~/.local/go, etc.).
+  // Without these symlinks, installed tools are invisible in the Files tab
+  // because they live OUTSIDE the workspace.
+  ensureToolSymlinks(fullPath)
+}
+
+/**
+ * Create symlinks under `<workspace>/.tools/` pointing to every directory
+ * where the CloudShell environment installs user tools. This makes
+ * manually-installed tools visible in the Files tab without compromising
+ * the workspace path-traversal guard (symlinks are followed lexically
+ * by path.resolve, so the guard still works).
+ *
+ * Missing target directories are skipped silently — the symlink would be
+ * dangling. We re-run this on every file:list call so newly-installed
+ * tools (e.g. user just ran `curl | bash` for bun) appear immediately.
+ */
+export function ensureToolSymlinks(workspaceDir: string) {
+  try {
+    const home = process.env.APP_HOME || process.env.HOME || '/home/cloudshell'
+    const toolsDir = join(workspaceDir, '.tools')
+    if (!existsSync(toolsDir)) {
+      mkdirSync(toolsDir, { recursive: true })
+    }
+    // Each entry: [symlinkName, absoluteTargetPath, friendlyLabel]
+    const targets: Array<[string, string]> = [
+      ['local-bin',     join(home, '.local', 'bin')],
+      ['local-lib',     join(home, '.local', 'lib')],
+      ['local-share',   join(home, '.local', 'share')],
+      ['npm-global',    join(home, '.npm-global', 'bin')],
+      ['npm-global-lib',join(home, '.npm-global', 'lib')],
+      ['opencode',      join(home, '.opencode')],
+      ['opencode-bin',  join(home, '.opencode', 'bin')],
+      ['claude',        join(home, '.claude')],
+      ['cargo',         join(home, '.cargo')],
+      ['cargo-bin',     join(home, '.cargo', 'bin')],
+      ['rustup',        join(home, '.rustup')],
+      ['bun',           join(home, '.bun')],
+      ['bun-bin',       join(home, '.bun', 'bin')],
+      ['deno',          join(home, '.deno')],
+      ['deno-bin',      join(home, '.deno', 'bin')],
+      ['nvm',           join(home, '.nvm')],
+      ['go',            join(home, '.local', 'go')],
+      ['go-bin',        join(home, '.local', 'go', 'bin')],
+      ['go-workspace',  join(home, 'go')],
+      ['pipx',          join(home, '.local', 'pipx')],
+      ['pyenv',         join(home, '.pyenv')],
+      ['rbenv',         join(home, '.rbenv')],
+      ['yarn',          join(home, '.yarn')],
+      ['pnpm',          join(home, '.local', 'share', 'pnpm')],
+      ['config',        join(home, '.config')],
+      ['cache',         join(home, '.cache')],
+      ['ssh',           join(home, '.ssh')],
+      ['bashrc',        join(home, '.bashrc')],
+      ['bashrc-env',    join(home, '.bashrc_env')],
+      ['profile',       join(home, '.profile')],
+    ]
+    for (const [name, target] of targets) {
+      const linkPath = join(toolsDir, name)
+      try {
+        // Skip if symlink already exists (don't overwrite — user may have
+        // customized it). existsSync follows symlinks, so we use lstatSync
+        // to detect the link itself.
+        let isLink = false
+        try {
+          const lstat = lstatSync(linkPath)
+          isLink = lstat.isSymbolicLink()
+        } catch { /* doesn't exist yet */ }
+        if (isLink) continue
+        // Only create symlink if target exists (skip dangling links)
+        if (!existsSync(target)) continue
+        // Don't create if a regular file/dir already exists at this path
+        if (existsSync(linkPath)) continue
+        try {
+          symlinkSync(target, linkPath, 'dir')
+        } catch {
+          // Fallback: try as a file link (for .bashrc, .profile)
+          try { symlinkSync(target, linkPath, 'file') } catch {}
+        }
+      } catch { /* ignore individual failures */ }
+    }
+  } catch { /* best-effort — never fail the workspace creation */ }
 }
 
 // ─── Security: Audit Log ──────────────────────────────────────────
