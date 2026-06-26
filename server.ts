@@ -781,9 +781,18 @@ app.prepare().then(() => {
         return
       }
       try {
+        // Auto-create the workspace directory if it doesn't exist yet.
+        // This happens on first login for a brand-new user, or after a
+        // container restart if the workspace volume was wiped.
         if (!existsSync(resolvedPath)) {
-          socket.emit('file:listing', { path: inputPath, files: [], error: 'Directory not found' })
-          return
+          try {
+            mkdirSync(resolvedPath, { recursive: true })
+          } catch (mkdirErr) {
+            // If mkdir fails (e.g. permission denied on parent), report it
+            // clearly instead of returning a confusing "Directory not found".
+            socket.emit('file:listing', { path: inputPath, files: [], error: `Cannot create workspace directory: ${mkdirErr}` })
+            return
+          }
         }
         const stat = statSync(resolvedPath)
         if (!stat.isDirectory()) {

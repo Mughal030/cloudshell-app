@@ -18,6 +18,7 @@ import {
   Eye,
   EyeOff,
   Terminal as TerminalIcon,
+  AlertTriangle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -54,6 +55,7 @@ export function FileManager({
   const [currentPath, setCurrentPath] = useState('')
   const [files, setFiles] = useState<FileInfo[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [showHidden, setShowHidden] = useState(false)
   const [workspaceRoot, setWorkspaceRoot] = useState<string>('')
   const [showNewFile, setShowNewFile] = useState(false)
@@ -108,7 +110,10 @@ export function FileManager({
     if (silent && silentRefreshInFlight.current) return
     if (silent) silentRefreshInFlight.current = true
 
-    if (!silent) setLoading(true)
+    if (!silent) {
+      setLoading(true)
+      setLoadError(null)
+    }
     try {
       const result = await listFiles(path, hidden)
       if (!result.error) {
@@ -116,12 +121,7 @@ export function FileManager({
         // empty array from silent refresh — that wipes the sidebar if the
         // server briefly hiccups.
         if (silent && result.files.length === 0) {
-          // Only wipe if we genuinely have no files at root (path == '')
-          // AND there are currently no files shown. Otherwise keep existing.
-          // Use functional update to compare safely.
           setFiles(prev => {
-            // If we're at root and server says empty, that may be valid.
-            // Heuristic: only update if previous was also empty.
             if (prev.length === 0) return result.files
             return prev
           })
@@ -130,12 +130,25 @@ export function FileManager({
           setFiles(prev => fileListsEqual(prev, result.files) ? prev : result.files)
         }
         setCurrentPath(path || '')
-      } else if (!silent) {
-        toast({
-          title: 'Failed to load files',
-          description: result.error,
-          variant: 'destructive',
-        })
+        // Clear any previous error on successful load
+        setLoadError(null)
+      } else {
+        // Non-silent (user-initiated) load failed: show inline error UI
+        // AND a toast. The inline error stays visible until next successful
+        // load, so the user has a "Retry" button they can click.
+        if (!silent) {
+          setLoadError(result.error)
+          // Only show toast for non-timeout errors (timeout already retried 3x
+          // inside listFiles; spamming a toast for every reconnect attempt
+          // is annoying).
+          if (!result.error.toLowerCase().includes('timeout')) {
+            toast({
+              title: 'Failed to load files',
+              description: result.error,
+              variant: 'destructive',
+            })
+          }
+        }
       }
     } finally {
       if (silent) silentRefreshInFlight.current = false
@@ -491,7 +504,27 @@ export function FileManager({
       {/* File list */}
       <ScrollArea className="flex-1">
         <div className="py-1">
-          {files.length === 0 && !loading && (
+          {/* Inline error state with retry button (visible until next successful load) */}
+          {loadError && !loading && (
+            <div className="m-2 p-3 rounded-md border border-[var(--nx-error)]/40 bg-[var(--nx-error)]/10 text-xs">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-3.5 w-3.5 text-[var(--nx-error)] shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-[var(--nx-error)] mb-1">Failed to load files</div>
+                  <div className="text-[var(--nx-text-dim)] break-words text-[10px] font-mono">{loadError}</div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 mt-2 text-[10px] gap-1 border-[var(--nx-accent-teal)]/40 text-[var(--nx-accent-teal)] hover:bg-[var(--nx-accent-teal)]/10"
+                    onClick={() => loadFiles(currentPath || undefined, showHidden)}
+                  >
+                    <RefreshCw className="h-3 w-3" />Retry
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+          {files.length === 0 && !loading && !loadError && (
             <div className="text-center text-[var(--nx-text-dim)] text-xs py-4 px-3">
               <FolderOpen className="h-6 w-6 mx-auto mb-2 opacity-50" />
               <div>Empty directory</div>

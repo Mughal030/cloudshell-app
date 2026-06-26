@@ -413,8 +413,8 @@ export function useSocket() {
         if (settled) return
         settled = true
         socket.off('file:content', handler)
-        resolve({ content: null, error: 'Timeout reading file' })
-      }, 8000)
+        resolve({ content: null, error: 'Timeout reading file (waited 15s)' })
+      }, 15000)
     })
   }, [])
 
@@ -457,6 +457,9 @@ export function useSocket() {
 
       const requestPath = path || ''
       let settled = false
+      let attempt = 0
+      const maxAttempts = 3
+      let timeoutHandle: ReturnType<typeof setTimeout> | null = null
 
       // Match on path to avoid race condition: when multiple listFiles() calls
       // are in flight (e.g. user clicks a folder while fs.watch fires a refresh),
@@ -464,6 +467,27 @@ export function useSocket() {
       const handler = (data: { path: string; files: FileInfo[]; error: string | null }) => {
         if (data.path !== requestPath) return   // not our response — wait
         if (settled) return
+        // Clear the timeout on first matching response
+        if (timeoutHandle) { clearTimeout(timeoutHandle); timeoutHandle = null }
+        // If server returned a transient error AND we have attempts left, retry
+        if (data.error && attempt < maxAttempts - 1) {
+          attempt++
+          socket.off('file:listing', handler)
+          // Exponential backoff: 300ms, 600ms
+          setTimeout(() => {
+            if (settled) return
+            socket.on('file:listing', handler)
+            socket.emit('file:list', { path: requestPath, showHidden: showHidden === true })
+            // Re-arm the timeout for this attempt
+            timeoutHandle = setTimeout(() => {
+              if (settled) return
+              settled = true
+              socket.off('file:listing', handler)
+              resolve({ files: [], error: `Timeout listing files (after ${attempt + 1} attempts)` })
+            }, 15000)
+          }, 300 * attempt)
+          return
+        }
         settled = true
         socket.off('file:listing', handler)
         resolve({ files: data.files, error: data.error })
@@ -472,12 +496,15 @@ export function useSocket() {
       socket.on('file:listing', handler)
       socket.emit('file:list', { path: requestPath, showHidden: showHidden === true })
 
-      setTimeout(() => {
+      // Increased from 8s → 15s for HF Spaces free-tier CPU throttling.
+      // The fs.readdirSync call can be slow when the workspace has many files
+      // OR when the container is under memory pressure.
+      timeoutHandle = setTimeout(() => {
         if (settled) return
         settled = true
         socket.off('file:listing', handler)
-        resolve({ files: [], error: 'Timeout listing files' })
-      }, 8000)
+        resolve({ files: [], error: 'Timeout listing files (waited 15s)' })
+      }, 15000)
     })
   }, [])
 
