@@ -189,12 +189,12 @@ RUN su cloudshell -c "curl -fsSL https://opencode.ai/install | bash" && \
     opencode --version && \
     su cloudshell -c "opencode --version"
 
-# ─── Claude Code default environment ──────────────────────────────
+# ─── Claude Code default environment (NVIDIA API + z-ai/glm-5.2) ──────
 # Users can change these at runtime with: claude-set-url, claude-set-key, claude-set-model
 # Or all at once: setup-claude-env <url> <key> <model>
-ENV ANTHROPIC_BASE_URL="https://your-endpoint.com/" \
-    ANTHROPIC_AUTH_TOKEN="sk-u4Onmsh8NZgtYJ0SArL8UIMrJB78m62b2FgGUz7tWWR7sJYV" \
-    ANTHROPIC_MODEL="claude-opus-4-7" \
+ENV ANTHROPIC_BASE_URL="https://integrate.api.nvidia.com/v1" \
+    ANTHROPIC_AUTH_TOKEN="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" \
+    ANTHROPIC_MODEL="z-ai/glm-5.2" \
     CLAUDE_CODE_USE_AUTH_TOKEN="true"
 
 # ─── Environment Variables ───────────────────────────────────────
@@ -208,9 +208,15 @@ ENV PORT=7860 \
     NPM_CONFIG_PREFIX=/home/cloudshell/.npm-global \
     PATH=/home/cloudshell/bin:/home/cloudshell/.local/bin:/home/cloudshell/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# ─── Entrypoint ──────────────────────────────────────────────────
+# ─── Entrypoint & Scripts ────────────────────────────────────────
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
+
+# Copy utility scripts to workspace
+RUN mkdir -p /home/cloudshell/workspace/scripts
+COPY scripts/test-nvidia-api.py /home/cloudshell/workspace/scripts/test-nvidia-api.py
+RUN chmod +x /home/cloudshell/workspace/scripts/test-nvidia-api.py && \
+    chown -R cloudshell:cloudshell /home/cloudshell/workspace
 
 # Expose default port
 EXPOSE 7860

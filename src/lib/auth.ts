@@ -195,6 +195,11 @@ export function ensureToolSymlinks(workspaceDir: string) {
       ['bashrc',        join(home, '.bashrc')],
       ['bashrc-env',    join(home, '.bashrc_env')],
       ['profile',       join(home, '.profile')],
+      ['nvm-versions',  join(home, '.nvm', 'versions')],
+      ['npm-packages',  join(home, '.npm-global', 'lib', 'node_modules')],
+      ['gem',           join(home, '.local', 'share', 'gem')],
+      ['scripts',       join(home, 'workspace', 'scripts')],
+      ['wordlists',     join(home, '.local', 'wordlists')],
     ]
     for (const [name, target] of targets) {
       const linkPath = join(toolsDir, name)

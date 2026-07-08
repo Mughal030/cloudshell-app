@@ -365,13 +365,13 @@ whereis-tool() {
 # Just type 'claude' to start!
 #
 # Change settings individually:
-#   claude-set-url "https://your-api-endpoint.com/"
-#   claude-set-key "sk-your-new-api-key"
-#   claude-set-model "claude-opus-4-7"
+#   claude-set-url "https://integrate.api.nvidia.com/v1"
+#   claude-set-key "nvapi-your-new-api-key"
+#   claude-set-model "z-ai/glm-5.2"
 #   claude-show              (shows current config)
 #
 # Or set all at once:
-#   setup-claude-env "https://your-endpoint/" "sk-your-key" "claude-opus-4-7"
+#   setup-claude-env "https://integrate.api.nvidia.com/v1" "nvapi-your-key" "z-ai/glm-5.2"
 
 # ─── Show current Claude Code configuration ─────────────────
 claude-show() {
@@ -395,7 +395,7 @@ claude-set-url() {
         echo "  Current: ${ANTHROPIC_BASE_URL}"
         echo ""
         echo "  Example:"
-        echo "    claude-set-url \"https://agentrouter.org/\""
+        echo "    claude-set-url \"https://integrate.api.nvidia.com/v1\""
         echo "    claude-set-url \"https://api.anthropic.com/\""
         return 1
     fi
@@ -413,7 +413,7 @@ claude-set-key() {
         echo "  Current: ****${ANTHROPIC_AUTH_TOKEN: -4}"
         echo ""
         echo "  Example:"
-        echo "    claude-set-key \"sk-ant-api03-xxxxx\""
+        echo "    claude-set-key \"nvapi-your-key-here\""
         return 1
     fi
     export ANTHROPIC_AUTH_TOKEN="$1"
@@ -432,9 +432,10 @@ claude-set-model() {
         echo "  Current: ${ANTHROPIC_MODEL}"
         echo ""
         echo "  Available models:"
-        echo "    claude-opus-4-7        (Most capable)"
-        echo "    claude-sonnet-4-20250514 (Balanced)"
-        echo "    claude-haiku-3-5-20241022 (Fast & cheap)"
+        echo "    z-ai/glm-5.2             (NVIDIA GLM-5.2 - Default)"
+        echo "    claude-opus-4-7           (Anthropic Opus - if using Anthropic API)"
+        echo "    claude-sonnet-4-20250514  (Anthropic Sonnet)"
+        echo "    claude-haiku-3-5-20241022 (Anthropic Haiku)"
         return 1
     fi
     export ANTHROPIC_MODEL="$1"
@@ -468,12 +469,12 @@ setup-claude-code() {
     echo ""
     echo "Configure your API credentials with individual commands:"
     echo ""
-    echo "  claude-set-url \"https://your-api-endpoint.com/\""
-    echo "  claude-set-key \"sk-your-api-key-here\""
-    echo "  claude-set-model \"claude-opus-4-7\""
+    echo "  claude-set-url \"https://integrate.api.nvidia.com/v1\""
+    echo "  claude-set-key \"nvapi-your-key-here\""
+    echo "  claude-set-model \"z-ai/glm-5.2\""
     echo ""
     echo "Or set all at once:"
-    echo "  setup-claude-env \"https://your-endpoint/\" \"sk-your-key\" \"claude-opus-4-7\""
+    echo "  setup-claude-env \"https://integrate.api.nvidia.com/v1\" \"nvapi-your-key\" \"z-ai/glm-5.2\""
     echo ""
     echo "Then just type: claude"
 }
@@ -481,13 +482,13 @@ setup-claude-code() {
 setup-claude-env() {
     local BASE_URL="${1:-}"
     local AUTH_TOKEN="${2:-}"
-    local MODEL="${3:-claude-opus-4-7}"
+    local MODEL="${3:-z-ai/glm-5.2}"
 
     if [ -z "$BASE_URL" ] || [ -z "$AUTH_TOKEN" ]; then
         echo "Usage: setup-claude-env <base_url> <auth_token> [model]"
         echo ""
         echo "Example:"
-        echo "  setup-claude-env \"https://agentrouter.org/\" \"sk-abc123\" \"claude-opus-4-7\""
+        echo "  setup-claude-env \"https://integrate.api.nvidia.com/v1\" \"nvapi-abc123\" \"z-ai/glm-5.2\""
         echo ""
         echo "Or change individually:"
         echo "  claude-set-url   (change API endpoint only)"
@@ -521,6 +522,91 @@ ENVEOF
     echo ""
     echo "  Saved to ~/.bashrc_env (persists across sessions)"
     echo "  Run 'claude' to start!"
+}
+
+# ─── Test Claude Code API connection ────────────────────────
+claude-test() {
+    echo "=== Testing Claude Code API Connection ==="
+    echo ""
+
+    if [ -z "$ANTHROPIC_BASE_URL" ]; then
+        echo "  ❌ ANTHROPIC_BASE_URL is not set!"
+        echo "     Run: setup-claude-env \"https://integrate.api.nvidia.com/v1\" \"nvapi-your-key\" \"z-ai/glm-5.2\""
+        return 1
+    fi
+    if [ -z "$ANTHROPIC_AUTH_TOKEN" ]; then
+        echo "  ❌ ANTHROPIC_AUTH_TOKEN is not set!"
+        echo "     Run: claude-set-key \"nvapi-your-key\""
+        return 1
+    fi
+
+    echo "  Endpoint: $ANTHROPIC_BASE_URL"
+    echo "  Model:    ${ANTHROPIC_MODEL:-z-ai/glm-5.2}"
+    echo "  Key:      ****${ANTHROPIC_AUTH_TOKEN: -4}"
+    echo ""
+
+    # Test with a simple curl request to the NVIDIA API
+    echo "  Sending test request..."
+    local RESPONSE
+    RESPONSE=$(curl -s -w "\n%{http_code}" \
+        "${ANTHROPIC_BASE_URL}/chat/completions" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer ${ANTHROPIC_AUTH_TOKEN}" \
+        -d "{
+            \"model\": \"${ANTHROPIC_MODEL:-z-ai/glm-5.2}\",
+            \"messages\": [{\"role\": \"user\", \"content\": \"Say hello in one word\"}],
+            \"max_tokens\": 32,
+            \"temperature\": 0.7,
+            \"stream\": false
+        }" \
+        --connect-timeout 15 \
+        --max-time 30 2>&1)
+
+    local HTTP_CODE
+    HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+    local BODY
+    BODY=$(echo "$RESPONSE" | sed '$d')
+
+    if [ "$HTTP_CODE" = "200" ]; then
+        echo ""
+        echo "  ✅ API Connection SUCCESS! (HTTP $HTTP_CODE)"
+        echo ""
+        # Try to extract the response content
+        local CONTENT
+        CONTENT=$(echo "$BODY" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    msg = data.get('choices', [{}])[0].get('message', {}).get('content', 'N/A')
+    print(msg[:200])
+except Exception as e:
+    print(f'(Could not parse response: {e})')
+" 2>/dev/null || echo "(Could not parse JSON response)")
+        echo "  AI Response: $CONTENT"
+        echo ""
+        echo "  Your Claude Code is ready! Just type: claude"
+    elif [ "$HTTP_CODE" = "000" ]; then
+        echo ""
+        echo "  ❌ Connection FAILED - Could not reach the API endpoint"
+        echo "     Check your internet connection and ANTHROPIC_BASE_URL"
+    else
+        echo ""
+        echo "  ❌ API returned HTTP $HTTP_CODE"
+        echo "     Response: $(echo "$BODY" | head -c 500)"
+        echo ""
+        echo "  Common fixes:"
+        echo "    - Check your API key: claude-set-key \"nvapi-...\""
+        echo "    - Check your endpoint: claude-set-url \"https://integrate.api.nvidia.com/v1\""
+        echo "    - Check your model: claude-set-model \"z-ai/glm-5.2\""
+    fi
+}
+
+# ─── Test Claude Code API with Python (detailed) ────────────
+claude-test-py() {
+    echo "=== Running Python NVIDIA API Test ==="
+    echo ""
+    pip3 install --user openai -q 2>/dev/null
+    python3 /home/cloudshell/workspace/scripts/test-nvidia-api.py
 }
 
 # ─── General env var helper ──────────────────────────────────
