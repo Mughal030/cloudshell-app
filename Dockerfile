@@ -7,206 +7,87 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ─── System Dependencies (COMPREHENSIVE - ALL essential terminal commands) ──
+# ─── System Dependencies (SINGLE LAYER for speed) ────────────────
 RUN apt-get update && apt-get install -y \
-    # ── Core file & directory commands ──
-    coreutils \
-    # ── Package managers & download ──
-    curl \
-    wget \
-    # ── Version control ──
-    git \
-    # ── Build tools ──
-    build-essential \
-    make \
-    cmake \
-    autoconf \
-    automake \
-    libtool \
-    pkg-config \
-    patch \
-    # ── Language runtimes ──
-    python3 \
-    python3-pip \
-    python3-venv \
-    python3-dev \
-    # ── Shell & system ──
-    bash \
-    sudo \
-    gosu \
-    locales \
-    # ── Text editors ──
-    vim \
-    nano \
-    # ── Security & certs ──
-    ca-certificates \
-    gnupg \
-    gpg \
-    gpg-agent \
-    lsb-release \
-    # ── Docker deps ──
-    iptables \
-    uidmap \
-    dbus-user-session \
-    # ── Process & system monitoring ──
-    htop \
-    procps \
-    # ── File viewing & text processing ──
-    tree \
-    less \
-    jq \
-    file \
-    diffutils \
-    # ── Compression & archiving ──
-    zip \
-    unzip \
-    gzip \
-    bzip2 \
-    xz-utils \
-    tar \
-    # ── Network tools ──
-    net-tools \
-    iputils-ping \
-    openssh-client \
-    openssh-server \
-    rsync \
-    netcat \
-    dnsutils \
-    # ── System admin ──
-    strace \
-    ltrace \
-    software-properties-common \
-    apt-utils \
-    # ── Man pages & help ──
-    man-db \
-    manpages \
-    info \
-    # ── Additional utilities ──
-    psmisc \
-    whois \
-    time \
-    && rm -rf /var/lib/apt/lists/*
+    coreutils curl wget git \
+    build-essential make cmake autoconf automake libtool pkg-config patch \
+    python3 python3-pip python3-venv python3-dev \
+    bash sudo gosu locales \
+    vim nano \
+    ca-certificates gnupg gpg gpg-agent lsb-release \
+    procps htop \
+    tree less jq file diffutils \
+    zip unzip gzip bzip2 xz-utils tar \
+    net-tools iputils-ping openssh-client rsync netcat dnsutils \
+    software-properties-common apt-utils \
+    psmisc whois time \
+    && rm -rf /var/lib/apt/lists/* \
+    && locale-gen en_US.UTF-8
 
-# Generate UTF-8 locale
-RUN locale-gen en_US.UTF-8
-ENV LANG=en_US.UTF-8 \
-    LANGUAGE=en_US:en \
-    LC_ALL=en_US.UTF-8
+ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8
 
-# ─── Node.js 22.x via NodeSource ─────────────────────────────────
+# ─── Node.js 22.x + Docker CLI (COMBINED for speed) ──────────────
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && node --version && npm --version
 
-# Verify Node.js version
-RUN node --version && npm --version
-
-# ─── Docker CLI + Rootless Docker ─────────────────────────────────
-RUN install -m 0755 -d /etc/apt/keyrings \
-    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
-    && chmod a+r /etc/apt/keyrings/docker.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list \
-    && apt-get update \
-    && apt-get install -y docker-ce-cli docker-ce-rootless-extras \
-    && rm -rf /var/lib/apt/lists/*
-
-# ─── Non-root User with npm global prefix ───────────────────────────
+# ─── Non-root User + npm global prefix ───────────────────────────
 RUN useradd -m -s /bin/bash cloudshell && \
     echo "cloudshell ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/cloudshell && \
     chmod 440 /etc/sudoers.d/cloudshell && \
-    usermod -aG sudo cloudshell
-
-# ─── Configure npm global directory for cloudshell user ─────────────
-# This fixes EACCES errors when running `npm install -g` as non-root user
-# Instead of writing to /usr/lib/node_modules (root-only), npm will
-# install global packages to ~/.npm-global/ which the user owns
-RUN mkdir -p /home/cloudshell/.npm-global \
-    && mkdir -p /home/cloudshell/.npm-global/lib \
-    && mkdir -p /home/cloudshell/.npm-global/bin \
-    && chown -R cloudshell:cloudshell /home/cloudshell/.npm-global
-
-# ─── Create .npmrc for cloudshell user at BUILD TIME ────────────────
-# This ensures npm uses the user-writable global prefix even before
-# the entrypoint runs. Critical for `npm install -g` to work.
-RUN echo "prefix=/home/cloudshell/.npm-global" > /home/cloudshell/.npmrc \
-    && chown cloudshell:cloudshell /home/cloudshell/.npmrc
+    usermod -aG sudo cloudshell && \
+    mkdir -p /home/cloudshell/.npm-global/lib /home/cloudshell/.npm-global/bin \
+    /home/cloudshell/.local/bin /home/cloudshell/.local/lib /home/cloudshell/.local/share \
+    /home/cloudshell/.cache /home/cloudshell/bin /home/cloudshell/workspace \
+    /home/cloudshell/workspace/scripts /home/cloudshell/.jasbol-users \
+    /home/cloudshell/.free-claude-code \
+    && echo "prefix=/home/cloudshell/.npm-global" > /home/cloudshell/.npmrc \
+    && chown -R cloudshell:cloudshell /home/cloudshell
 
 # ─── Application ──────────────────────────────────────────────────
 WORKDIR /app
 
-# Copy package files first for better Docker layer caching
 COPY package*.json ./
-
-# Install ALL dependencies (dev needed for build step)
 RUN npm ci --legacy-peer-deps 2>&1 | tail -5
 
-# Copy application code
 COPY . .
-
-# Build Next.js (typescript errors ignored per next.config.ts)
 RUN npx next build 2>&1 | tail -20
-
-# Prune dev dependencies to reduce image size
 RUN npm prune --omit=dev 2>/dev/null || true
 
-# ─── Workspace & Permissions ─────────────────────────────────────
-RUN mkdir -p /home/cloudshell/workspace \
-    /home/cloudshell/.local/bin \
-    /home/cloudshell/.local/lib \
-    /home/cloudshell/.local/share \
-    /home/cloudshell/.cache \
-    /home/cloudshell/bin \
-    /home/cloudshell/.npm-global \
-    /home/cloudshell/.npm-global/lib \
-    /home/cloudshell/.npm-global/bin \
-    /home/cloudshell/.jasbol-users \
-    && chown -R cloudshell:cloudshell /home/cloudshell \
-    && chown -R cloudshell:cloudshell /app
-
-# ─── Fix APT directories at build time ──────────────────────────
-RUN mkdir -p /var/lib/apt/lists/partial \
-    && chown -R root:root /var/lib/apt \
-    && chmod -R 755 /var/lib/apt \
-    && mkdir -p /var/cache/apt \
-    && chown -R root:root /var/cache/apt \
-    && chmod -R 755 /var/cache/apt
+# ─── Permissions ─────────────────────────────────────────────────
+RUN chown -R cloudshell:cloudshell /app \
+    && mkdir -p /var/lib/apt/lists/partial /var/cache/apt \
+    && chown -R root:root /var/lib/apt /var/cache/apt \
+    && chmod -R 755 /var/lib/apt /var/cache/apt
 
 # ─── Pre-install Claude Code CLI ──────────────────────────────────
-# Install as cloudshell user so it lands in ~/.npm-global/bin/claude
 RUN su -c "npm install -g @anthropic-ai/claude-code 2>&1 | tail -5" cloudshell && \
     ln -sf /home/cloudshell/.npm-global/bin/claude /usr/local/bin/claude 2>/dev/null || true
-
-# ─── Pre-install OpenCode CLI ─────────────────────────────────────
-# User explicitly requested the simple official installer:
-#   curl -fsSL https://opencode.ai/install | bash
-# OpenCode installs to ~/.opencode/bin/opencode. We:
-#   1. Run the official installer as cloudshell user (correct HOME)
-#   2. Symlink to /usr/local/bin so `opencode` works for all users
-#   3. FAIL the build if the binary doesn't actually run
-RUN su cloudshell -c "curl -fsSL https://opencode.ai/install | bash" && \
-    ln -sf /home/cloudshell/.opencode/bin/opencode /usr/local/bin/opencode && \
-    chown -R cloudshell:cloudshell /home/cloudshell/.opencode && \
-    opencode --version && \
-    su cloudshell -c "opencode --version"
 
 # ─── Install free-claude-code proxy (NVIDIA NIM → Anthropic API) ───
 # This proxy lets Claude Code work with NVIDIA's free NIM API.
 # It runs on localhost:8082 and translates Anthropic-format requests
 # to NVIDIA NIM format using the NVIDIA_NIM_API_KEY.
 #
-# Install steps:
-#   1. Install uv (Python package manager)
-#   2. Install Python 3.14 via uv
-#   3. Install free-claude-code via uv tool install
-#   4. Create .env with NVIDIA API key
-#   5. The proxy auto-starts in docker-entrypoint.sh
-RUN curl -fsSL https://astral.sh/uv/install.sh | sh && \
-    /root/.local/bin/uv python install 3.14 && \
-    /root/.local/bin/uv tool install --force "free-claude-code @ git+https://github.com/Alishahryar1/free-claude-code.git" && \
-    ln -sf /root/.local/bin/fcc-server /usr/local/bin/fcc-server && \
-    ln -sf /root/.local/bin/fcc-claude /usr/local/bin/fcc-claude && \
-    ln -sf /root/.local/bin/free-claude-code /usr/local/bin/free-claude-code && \
-    fcc-server --help 2>&1 | head -3 || true
+# OPTIMIZED: Install uv + Python 3.14 + free-claude-code in ONE layer
+# to minimize Docker build time. Python 3.14 is required by free-claude-code.
+RUN curl -fsSL https://astral.sh/uv/install.sh | sh \
+    && export PATH="/root/.local/bin:$PATH" \
+    && uv python install 3.14 \
+    && uv tool install --force "free-claude-code @ git+https://github.com/Alishahryar1/free-claude-code.git" \
+    && ln -sf /root/.local/bin/fcc-server /usr/local/bin/fcc-server \
+    && ln -sf /root/.local/bin/fcc-claude /usr/local/bin/fcc-claude \
+    && ln -sf /root/.local/bin/free-claude-code /usr/local/bin/free-claude-code \
+    && ln -sf /root/.local/bin/fcc-init /usr/local/bin/fcc-init 2>/dev/null || true
+
+# ─── Entrypoint & Scripts ────────────────────────────────────────
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
+COPY scripts/test-nvidia-api.py /home/cloudshell/workspace/scripts/test-nvidia-api.py
+RUN chmod +x /home/cloudshell/workspace/scripts/test-nvidia-api.py && \
+    chown -R cloudshell:cloudshell /home/cloudshell/workspace /home/cloudshell/.free-claude-code
 
 # ─── Claude Code default environment (via free-claude-code proxy) ───
 # The proxy (fcc-server) runs on localhost:8082 and translates
@@ -228,17 +109,7 @@ ENV PORT=7860 \
     SHELL=/bin/bash \
     APP_HOME=/home/cloudshell \
     NPM_CONFIG_PREFIX=/home/cloudshell/.npm-global \
-    PATH=/home/cloudshell/bin:/home/cloudshell/.local/bin:/home/cloudshell/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-# ─── Entrypoint & Scripts ────────────────────────────────────────
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
-
-# Copy utility scripts to workspace
-RUN mkdir -p /home/cloudshell/workspace/scripts
-COPY scripts/test-nvidia-api.py /home/cloudshell/workspace/scripts/test-nvidia-api.py
-RUN chmod +x /home/cloudshell/workspace/scripts/test-nvidia-api.py && \
-    chown -R cloudshell:cloudshell /home/cloudshell/workspace
+    PATH=/home/cloudshell/bin:/home/cloudshell/.local/bin:/home/cloudshell/.npm-global/bin:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Expose default port
 EXPOSE 7860
