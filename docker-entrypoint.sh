@@ -367,10 +367,15 @@ whereis-tool() {
 #
 # Architecture:
 #   Claude Code → localhost:8082 (fcc-server proxy) → NVIDIA NIM API
-#   ANTHROPIC_AUTH_TOKEN = "freecc" (placeholder, proxy ignores it)
+#   ANTHROPIC_AUTH_TOKEN = "fcc-no-auth" (bypasses OAuth login prompt)
 #   NVIDIA_NIM_API_KEY = your actual NVIDIA key (used by the proxy)
 #
+# IMPORTANT: Use "fcc-claude" to launch Claude Code (not "claude")
+#   fcc-claude auto-sets env vars and skips the login prompt.
+#   If you use "claude" directly, you may get a sign-in prompt.
+#
 # Commands:
+#   fcc-claude             - Launch Claude Code via proxy (RECOMMENDED)
 #   claude-set-nvidia-key  - Change your NVIDIA API key
 #   claude-set-model       - Change the model mapping
 #   claude-show            - Show current config
@@ -386,7 +391,7 @@ claude-show() {
     echo "    Claude Code → localhost:8082 (proxy) → NVIDIA NIM API"
     echo ""
     echo "  ANTHROPIC_BASE_URL    = ${ANTHROPIC_BASE_URL:-(not set)}"
-    echo "  ANTHROPIC_AUTH_TOKEN   = ${ANTHROPIC_AUTH_TOKEN:-(not set)} (placeholder for proxy)"
+    echo "  ANTHROPIC_AUTH_TOKEN   = ${ANTHROPIC_AUTH_TOKEN:-(not set)} (bypasses OAuth login)"
     echo "  ANTHROPIC_MODEL       = ${ANTHROPIC_MODEL:-(not set)}"
     echo "  CLAUDE_CODE_USE_AUTH_TOKEN = ${CLAUDE_CODE_USE_AUTH_TOKEN:-(not set)}"
     echo "  NVIDIA_NIM_API_KEY    = ****${NVIDIA_NIM_API_KEY: -4}"
@@ -412,7 +417,7 @@ claude-show() {
 
 # ─── Change NVIDIA NIM API Key ──────────────────────────────
 # This is the key used by the proxy to talk to NVIDIA.
-# ANTHROPIC_AUTH_TOKEN stays as "freecc" — the proxy ignores it.
+# ANTHROPIC_AUTH_TOKEN stays as "fcc-no-auth" — the proxy ignores it.
 claude-set-nvidia-key() {
     if [ -z "$1" ]; then
         echo "Usage: claude-set-nvidia-key <nvidia_api_key>"
@@ -584,7 +589,7 @@ setup-fcc-proxy() {
     _fcc_update_env PORT "8082"
     _fcc_update_env NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY:-nvapi-YOUR-KEY-HERE}"
     _fcc_update_env MODEL "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
-    _fcc_update_env ANTHROPIC_AUTH_TOKEN "freecc"
+    _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
     echo ""
     echo "  Starting proxy..."
     fcc-start
@@ -603,7 +608,7 @@ fcc-start() {
     _fcc_update_env PORT "8082"
     _fcc_update_env NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY:-}"
     _fcc_update_env MODEL "nvidia_nim/${ANTHROPIC_MODEL:-nvidia/nemotron-3-super-120b-a12b}"
-    _fcc_update_env ANTHROPIC_AUTH_TOKEN "freecc"
+    _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
 
     # Start in background, explicitly set PORT=8082 to avoid conflict with Next.js on 7860
     PORT=8082 nohup fcc-server > /tmp/fcc-server.log 2>&1 &
@@ -697,7 +702,7 @@ claude-test() {
     RESPONSE=$(curl -s -w "\n%{http_code}" \
         "http://localhost:8082/v1/messages" \
         -H "Content-Type: application/json" \
-        -H "x-api-key: freecc" \
+        -H "x-api-key: fcc-no-auth" \
         -H "anthropic-version: 2023-06-01" \
         -d "{
             \"model\": \"${ANTHROPIC_MODEL:-nvidia/nemotron-3-super-120b-a12b}\",
@@ -1020,9 +1025,16 @@ if [ ! -f "/home/cloudshell/.npmrc" ]; then
     chown cloudshell:cloudshell /home/cloudshell/.npmrc 2>/dev/null || true
 fi
 
-# ─── Ensure .bashrc_env exists ─────────────────────────────────
+# ─── Ensure .bashrc_env exists with Claude Code proxy vars ──────
 if [ ! -f "/home/cloudshell/.bashrc_env" ]; then
-    touch /home/cloudshell/.bashrc_env
+    cat > /home/cloudshell/.bashrc_env << 'BASHEOF'
+# Claude Code proxy environment (auto-generated)
+export ANTHROPIC_BASE_URL="http://localhost:8082"
+export ANTHROPIC_AUTH_TOKEN="fcc-no-auth"
+export CLAUDE_CODE_USE_AUTH_TOKEN="true"
+export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="1"
+export CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000"
+BASHEOF
     chown cloudshell:cloudshell /home/cloudshell/.bashrc_env 2>/dev/null || true
 fi
 
@@ -1053,7 +1065,7 @@ mkdir -p /home/cloudshell/.free-claude-code 2>/dev/null
 cat > /home/cloudshell/.free-claude-code/.env << FCCEOF
 NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}"
 MODEL="nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
-ANTHROPIC_AUTH_TOKEN="freecc"
+ANTHROPIC_AUTH_TOKEN="fcc-no-auth"
 PORT="8082"
 FCC_OPEN_BROWSER="false"
 MESSAGING_PLATFORM="none"
@@ -1101,7 +1113,7 @@ echo "=========================================="
 echo "[Entrypoint] Dropping to cloudshell user..."
 echo "[Entrypoint] Starting server: $*"
 echo "[Entrypoint] npm global prefix: /home/cloudshell/.npm-global"
-echo "[Entrypoint] Claude Code: pre-installed! Just type 'claude' to start"
+echo "[Entrypoint] Claude Code: type 'fcc-claude' to start (via proxy)"
 echo "[Entrypoint] Free-Claude-Code proxy: localhost:8082"
 echo "=========================================="
 

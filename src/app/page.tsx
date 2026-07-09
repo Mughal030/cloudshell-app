@@ -49,7 +49,8 @@ const MemoizedXtermTerminal = memo(XtermTerminal)
 const QUICK_INSTALL = {
   'AI & CLI Tools': [
     { name: 'Claude Code', cmd: 'setup-claude-code', icon: 'sparkles' },
-    { name: 'Setup FCC Proxy', cmd: 'setup-fcc-proxy', icon: 'zap' },
+    { name: 'FCC Proxy Setup', cmd: 'setup-fcc-proxy', icon: 'zap' },
+    { name: 'Start Claude (fcc-claude)', cmd: 'fcc-claude', icon: 'sparkles' },
     { name: 'Test Claude+Proxy', cmd: 'claude-test', icon: 'zap' },
     { name: 'OpenAI Python SDK', cmd: 'pip3 install --user openai && echo "openai SDK installed"', icon: 'code' },
     { name: 'TypeScript', cmd: 'npm install -g typescript && echo "TypeScript installed to ~/.npm-global!"', icon: 'code' },

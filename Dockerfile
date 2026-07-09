@@ -75,10 +75,21 @@ RUN chmod +x /home/cloudshell/workspace/scripts/test-nvidia-api.py && \
 # The proxy (fcc-server) is installed at RUNTIME to save build time.
 # It runs on localhost:8082 and translates Anthropic API requests
 # to NVIDIA NIM format using the NVIDIA_NIM_API_KEY.
+#
+# KEY: Use "fcc-claude" (not "claude") to launch Claude Code.
+# fcc-claude auto-sets all env vars and skips the login prompt.
+#
+# ENV VARS EXPLAINED:
+#   ANTHROPIC_BASE_URL  → proxy endpoint (not Anthropic's real API)
+#   ANTHROPIC_AUTH_TOKEN → "fcc-no-auth" bypasses OAuth login prompt
+#   CLAUDE_CODE_USE_AUTH_TOKEN → tells Claude Code to use the token, not OAuth
+#   CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY → enables /model picker
+#   CLAUDE_CODE_AUTO_COMPACT_WINDOW → auto-compaction for long sessions
 ENV ANTHROPIC_BASE_URL="http://localhost:8082" \
-    ANTHROPIC_AUTH_TOKEN="freecc" \
-    ANTHROPIC_MODEL="nvidia/nemotron-3-super-120b-a12b" \
+    ANTHROPIC_AUTH_TOKEN="fcc-no-auth" \
     CLAUDE_CODE_USE_AUTH_TOKEN="true" \
+    CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="1" \
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000" \
     NVIDIA_NIM_API_KEY="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"
 
 # ─── Environment Variables ───────────────────────────────────────
