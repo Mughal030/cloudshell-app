@@ -292,7 +292,7 @@ const TOOL_INSTALL_COMMANDS: Record<string, string> = {
   python3: 'echo "python3 is pre-installed"',
   pip3: 'echo "pip3 is pre-installed"',
   sudo: 'echo "sudo is available (passwordless)"',
-  claude: 'echo "Claude Code CLI is pre-installed. Just type: claude"',
+  claude: 'echo "Claude Code: type fcc-claude (via proxy) or claude (raw, may ask login)"',
   opencode: 'echo "OpenCode CLI is pre-installed. Just type: opencode"',
 }
 

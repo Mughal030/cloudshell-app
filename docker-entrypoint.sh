@@ -516,7 +516,7 @@ _fcc_update_env() {
     local FCC_ENV=""
 
     # Find the fcc-server .env file (could be in several locations)
-    for dir in "$HOME/.free-claude-code" "$HOME/.config/free-claude-code" "/app"; do
+    for dir in "$HOME/.fcc" "$HOME/.config/free-claude-code" "/app"; do
         if [ -f "${dir}/.env" ]; then
             FCC_ENV="${dir}/.env"
             break
@@ -539,7 +539,7 @@ print(config_dir_path())
 
     if [ -z "$FCC_ENV" ]; then
         # Create .env in the standard config location
-        FCC_ENV="$HOME/.free-claude-code/.env"
+        FCC_ENV="$HOME/.fcc/.env"
         mkdir -p "$(dirname "$FCC_ENV")" 2>/dev/null || true
     fi
 
@@ -623,7 +623,7 @@ fcc-start() {
             echo "  ✅ Proxy is running on http://localhost:8082"
             echo "  ✅ Admin UI at http://localhost:8082/admin"
             echo ""
-            echo "  Now just type: claude"
+            echo "  Now just type: fcc-claude"
             return 0
         fi
         sleep 1
@@ -1061,8 +1061,8 @@ echo "[Entrypoint]   PATH: ${PATH}"
 echo "[Entrypoint] Setting up free-claude-code proxy..."
 
 # Ensure .env file exists with NVIDIA key for fcc-server
-mkdir -p /home/cloudshell/.free-claude-code 2>/dev/null
-cat > /home/cloudshell/.free-claude-code/.env << FCCEOF
+mkdir -p /home/cloudshell/.fcc 2>/dev/null
+cat > /home/cloudshell/.fcc/.env << FCCEOF
 NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}"
 MODEL="nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
 ANTHROPIC_AUTH_TOKEN="fcc-no-auth"
@@ -1071,7 +1071,7 @@ FCC_OPEN_BROWSER="false"
 MESSAGING_PLATFORM="none"
 ENABLE_MODEL_THINKING="true"
 FCCEOF
-chown -R cloudshell:cloudshell /home/cloudshell/.free-claude-code 2>/dev/null || true
+chown -R cloudshell:cloudshell /home/cloudshell/.fcc 2>/dev/null || true
 
 # Install fcc-server on first boot if not already installed
 if ! command -v fcc-server &>/dev/null; then

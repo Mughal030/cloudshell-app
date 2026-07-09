@@ -34,7 +34,7 @@ RUN useradd -m -s /bin/bash cloudshell && \
     /home/cloudshell/.local/bin /home/cloudshell/.local/lib /home/cloudshell/.local/share \
     /home/cloudshell/.cache /home/cloudshell/bin /home/cloudshell/workspace \
     /home/cloudshell/workspace/scripts /home/cloudshell/.jasbol-users \
-    /home/cloudshell/.free-claude-code \
+    /home/cloudshell/.fcc \
     && echo "prefix=/home/cloudshell/.npm-global" > /home/cloudshell/.npmrc \
     && chown -R cloudshell:cloudshell /home/cloudshell
 
