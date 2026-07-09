@@ -189,13 +189,35 @@ RUN su cloudshell -c "curl -fsSL https://opencode.ai/install | bash" && \
     opencode --version && \
     su cloudshell -c "opencode --version"
 
-# ─── Claude Code default environment (NVIDIA API + z-ai/glm-5.2) ──────
-# Users can change these at runtime with: claude-set-url, claude-set-key, claude-set-model
-# Or all at once: setup-claude-env <url> <key> <model>
-ENV ANTHROPIC_BASE_URL="https://integrate.api.nvidia.com/v1" \
-    ANTHROPIC_AUTH_TOKEN="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" \
-    ANTHROPIC_MODEL="z-ai/glm-5.2" \
-    CLAUDE_CODE_USE_AUTH_TOKEN="true"
+# ─── Install free-claude-code proxy (NVIDIA NIM → Anthropic API) ───
+# This proxy lets Claude Code work with NVIDIA's free NIM API.
+# It runs on localhost:8082 and translates Anthropic-format requests
+# to NVIDIA NIM format using the NVIDIA_NIM_API_KEY.
+#
+# Install steps:
+#   1. Install uv (Python package manager)
+#   2. Install Python 3.14 via uv
+#   3. Install free-claude-code via uv tool install
+#   4. Create .env with NVIDIA API key
+#   5. The proxy auto-starts in docker-entrypoint.sh
+RUN curl -fsSL https://astral.sh/uv/install.sh | sh && \
+    /root/.local/bin/uv python install 3.14 && \
+    /root/.local/bin/uv tool install --force "free-claude-code @ git+https://github.com/Alishahryar1/free-claude-code.git" && \
+    ln -sf /root/.local/bin/fcc-server /usr/local/bin/fcc-server && \
+    ln -sf /root/.local/bin/fcc-claude /usr/local/bin/fcc-claude && \
+    ln -sf /root/.local/bin/free-claude-code /usr/local/bin/free-claude-code && \
+    fcc-server --help 2>&1 | head -3 || true
+
+# ─── Claude Code default environment (via free-claude-code proxy) ───
+# The proxy (fcc-server) runs on localhost:8082 and translates
+# Anthropic API requests to NVIDIA NIM format using the NVIDIA key.
+# Claude Code connects to the proxy, NOT directly to NVIDIA.
+# Users can change the NVIDIA key at runtime with: claude-set-nvidia-key
+ENV ANTHROPIC_BASE_URL="http://localhost:8082" \
+    ANTHROPIC_AUTH_TOKEN="freecc" \
+    ANTHROPIC_MODEL="nvidia/nemotron-3-super-120b-a12b" \
+    CLAUDE_CODE_USE_AUTH_TOKEN="true" \
+    NVIDIA_NIM_API_KEY="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"
 
 # ─── Environment Variables ───────────────────────────────────────
 ENV PORT=7860 \

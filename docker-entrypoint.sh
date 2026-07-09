@@ -360,89 +360,133 @@ whereis-tool() {
     fi
 }
 
-# ─── Claude Code CLI Setup ──────────────────────────────────
-# Claude Code is PRE-INSTALLED in the Docker image.
-# Just type 'claude' to start!
+# ─── Claude Code CLI Setup (via free-claude-code proxy) ─────
+# Claude Code is PRE-INSTALLED and configured to use the
+# free-claude-code proxy (fcc-server) on localhost:8082.
+# The proxy translates Anthropic API requests to NVIDIA NIM.
 #
-# Change settings individually:
-#   claude-set-url "https://integrate.api.nvidia.com/v1"
-#   claude-set-key "nvapi-your-new-api-key"
-#   claude-set-model "z-ai/glm-5.2"
-#   claude-show              (shows current config)
+# Architecture:
+#   Claude Code → localhost:8082 (fcc-server proxy) → NVIDIA NIM API
+#   ANTHROPIC_AUTH_TOKEN = "freecc" (placeholder, proxy ignores it)
+#   NVIDIA_NIM_API_KEY = your actual NVIDIA key (used by the proxy)
 #
-# Or set all at once:
-#   setup-claude-env "https://integrate.api.nvidia.com/v1" "nvapi-your-key" "z-ai/glm-5.2"
+# Commands:
+#   claude-set-nvidia-key  - Change your NVIDIA API key
+#   claude-set-model       - Change the model mapping
+#   claude-show            - Show current config
+#   claude-test            - Test the proxy + NVIDIA API
+#   fcc-start / fcc-stop   - Start/stop the proxy
+#   fcc-status             - Check if proxy is running
 
 # ─── Show current Claude Code configuration ─────────────────
 claude-show() {
-    echo "=== Claude Code Configuration ==="
+    echo "=== Claude Code Configuration (via free-claude-code proxy) ==="
+    echo ""
+    echo "  Architecture:"
+    echo "    Claude Code → localhost:8082 (proxy) → NVIDIA NIM API"
+    echo ""
     echo "  ANTHROPIC_BASE_URL    = ${ANTHROPIC_BASE_URL:-(not set)}"
-    echo "  ANTHROPIC_AUTH_TOKEN   = ****${ANTHROPIC_AUTH_TOKEN: -4}"
+    echo "  ANTHROPIC_AUTH_TOKEN   = ${ANTHROPIC_AUTH_TOKEN:-(not set)} (placeholder for proxy)"
     echo "  ANTHROPIC_MODEL       = ${ANTHROPIC_MODEL:-(not set)}"
     echo "  CLAUDE_CODE_USE_AUTH_TOKEN = ${CLAUDE_CODE_USE_AUTH_TOKEN:-(not set)}"
+    echo "  NVIDIA_NIM_API_KEY    = ****${NVIDIA_NIM_API_KEY: -4}"
+    echo ""
+    # Check proxy status
+    if curl -s http://localhost:8082/health >/dev/null 2>&1; then
+        echo "  Proxy (fcc-server): ✅ RUNNING on port 8082"
+    else
+        echo "  Proxy (fcc-server): ❌ NOT RUNNING (run: fcc-start)"
+    fi
     echo ""
     if command -v claude &>/dev/null; then
         echo "  claude CLI: installed ($(which claude))"
     else
         echo "  claude CLI: NOT FOUND (run: setup-claude-code)"
     fi
+    if command -v fcc-server &>/dev/null; then
+        echo "  fcc-server: installed ($(which fcc-server))"
+    else
+        echo "  fcc-server: NOT FOUND (run: setup-fcc-proxy)"
+    fi
 }
 
-# ─── Change Claude Code API Base URL only ────────────────────
+# ─── Change NVIDIA NIM API Key ──────────────────────────────
+# This is the key used by the proxy to talk to NVIDIA.
+# ANTHROPIC_AUTH_TOKEN stays as "freecc" — the proxy ignores it.
+claude-set-nvidia-key() {
+    if [ -z "$1" ]; then
+        echo "Usage: claude-set-nvidia-key <nvidia_api_key>"
+        echo "  Current: ****${NVIDIA_NIM_API_KEY: -4}"
+        echo ""
+        echo "  Get your key at: https://build.nvidia.com/ → Get API Key"
+        echo ""
+        echo "  Example:"
+        echo "    claude-set-nvidia-key \"nvapi-xxxxxxxxxxxx\""
+        return 1
+    fi
+    local NEW_KEY="$1"
+    export NVIDIA_NIM_API_KEY="$NEW_KEY"
+    # Update persisted env file
+    _claude_update_env NVIDIA_NIM_API_KEY "$NEW_KEY"
+    # Also update the fcc-server .env file
+    _fcc_update_env NVIDIA_NIM_API_KEY "$NEW_KEY"
+    echo "✅ NVIDIA_NIM_API_KEY updated to: ****${NEW_KEY: -4}"
+    echo "  (Saved to ~/.bashrc_env AND fcc-server .env)"
+    echo ""
+    echo "  Restart the proxy for changes to take effect:"
+    echo "    fcc-stop && fcc-start"
+}
+
+# ─── Change Claude Code API Base URL ────────────────────────
+# WARNING: Only change this if you're NOT using the proxy anymore!
+# If using the proxy, this should always be http://localhost:8082
 claude-set-url() {
     if [ -z "$1" ]; then
         echo "Usage: claude-set-url <base_url>"
         echo "  Current: ${ANTHROPIC_BASE_URL}"
         echo ""
-        echo "  Example:"
-        echo "    claude-set-url \"https://integrate.api.nvidia.com/v1\""
+        echo "  ⚠ If using the NVIDIA proxy, keep this as http://localhost:8082"
+        echo ""
+        echo "  Example (with proxy):"
+        echo "    claude-set-url \"http://localhost:8082\""
+        echo ""
+        echo "  Example (direct Anthropic API, no proxy):"
         echo "    claude-set-url \"https://api.anthropic.com/\""
         return 1
     fi
     export ANTHROPIC_BASE_URL="$1"
-    # Update persisted env file
     _claude_update_env ANTHROPIC_BASE_URL "$1"
     echo "ANTHROPIC_BASE_URL updated to: $1"
     echo "  (Saved to ~/.bashrc_env for future sessions)"
 }
 
-# ─── Change Claude Code API Key only ────────────────────────
-claude-set-key() {
-    if [ -z "$1" ]; then
-        echo "Usage: claude-set-key <api_key>"
-        echo "  Current: ****${ANTHROPIC_AUTH_TOKEN: -4}"
-        echo ""
-        echo "  Example:"
-        echo "    claude-set-key \"nvapi-your-key-here\""
-        return 1
-    fi
-    export ANTHROPIC_AUTH_TOKEN="$1"
-    export CLAUDE_CODE_USE_AUTH_TOKEN="true"
-    # Update persisted env file
-    _claude_update_env ANTHROPIC_AUTH_TOKEN "$1"
-    _claude_update_env CLAUDE_CODE_USE_AUTH_TOKEN "true"
-    echo "ANTHROPIC_AUTH_TOKEN updated to: ****${1: -4}"
-    echo "  (Saved to ~/.bashrc_env for future sessions)"
-}
-
-# ─── Change Claude Code Model only ──────────────────────────
+# ─── Change Claude Code Model ──────────────────────────────
+# The proxy maps model names to actual NVIDIA models.
 claude-set-model() {
     if [ -z "$1" ]; then
         echo "Usage: claude-set-model <model_name>"
         echo "  Current: ${ANTHROPIC_MODEL}"
         echo ""
-        echo "  Available models:"
-        echo "    z-ai/glm-5.2             (NVIDIA GLM-5.2 - Default)"
-        echo "    claude-opus-4-7           (Anthropic Opus - if using Anthropic API)"
-        echo "    claude-sonnet-4-20250514  (Anthropic Sonnet)"
-        echo "    claude-haiku-3-5-20241022 (Anthropic Haiku)"
+        echo "  When using the NVIDIA proxy, these model names get mapped:"
+        echo "    nvidia/nemotron-3-super-120b-a12b  (Default - most capable free model)"
+        echo "    nvidia/llama-3.3-nemotron-super-49b-v1"
+        echo "    nvidia/mistral-large-2"
+        echo ""
+        echo "  If using Anthropic API directly (no proxy):"
+        echo "    claude-opus-4-7           (Most capable)"
+        echo "    claude-sonnet-4-20250514  (Balanced)"
+        echo "    claude-haiku-3-5-20241022 (Fast & cheap)"
         return 1
     fi
     export ANTHROPIC_MODEL="$1"
-    # Update persisted env file
     _claude_update_env ANTHROPIC_MODEL "$1"
+    # Also update fcc-server MODEL mapping
+    _fcc_update_env MODEL "nvidia_nim/$1"
     echo "ANTHROPIC_MODEL updated to: $1"
-    echo "  (Saved to ~/.bashrc_env for future sessions)"
+    echo "  (Saved to ~/.bashrc_env AND fcc-server .env)"
+    echo ""
+    echo "  Restart the proxy for changes to take effect:"
+    echo "    fcc-stop && fcc-start"
 }
 
 # ─── Internal: update a single env var in ~/.bashrc_env ─────
@@ -460,107 +504,204 @@ _claude_update_env() {
     echo "export ${VAR_NAME}=\"${VALUE}\"" >> "$ENV_FILE"
 }
 
-# ─── Install Claude Code (if not pre-installed) ──────────────
+# ─── Internal: update a single env var in fcc-server .env ──
+_fcc_update_env() {
+    local VAR_NAME="$1"
+    local VALUE="$2"
+    local FCC_ENV=""
+
+    # Find the fcc-server .env file (could be in several locations)
+    for dir in "$HOME/.free-claude-code" "$HOME/.config/free-claude-code" "/app"; do
+        if [ -f "${dir}/.env" ]; then
+            FCC_ENV="${dir}/.env"
+            break
+        fi
+    done
+
+    if [ -z "$FCC_ENV" ]; then
+        # Try to find it via fcc-server's config path
+        if command -v fcc-server &>/dev/null; then
+            local CONFIG_DIR
+            CONFIG_DIR=$(python3 -c "
+from config.paths import config_dir_path
+print(config_dir_path())
+" 2>/dev/null || echo "")
+            if [ -n "$CONFIG_DIR" ] && [ -f "${CONFIG_DIR}/.env" ]; then
+                FCC_ENV="${CONFIG_DIR}/.env"
+            fi
+        fi
+    fi
+
+    if [ -z "$FCC_ENV" ]; then
+        # Create .env in the standard config location
+        FCC_ENV="$HOME/.free-claude-code/.env"
+        mkdir -p "$(dirname "$FCC_ENV")" 2>/dev/null || true
+    fi
+
+    # Remove old line and add new
+    if [ -f "$FCC_ENV" ]; then
+        sed -i "/^${VAR_NAME}=/d" "$FCC_ENV" 2>/dev/null || true
+    fi
+    echo "${VAR_NAME}=\"${VALUE}\"" >> "$FCC_ENV"
+}
+
+# ─── Install Claude Code CLI (if not pre-installed) ────────
 setup-claude-code() {
     echo "=== Installing Claude Code CLI ==="
     npm install -g @anthropic-ai/claude-code
     echo ""
     echo "=== Claude Code installed! ==="
     echo ""
-    echo "Configure your API credentials with individual commands:"
+    echo "  It's pre-configured to use the free-claude-code proxy."
+    echo "  Just type: claude"
     echo ""
-    echo "  claude-set-url \"https://integrate.api.nvidia.com/v1\""
-    echo "  claude-set-key \"nvapi-your-key-here\""
-    echo "  claude-set-model \"z-ai/glm-5.2\""
+    echo "  To change your NVIDIA API key:"
+    echo "    claude-set-nvidia-key \"nvapi-your-key-here\""
     echo ""
-    echo "Or set all at once:"
-    echo "  setup-claude-env \"https://integrate.api.nvidia.com/v1\" \"nvapi-your-key\" \"z-ai/glm-5.2\""
-    echo ""
-    echo "Then just type: claude"
+    echo "  To check the setup:"
+    echo "    claude-show"
 }
 
-setup-claude-env() {
-    local BASE_URL="${1:-}"
-    local AUTH_TOKEN="${2:-}"
-    local MODEL="${3:-z-ai/glm-5.2}"
+# ─── Install/setup free-claude-code proxy ──────────────────
+setup-fcc-proxy() {
+    echo "=== Setting up free-claude-code proxy ==="
+    echo ""
+    if command -v fcc-server &>/dev/null; then
+        echo "  fcc-server is already installed: $(which fcc-server)"
+    else
+        echo "  Installing uv + free-claude-code..."
+        curl -fsSL https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+        uv python install 3.14
+        uv tool install --force "free-claude-code @ git+https://github.com/Alishahryar1/free-claude-code.git"
+        echo "  fcc-server installed!"
+    fi
+    echo ""
+    echo "  Creating .env with your NVIDIA key..."
+    _fcc_update_env NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY:-nvapi-YOUR-KEY-HERE}"
+    _fcc_update_env MODEL "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
+    _fcc_update_env ANTHROPIC_AUTH_TOKEN "freecc"
+    echo ""
+    echo "  Starting proxy..."
+    fcc-start
+}
 
-    if [ -z "$BASE_URL" ] || [ -z "$AUTH_TOKEN" ]; then
-        echo "Usage: setup-claude-env <base_url> <auth_token> [model]"
-        echo ""
-        echo "Example:"
-        echo "  setup-claude-env \"https://integrate.api.nvidia.com/v1\" \"nvapi-abc123\" \"z-ai/glm-5.2\""
-        echo ""
-        echo "Or change individually:"
-        echo "  claude-set-url   (change API endpoint only)"
-        echo "  claude-set-key   (change API key only)"
-        echo "  claude-set-model (change model only)"
-        echo "  claude-show      (show current config)"
-        return 1
+# ─── Start the free-claude-code proxy ──────────────────────
+fcc-start() {
+    if curl -s http://localhost:8082/health >/dev/null 2>&1; then
+        echo "Proxy (fcc-server) is already running on port 8082"
+        return 0
     fi
 
-    # Set for current session
-    export ANTHROPIC_BASE_URL="$BASE_URL"
-    export ANTHROPIC_AUTH_TOKEN="$AUTH_TOKEN"
-    export ANTHROPIC_MODEL="$MODEL"
-    export CLAUDE_CODE_USE_AUTH_TOKEN="true"
+    echo "Starting free-claude-code proxy on port 8082..."
 
-    # Persist ALL claude vars to ~/.bashrc_env
-    cat > "${HOME}/.bashrc_env" << ENVEOF
-# Claude Code CLI Environment Variables
-# Set on $(date)
-export ANTHROPIC_BASE_URL="${BASE_URL}"
-export ANTHROPIC_AUTH_TOKEN="${AUTH_TOKEN}"
-export ANTHROPIC_MODEL="${MODEL}"
-export CLAUDE_CODE_USE_AUTH_TOKEN="true"
-ENVEOF
+    # Ensure .env exists with NVIDIA key
+    _fcc_update_env NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY:-}"
+    _fcc_update_env MODEL "nvidia_nim/${ANTHROPIC_MODEL:-nvidia/nemotron-3-super-120b-a12b}"
+    _fcc_update_env ANTHROPIC_AUTH_TOKEN "freecc"
 
-    echo "Claude Code environment configured!"
-    echo "  ANTHROPIC_BASE_URL = $ANTHROPIC_BASE_URL"
-    echo "  ANTHROPIC_MODEL    = $ANTHROPIC_MODEL"
-    echo "  ANTHROPIC_AUTH_TOKEN = ****${AUTH_TOKEN: -4}"
-    echo "  CLAUDE_CODE_USE_AUTH_TOKEN = true"
-    echo ""
-    echo "  Saved to ~/.bashrc_env (persists across sessions)"
-    echo "  Run 'claude' to start!"
+    # Start in background, suppress output
+    nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+    local PID=$!
+    echo "  Started with PID $PID"
+
+    # Wait for it to become healthy (max 30 seconds)
+    echo "  Waiting for proxy to start..."
+    local WAITED=0
+    while [ $WAITED -lt 30 ]; do
+        if curl -s http://localhost:8082/health >/dev/null 2>&1; then
+            echo "  ✅ Proxy is running on http://localhost:8082"
+            echo "  ✅ Admin UI at http://localhost:8082/admin"
+            echo ""
+            echo "  Now just type: claude"
+            return 0
+        fi
+        sleep 1
+        WAITED=$((WAITED + 1))
+    done
+
+    echo "  ⚠ Proxy may still be starting. Check: fcc-status"
+    echo "  Logs: tail -f /tmp/fcc-server.log"
 }
 
-# ─── Test Claude Code API connection ────────────────────────
+# ─── Stop the free-claude-code proxy ───────────────────────
+fcc-stop() {
+    local PID
+    PID=$(lsof -ti:8082 2>/dev/null || true)
+    if [ -z "$PID" ]; then
+        echo "Proxy (fcc-server) is not running"
+        return 0
+    fi
+    kill "$PID" 2>/dev/null || true
+    echo "Proxy (fcc-server) stopped (PID $PID killed)"
+}
+
+# ─── Check proxy status ───────────────────────────────────
+fcc-status() {
+    if curl -s http://localhost:8082/health >/dev/null 2>&1; then
+        echo "✅ Proxy (fcc-server) is RUNNING on port 8082"
+        echo "   Admin UI: http://localhost:8082/admin"
+        local PID
+        PID=$(lsof -ti:8082 2>/dev/null || echo "unknown")
+        echo "   PID: $PID"
+    else
+        echo "❌ Proxy (fcc-server) is NOT running"
+        echo "   Start it with: fcc-start"
+    fi
+}
+
+# ─── Test Claude Code API connection (via proxy) ─────────────
 claude-test() {
-    echo "=== Testing Claude Code API Connection ==="
+    echo "=== Testing Claude Code + free-claude-code Proxy ==="
     echo ""
 
-    if [ -z "$ANTHROPIC_BASE_URL" ]; then
-        echo "  ❌ ANTHROPIC_BASE_URL is not set!"
-        echo "     Run: setup-claude-env \"https://integrate.api.nvidia.com/v1\" \"nvapi-your-key\" \"z-ai/glm-5.2\""
-        return 1
-    fi
-    if [ -z "$ANTHROPIC_AUTH_TOKEN" ]; then
-        echo "  ❌ ANTHROPIC_AUTH_TOKEN is not set!"
-        echo "     Run: claude-set-key \"nvapi-your-key\""
-        return 1
+    # Step 1: Check if proxy is running
+    echo "  Step 1: Checking proxy status..."
+    if curl -s http://localhost:8082/health >/dev/null 2>&1; then
+        echo "  ✅ Proxy is RUNNING on http://localhost:8082"
+    else
+        echo "  ❌ Proxy is NOT running! Starting it..."
+        fcc-start
+        if ! curl -s http://localhost:8082/health >/dev/null 2>&1; then
+            echo "  ❌ Proxy failed to start. Check: tail -f /tmp/fcc-server.log"
+            return 1
+        fi
     fi
 
-    echo "  Endpoint: $ANTHROPIC_BASE_URL"
-    echo "  Model:    ${ANTHROPIC_MODEL:-z-ai/glm-5.2}"
-    echo "  Key:      ****${ANTHROPIC_AUTH_TOKEN: -4}"
+    # Step 2: Check NVIDIA key
     echo ""
+    echo "  Step 2: Checking NVIDIA API key..."
+    if [ -z "$NVIDIA_NIM_API_KEY" ]; then
+        echo "  ❌ NVIDIA_NIM_API_KEY is not set!"
+        echo "     Run: claude-set-nvidia-key \"nvapi-your-key-here\""
+        return 1
+    fi
+    echo "  ✅ NVIDIA key: ****${NVIDIA_NIM_API_KEY: -4}"
 
-    # Test with a simple curl request to the NVIDIA API
-    echo "  Sending test request..."
+    # Step 3: Test the proxy's /health endpoint
+    echo ""
+    echo "  Step 3: Testing proxy health endpoint..."
+    local HEALTH
+    HEALTH=$(curl -s http://localhost:8082/health 2>&1 || echo "failed")
+    echo "  Health response: $HEALTH"
+
+    # Step 4: Send a test message through the proxy (Anthropic format)
+    echo ""
+    echo "  Step 4: Sending test message through proxy..."
     local RESPONSE
     RESPONSE=$(curl -s -w "\n%{http_code}" \
-        "${ANTHROPIC_BASE_URL}/chat/completions" \
+        "http://localhost:8082/v1/messages" \
         -H "Content-Type: application/json" \
-        -H "Authorization: Bearer ${ANTHROPIC_AUTH_TOKEN}" \
+        -H "x-api-key: freecc" \
+        -H "anthropic-version: 2023-06-01" \
         -d "{
-            \"model\": \"${ANTHROPIC_MODEL:-z-ai/glm-5.2}\",
+            \"model\": \"${ANTHROPIC_MODEL:-nvidia/nemotron-3-super-120b-a12b}\",
             \"messages\": [{\"role\": \"user\", \"content\": \"Say hello in one word\"}],
             \"max_tokens\": 32,
-            \"temperature\": 0.7,
             \"stream\": false
         }" \
-        --connect-timeout 15 \
-        --max-time 30 2>&1)
+        --connect-timeout 10 \
+        --max-time 60 2>&1)
 
     local HTTP_CODE
     HTTP_CODE=$(echo "$RESPONSE" | tail -1)
@@ -569,35 +710,39 @@ claude-test() {
 
     if [ "$HTTP_CODE" = "200" ]; then
         echo ""
-        echo "  ✅ API Connection SUCCESS! (HTTP $HTTP_CODE)"
-        echo ""
-        # Try to extract the response content
+        echo "  ✅ Proxy + NVIDIA API SUCCESS! (HTTP $HTTP_CODE)"
+        # Extract the response
         local CONTENT
         CONTENT=$(echo "$BODY" | python3 -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
-    msg = data.get('choices', [{}])[0].get('message', {}).get('content', 'N/A')
-    print(msg[:200])
+    # Anthropic format
+    blocks = data.get('content', [])
+    if blocks:
+        print(blocks[0].get('text', 'N/A')[:200])
+    else:
+        print('(empty response)')
 except Exception as e:
-    print(f'(Could not parse response: {e})')
-" 2>/dev/null || echo "(Could not parse JSON response)")
+    print(f'(Could not parse: {e})')
+" 2>/dev/null || echo "(Could not parse response)")
         echo "  AI Response: $CONTENT"
         echo ""
-        echo "  Your Claude Code is ready! Just type: claude"
+        echo "  🎉 Your Claude Code is ready! Just type: claude"
     elif [ "$HTTP_CODE" = "000" ]; then
         echo ""
-        echo "  ❌ Connection FAILED - Could not reach the API endpoint"
-        echo "     Check your internet connection and ANTHROPIC_BASE_URL"
+        echo "  ❌ Could not reach proxy on localhost:8082"
+        echo "     Make sure fcc-server is running: fcc-start"
     else
         echo ""
-        echo "  ❌ API returned HTTP $HTTP_CODE"
+        echo "  ❌ Proxy returned HTTP $HTTP_CODE"
         echo "     Response: $(echo "$BODY" | head -c 500)"
         echo ""
         echo "  Common fixes:"
-        echo "    - Check your API key: claude-set-key \"nvapi-...\""
-        echo "    - Check your endpoint: claude-set-url \"https://integrate.api.nvidia.com/v1\""
-        echo "    - Check your model: claude-set-model \"z-ai/glm-5.2\""
+        echo "    - Update NVIDIA key: claude-set-nvidia-key \"nvapi-...\""
+        echo "    - Restart proxy: fcc-stop && fcc-start"
+        echo "    - Check logs: tail -f /tmp/fcc-server.log"
+        echo "    - Open admin UI: http://localhost:8082/admin"
     fi
 }
 
@@ -886,12 +1031,48 @@ echo "[Entrypoint]   .npmrc content: $(cat /home/cloudshell/.npmrc 2>/dev/null)"
 echo "[Entrypoint]   NPM_CONFIG_PREFIX: ${NPM_CONFIG_PREFIX}"
 echo "[Entrypoint]   PATH: ${PATH}"
 
+# ─── Start free-claude-code proxy (NVIDIA NIM → Anthropic API) ──
+# The proxy must start BEFORE Claude Code is used. It translates
+# Anthropic API format requests to NVIDIA NIM format.
+# Runs on localhost:8082 in the background.
+echo "[Entrypoint] Starting free-claude-code proxy..."
+# Ensure .env file exists with NVIDIA key for fcc-server
+mkdir -p /home/cloudshell/.free-claude-code 2>/dev/null
+cat > /home/cloudshell/.free-claude-code/.env << FCCEOF
+NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}"
+MODEL="nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
+ANTHROPIC_AUTH_TOKEN="freecc"
+FCC_OPEN_BROWSER="false"
+MESSAGING_PLATFORM="none"
+ENABLE_MODEL_THINKING="true"
+FCCEOF
+chown -R cloudshell:cloudshell /home/cloudshell/.free-claude-code 2>/dev/null || true
+
+# Start fcc-server in background as cloudshell user
+if command -v fcc-server &>/dev/null; then
+    # Run as cloudshell user via gosu, in background
+    gosu cloudshell bash -c 'nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+        echo "fcc-server PID: $!"' 2>/dev/null || true
+    # Give it a few seconds to start
+    sleep 3
+    if curl -s http://localhost:8082/health >/dev/null 2>&1; then
+        echo "[Entrypoint] ✅ free-claude-code proxy running on http://localhost:8082"
+        echo "[Entrypoint]    Admin UI: http://localhost:8082/admin"
+    else
+        echo "[Entrypoint] ⚠ free-claude-code proxy still starting (may take a few more seconds)"
+        echo "[Entrypoint]    Check later with: fcc-status"
+    fi
+else
+    echo "[Entrypoint] ⚠ fcc-server not found. Install with: setup-fcc-proxy"
+fi
+
 # ─── NOW DROP TO CLOUDSHELL USER AND START THE SERVER ──────────
 echo "=========================================="
 echo "[Entrypoint] Dropping to cloudshell user..."
 echo "[Entrypoint] Starting server: $*"
 echo "[Entrypoint] npm global prefix: /home/cloudshell/.npm-global"
 echo "[Entrypoint] Claude Code: pre-installed! Just type 'claude' to start"
+echo "[Entrypoint] Free-Claude-Code proxy: localhost:8082"
 echo "=========================================="
 
 exec gosu cloudshell "$@"

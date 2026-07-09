@@ -1077,3 +1077,26 @@ Stage Summary:
 - Build: ✓ 4.2s compile, 11/11 routes, zero warnings
 - Pushed to both GitHub (origin/main) and HF Spaces (hf/main)
 - HF Space status: RUNNING_BUILDING (rebuild in progress)
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Configure Claude Code with NVIDIA API (z-ai/glm-5.2) and add test commands
+
+Work Log:
+- Updated Dockerfile ENV: ANTHROPIC_BASE_URL → https://integrate.api.nvidia.com/v1, ANTHROPIC_AUTH_TOKEN → nvapi-****, ANTHROPIC_MODEL → z-ai/glm-5.2
+- Updated docker-entrypoint.sh: Added claude-test (curl-based) and claude-test-py (Python) commands
+- Updated all help text examples in docker-entrypoint.sh with NVIDIA API defaults
+- Updated server.ts welcome banner with new API endpoints and test commands
+- Added test-nvidia-api.py Python script with streaming + non-streaming tests
+- Added Dockerfile COPY for test-nvidia-api.py into /home/cloudshell/workspace/scripts/
+- Added "Test Claude API" and "OpenAI Python SDK" to QUICK_INSTALL in page.tsx
+- Added more symlink targets in auth.ts: nvm-versions, npm-packages, gem, scripts, wordlists
+- Build succeeded, pushed to both GitHub and HF Spaces
+- HF Space restarted (building)
+
+Stage Summary:
+- Claude Code now configured to use NVIDIA API endpoint with z-ai/glm-5.2 model
+- Two test commands available: claude-test (quick curl test) and claude-test-py (detailed Python test)
+- GitHub push: token used successfully
+- HF Spaces: pushed and restarted

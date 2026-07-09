@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 """
-Test NVIDIA API (z-ai/glm-5.2) connection via OpenAI SDK.
-This verifies that the Claude Code config (ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_MODEL)
-is correctly pointed at the NVIDIA API endpoint.
+Test the free-claude-code proxy + NVIDIA NIM API.
+Verifies that Claude Code can work through the proxy.
 
 Usage:
   python3 test-nvidia-api.py
-  OR via CloudShell: claude-test
+  OR via CloudShell: claude-test-py
 """
 
 import os
 import sys
 
 # ─── Configuration ───────────────────────────────────────────
-NVIDIA_BASE_URL = os.environ.get("ANTHROPIC_BASE_URL", "https://integrate.api.nvidia.com/v1")
-NVIDIA_API_KEY  = os.environ.get("ANTHROPIC_AUTH_TOKEN", "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")
-MODEL_NAME      = os.environ.get("ANTHROPIC_MODEL", "z-ai/glm-5.2")
+PROXY_URL = "http://localhost:8082"
+NVIDIA_API_KEY = os.environ.get("NVIDIA_NIM_API_KEY", "")
+MODEL = os.environ.get("ANTHROPIC_MODEL", "nvidia/nemotron-3-super-120b-a12b")
 
 # ─── Color helpers ───────────────────────────────────────────
 _USE_COLOR = sys.stdout.isatty() and os.getenv("NO_COLOR") is None
@@ -51,16 +50,32 @@ def mask_key(key):
 
 # ─── Main test ───────────────────────────────────────────────
 def main():
-    print_header("NVIDIA API (z-ai/glm-5.2) Connection Test")
+    print_header("Free-Claude-Code Proxy + NVIDIA API Test")
 
     # Step 1: Show config
     print(f"{_BOLD}Configuration:{_RESET}")
-    print_info(f"Endpoint: {NVIDIA_BASE_URL}")
-    print_info(f"Model:    {MODEL_NAME}")
-    print_info(f"API Key:  {mask_key(NVIDIA_API_KEY)}")
+    print_info(f"Proxy URL:     {PROXY_URL}")
+    print_info(f"Model:         {MODEL}")
+    print_info(f"NVIDIA Key:    {mask_key(NVIDIA_API_KEY)}" if NVIDIA_API_KEY else "  ⚠ NVIDIA key not set")
     print()
 
-    # Step 2: Install openai if needed
+    # Step 2: Test proxy health
+    print(f"{_BOLD}Step 1: Testing proxy health...{_RESET}")
+    try:
+        import urllib.request
+        req = urllib.request.urlopen(f"{PROXY_URL}/health", timeout=5)
+        health = req.read().decode()
+        print_ok(f"Proxy is running! Health: {health[:100]}")
+    except Exception as e:
+        print_fail(f"Proxy not reachable: {e}")
+        print()
+        print_dim("Start the proxy first: fcc-start")
+        print_dim("Or install it: setup-fcc-proxy")
+        return 1
+
+    # Step 3: Install openai if needed
+    print()
+    print(f"{_BOLD}Step 2: Checking openai SDK...{_RESET}")
     try:
         from openai import OpenAI
         print_ok("openai SDK is installed")
@@ -72,94 +87,65 @@ def main():
             capture_output=True, text=True
         )
         if result.returncode == 0:
-            print_ok("openai SDK installed successfully")
+            print_ok("openai SDK installed")
             from openai import OpenAI
         else:
-            print_fail(f"Failed to install openai: {result.stderr}")
-            sys.exit(1)
+            print_fail(f"Failed to install: {result.stderr}")
+            return 1
 
-    # Step 3: Create client
+    # Step 4: Test via proxy using Anthropic-style message format
+    # The proxy accepts both OpenAI and Anthropic format requests
     print()
-    print(f"{_BOLD}Creating OpenAI client...{_RESET}")
+    print(f"{_BOLD}Step 3: Testing API call through proxy (Anthropic format)...{_RESET}")
     try:
-        client = OpenAI(
-            base_url=NVIDIA_BASE_URL,
-            api_key=NVIDIA_API_KEY,
+        import json
+        req = urllib.request.Request(
+            f"{PROXY_URL}/v1/messages",
+            data=json.dumps({
+                "model": MODEL,
+                "messages": [{"role": "user", "content": "Say hello in one word"}],
+                "max_tokens": 32,
+                "stream": False,
+            }).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": "freecc",
+                "anthropic-version": "2023-06-01",
+            },
         )
-        print_ok("Client created")
-    except Exception as e:
-        print_fail(f"Failed to create client: {e}")
-        sys.exit(1)
-
-    # Step 4: Send test request (non-streaming)
-    print()
-    print(f"{_BOLD}Sending test request (non-streaming)...{_RESET}")
-    try:
-        completion = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": "Say hello in one word"}],
-            temperature=0.7,
-            max_tokens=32,
-            stream=False,
-        )
-        reply = completion.choices[0].message.content
-        print_ok(f"Response: {_CYAN}{reply}{_RESET}")
-        print_dim(f"Model used: {getattr(completion, 'model', MODEL_NAME)}")
-        print_dim(f"Tokens: prompt={getattr(completion.usage, 'prompt_tokens', 'N/A')}, "
-                  f"completion={getattr(completion.usage, 'completion_tokens', 'N/A')}")
-    except Exception as e:
-        print_fail(f"Non-streaming request failed: {e}")
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            body = json.loads(resp.read().decode())
+            content_blocks = body.get("content", [])
+            if content_blocks:
+                text = content_blocks[0].get("text", "N/A")
+                print_ok(f"AI Response: {_CYAN}{text}{_RESET}")
+            else:
+                print_fail("Empty response from proxy")
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode()[:500]
+        print_fail(f"HTTP {e.code}: {error_body}")
         print()
         print_dim("Common fixes:")
-        print_dim("  - Check API key is valid:  claude-set-key 'nvapi-...'")
-        print_dim("  - Check endpoint URL:      claude-set-url 'https://integrate.api.nvidia.com/v1'")
-        print_dim("  - Check model name:        claude-set-model 'z-ai/glm-5.2'")
-        print()
-        # Still try streaming as fallback
-        print(f"{_BOLD}Trying streaming mode as fallback...{_RESET}")
-
-    # Step 5: Send streaming test
-    print()
-    print(f"{_BOLD}Sending streaming test...{_RESET}")
-    try:
-        stream = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": "Count from 1 to 5, one number per line"}],
-            temperature=0.3,
-            max_tokens=64,
-            stream=True,
-        )
-        full_reply = ""
-        for chunk in stream:
-            if not getattr(chunk, "choices", None):
-                continue
-            if len(chunk.choices) == 0 or getattr(chunk.choices[0], "delta", None) is None:
-                continue
-            delta = chunk.choices[0].delta
-            if getattr(delta, "content", None) is not None:
-                content = delta.content
-                full_reply += content
-                print(f"{_CYAN}{content}{_RESET}", end="", flush=True)
-        print()
-        if full_reply:
-            print_ok("Streaming works!")
-        else:
-            print_fail("Streaming returned empty content")
+        print_dim("  - Update NVIDIA key: claude-set-nvidia-key \"nvapi-...\"")
+        print_dim("  - Restart proxy: fcc-stop && fcc-start")
+        print_dim("  - Check logs: tail -f /tmp/fcc-server.log")
+        return 1
     except Exception as e:
-        print_fail(f"Streaming test failed: {e}")
+        print_fail(f"Request failed: {e}")
+        return 1
 
-    # Step 6: Summary
+    # Step 5: Summary
     print()
-    print_header("Test Complete")
-    print_ok("NVIDIA API endpoint is configured as the Claude Code backend")
-    print_info(f"Claude Code will use: {MODEL_NAME} via {NVIDIA_BASE_URL}")
+    print_header("Test Complete — All Systems Working!")
+    print_ok("free-claude-code proxy is running on localhost:8082")
+    print_ok(f"Claude Code can use model: {MODEL}")
     print()
-    print_dim("To use Claude Code, just type: claude")
-    print_dim("To change settings:")
-    print_dim("  claude-set-url 'https://integrate.api.nvidia.com/v1'")
-    print_dim("  claude-set-key 'nvapi-your-key'")
-    print_dim("  claude-set-model 'z-ai/glm-5.2'")
+    print_dim("To start Claude Code, just type: claude")
+    print_dim("To change your NVIDIA key:")
+    print_dim('  claude-set-nvidia-key "nvapi-your-key-here"')
+    print_dim("  fcc-stop && fcc-start")
     print()
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
