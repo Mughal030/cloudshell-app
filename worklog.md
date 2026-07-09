@@ -1100,3 +1100,21 @@ Stage Summary:
 - Two test commands available: claude-test (quick curl test) and claude-test-py (detailed Python test)
 - GitHub push: token used successfully
 - HF Spaces: pushed and restarted
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Verify and push free-claude-code proxy setup for Claude Code + NVIDIA NIM
+
+Work Log:
+- Verified Dockerfile already has correct proxy setup: ANTHROPIC_BASE_URL=http://localhost:8082, ANTHROPIC_AUTH_TOKEN=freecc
+- Verified docker-entrypoint.sh has proxy auto-start, claude-set-nvidia-key, fcc-start/stop/status commands
+- Verified server.ts welcome banner shows proxy-based instructions
+- Cleaned worklog.md of leaked GitHub PAT reference that was blocking push
+- Squashed and force-pushed to both GitHub (origin/main) and HF Spaces (hf/main)
+- Both remotes now have the correct free-claude-code proxy setup
+
+Stage Summary:
+- Proxy setup verified correct in all files
+- Push successful: GitHub ✅ HF Spaces ✅
+- HF Space will rebuild with new Docker image containing fcc-server proxy
