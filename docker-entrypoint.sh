@@ -569,11 +569,14 @@ setup-fcc-proxy() {
     if command -v fcc-server &>/dev/null; then
         echo "  fcc-server is already installed: $(which fcc-server)"
     else
-        echo "  Installing uv + free-claude-code..."
-        curl -fsSL https://astral.sh/uv/install.sh | sh
-        export PATH="$HOME/.local/bin:$PATH"
-        uv python install 3.14
-        uv tool install --force "free-claude-code @ git+https://github.com/Alishahryar1/free-claude-code.git"
+        echo "  Installing free-claude-code via uv..."
+        export PATH="$HOME/.local/bin:/root/.local/bin:$PATH"
+        uv python install 3.14 2>&1 | tail -2
+        uv tool install --force "free-claude-code @ git+https://github.com/Alishahryar1/free-claude-code.git" 2>&1 | tail -5
+        # Symlink to system path
+        ln -sf /home/cloudshell/.local/bin/fcc-server /usr/local/bin/fcc-server 2>/dev/null || true
+        ln -sf /home/cloudshell/.local/bin/fcc-claude /usr/local/bin/fcc-claude 2>/dev/null || true
+        ln -sf /home/cloudshell/.local/bin/free-claude-code /usr/local/bin/free-claude-code 2>/dev/null || true
         echo "  fcc-server installed!"
     fi
     echo ""
@@ -1035,7 +1038,14 @@ echo "[Entrypoint]   PATH: ${PATH}"
 # The proxy must start BEFORE Claude Code is used. It translates
 # Anthropic API format requests to NVIDIA NIM format.
 # Runs on localhost:8082 in the background.
-echo "[Entrypoint] Starting free-claude-code proxy..."
+#
+# NOTE: fcc-server is installed at RUNTIME (not build time) to
+# keep Docker build fast and avoid HF Spaces build timeout.
+# On first boot, it installs via uv (~10 seconds). On subsequent
+# boots, it starts instantly since uv caches the tool.
+
+echo "[Entrypoint] Setting up free-claude-code proxy..."
+
 # Ensure .env file exists with NVIDIA key for fcc-server
 mkdir -p /home/cloudshell/.free-claude-code 2>/dev/null
 cat > /home/cloudshell/.free-claude-code/.env << FCCEOF
@@ -1048,9 +1058,26 @@ ENABLE_MODEL_THINKING="true"
 FCCEOF
 chown -R cloudshell:cloudshell /home/cloudshell/.free-claude-code 2>/dev/null || true
 
+# Install fcc-server on first boot if not already installed
+if ! command -v fcc-server &>/dev/null; then
+    echo "[Entrypoint] fcc-server not found. Installing via uv (first boot, ~10s)..."
+    gosu cloudshell bash -c '
+        export PATH="/home/cloudshell/.local/bin:/root/.local/bin:$PATH"
+        if ! command -v uv &>/dev/null; then
+            curl -fsSL https://astral.sh/uv/install.sh | sh 2>&1 | tail -3
+        fi
+        uv python install 3.14 2>&1 | tail -2
+        uv tool install --force "free-claude-code @ git+https://github.com/Alishahryar1/free-claude-code.git" 2>&1 | tail -5
+    ' 2>/dev/null || true
+    # Symlink to system path so fcc-server is findable
+    ln -sf /home/cloudshell/.local/bin/fcc-server /usr/local/bin/fcc-server 2>/dev/null || true
+    ln -sf /home/cloudshell/.local/bin/fcc-claude /usr/local/bin/fcc-claude 2>/dev/null || true
+    ln -sf /home/cloudshell/.local/bin/free-claude-code /usr/local/bin/free-claude-code 2>/dev/null || true
+    echo "[Entrypoint] fcc-server installation complete."
+fi
+
 # Start fcc-server in background as cloudshell user
 if command -v fcc-server &>/dev/null; then
-    # Run as cloudshell user via gosu, in background
     gosu cloudshell bash -c 'nohup fcc-server > /tmp/fcc-server.log 2>&1 &
         echo "fcc-server PID: $!"' 2>/dev/null || true
     # Give it a few seconds to start
@@ -1063,7 +1090,7 @@ if command -v fcc-server &>/dev/null; then
         echo "[Entrypoint]    Check later with: fcc-status"
     fi
 else
-    echo "[Entrypoint] ⚠ fcc-server not found. Install with: setup-fcc-proxy"
+    echo "[Entrypoint] ⚠ fcc-server install failed. Run manually: setup-fcc-proxy"
 fi
 
 # ─── NOW DROP TO CLOUDSHELL USER AND START THE SERVER ──────────

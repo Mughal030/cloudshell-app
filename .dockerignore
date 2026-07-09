@@ -17,3 +17,10 @@ upload/
 .env
 bun.lock
 dribbble-inspiration.json
+worklog.md
+worklog2.md
+fuse-overlayfs_1.14-1+b1_amd64.deb
+slirp4netns_1.2.1-1.1_amd64.deb
+openoutreach
+*.bak
+.dockerignore

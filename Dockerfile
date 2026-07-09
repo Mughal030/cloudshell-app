@@ -1,50 +1,19 @@
-# ─── CloudShell Terminal IDE - Docker Image for Cloud Hosting ──────
-# Base: Ubuntu 22.04 (glibc compat for node-pty)
-# Node: 22.x (required for --experimental-strip-types)
-# ────────────────────────────────────────────────────────────────────
-#
-# BUILD SPEED OPTIMIZATIONS for HF Spaces free tier:
-#   1. Single apt layer (combined system deps)
-#   2. deadsnakes PPA for Python 3.14 (pre-built .deb, NOT uv compile)
-#   3. Removed Docker CLI + rootless Docker (doesn't work in HF anyway)
-#   4. Removed OpenCode preinstall (user can install at runtime)
-#   5. Combined RUN layers to reduce image overhead
+# ─── CloudShell Terminal IDE - OPTIMIZED for HF Spaces free tier ───
+# Build time budget: ~5 min max on cpu-basic
+# Strategy: minimal build-time deps, heavy tools install at RUNTIME
 # ────────────────────────────────────────────────────────────────────
 
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ─── System Dependencies + Python 3.14 (SINGLE LAYER for speed) ──
-# deadsnakes PPA provides pre-built Python 3.14 .deb packages
-# This is MUCH faster than "uv python install 3.14" which compiles from source
-RUN apt-get update && apt-get install -y \
-    software-properties-common apt-utils \
-    && add-apt-repository -y ppa:deadsnakes/ppa \
-    && apt-get update && apt-get install -y \
-    # ── Core ──
+# ─── MINIMAL System Dependencies (single layer, smallest possible) ──
+RUN apt-get update && apt-get install -y --no-install-recommends \
     coreutils curl wget git \
-    # ── Build tools ──
-    build-essential make cmake autoconf automake libtool pkg-config patch \
-    # ── Python 3.10 (system default) + Python 3.14 (for free-claude-code) ──
-    python3 python3-pip python3-venv python3-dev \
-    python3.14 python3.14-venv python3.14-dev \
-    # ── Shell & system ──
     bash sudo gosu locales \
-    # ── Editors ──
-    vim nano \
-    # ── Security & certs ──
-    ca-certificates gnupg gpg gpg-agent lsb-release \
-    # ── Monitoring ──
-    procps htop \
-    # ── Text processing ──
-    tree less jq file diffutils \
-    # ── Archiving ──
-    zip unzip gzip bzip2 xz-utils tar \
-    # ── Network ──
-    net-tools iputils-ping openssh-client rsync netcat dnsutils \
-    # ── Misc ──
-    psmisc whois time \
+    ca-certificates gnupg lsb-release \
+    python3 python3-pip python3-venv \
+    procps \
     && rm -rf /var/lib/apt/lists/* \
     && locale-gen en_US.UTF-8
 
@@ -79,31 +48,20 @@ COPY . .
 RUN npx next build 2>&1 | tail -20
 RUN npm prune --omit=dev 2>/dev/null || true
 
-# ─── Permissions ─────────────────────────────────────────────────
+# ─── Permissions (only chown what's needed, NOT entire /home) ────
 RUN chown -R cloudshell:cloudshell /app \
     && mkdir -p /var/lib/apt/lists/partial /var/cache/apt \
     && chown -R root:root /var/lib/apt /var/cache/apt \
     && chmod -R 755 /var/lib/apt /var/cache/apt
 
-# ─── Pre-install Claude Code CLI ──────────────────────────────────
+# ─── Pre-install Claude Code CLI (fast, ~3s) ─────────────────────
 RUN su -c "npm install -g @anthropic-ai/claude-code 2>&1 | tail -5" cloudshell && \
     ln -sf /home/cloudshell/.npm-global/bin/claude /usr/local/bin/claude 2>/dev/null || true
 
-# ─── Install free-claude-code proxy (NVIDIA NIM → Anthropic API) ───
-# This proxy lets Claude Code work with NVIDIA's free NIM API.
-# It runs on localhost:8082 and translates Anthropic-format requests
-# to NVIDIA NIM format using the NVIDIA_NIM_API_KEY.
-#
-# SPEED: Uses deadsnakes Python 3.14 (already installed above via apt)
-# so uv doesn't need to compile from source. Only uv + the tool itself.
+# ─── Install uv (for free-claude-code proxy, installed at runtime) ──
 RUN curl -fsSL https://astral.sh/uv/install.sh | sh \
-    && export PATH="/root/.local/bin:$PATH" \
-    && uv tool install --force --python /usr/bin/python3.14 \
-        "free-claude-code @ git+https://github.com/Alishahryar1/free-claude-code.git" \
-    && ln -sf /root/.local/bin/fcc-server /usr/local/bin/fcc-server \
-    && ln -sf /root/.local/bin/fcc-claude /usr/local/bin/fcc-claude \
-    && ln -sf /root/.local/bin/free-claude-code /usr/local/bin/free-claude-code \
-    && ln -sf /root/.local/bin/fcc-init /usr/local/bin/fcc-init 2>/dev/null || true
+    && ln -sf /root/.local/bin/uv /usr/local/bin/uv \
+    && ln -sf /root/.local/bin/uvx /usr/local/bin/uvx
 
 # ─── Entrypoint & Scripts ────────────────────────────────────────
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
@@ -111,13 +69,12 @@ RUN chmod +x /app/docker-entrypoint.sh
 
 COPY scripts/test-nvidia-api.py /home/cloudshell/workspace/scripts/test-nvidia-api.py
 RUN chmod +x /home/cloudshell/workspace/scripts/test-nvidia-api.py && \
-    chown -R cloudshell:cloudshell /home/cloudshell/workspace /home/cloudshell/.free-claude-code
+    chown cloudshell:cloudshell /home/cloudshell/workspace/scripts/test-nvidia-api.py
 
 # ─── Claude Code default environment (via free-claude-code proxy) ───
-# The proxy (fcc-server) runs on localhost:8082 and translates
-# Anthropic API requests to NVIDIA NIM format using the NVIDIA key.
-# Claude Code connects to the proxy, NOT directly to NVIDIA.
-# Users can change the NVIDIA key at runtime with: claude-set-nvidia-key
+# The proxy (fcc-server) is installed at RUNTIME to save build time.
+# It runs on localhost:8082 and translates Anthropic API requests
+# to NVIDIA NIM format using the NVIDIA_NIM_API_KEY.
 ENV ANTHROPIC_BASE_URL="http://localhost:8082" \
     ANTHROPIC_AUTH_TOKEN="freecc" \
     ANTHROPIC_MODEL="nvidia/nemotron-3-super-120b-a12b" \
