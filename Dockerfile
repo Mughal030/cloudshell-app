@@ -2,31 +2,55 @@
 # Base: Ubuntu 22.04 (glibc compat for node-pty)
 # Node: 22.x (required for --experimental-strip-types)
 # ────────────────────────────────────────────────────────────────────
+#
+# BUILD SPEED OPTIMIZATIONS for HF Spaces free tier:
+#   1. Single apt layer (combined system deps)
+#   2. deadsnakes PPA for Python 3.14 (pre-built .deb, NOT uv compile)
+#   3. Removed Docker CLI + rootless Docker (doesn't work in HF anyway)
+#   4. Removed OpenCode preinstall (user can install at runtime)
+#   5. Combined RUN layers to reduce image overhead
+# ────────────────────────────────────────────────────────────────────
 
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ─── System Dependencies (SINGLE LAYER for speed) ────────────────
+# ─── System Dependencies + Python 3.14 (SINGLE LAYER for speed) ──
+# deadsnakes PPA provides pre-built Python 3.14 .deb packages
+# This is MUCH faster than "uv python install 3.14" which compiles from source
 RUN apt-get update && apt-get install -y \
-    coreutils curl wget git \
-    build-essential make cmake autoconf automake libtool pkg-config patch \
-    python3 python3-pip python3-venv python3-dev \
-    bash sudo gosu locales \
-    vim nano \
-    ca-certificates gnupg gpg gpg-agent lsb-release \
-    procps htop \
-    tree less jq file diffutils \
-    zip unzip gzip bzip2 xz-utils tar \
-    net-tools iputils-ping openssh-client rsync netcat dnsutils \
     software-properties-common apt-utils \
+    && add-apt-repository -y ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y \
+    # ── Core ──
+    coreutils curl wget git \
+    # ── Build tools ──
+    build-essential make cmake autoconf automake libtool pkg-config patch \
+    # ── Python 3.10 (system default) + Python 3.14 (for free-claude-code) ──
+    python3 python3-pip python3-venv python3-dev \
+    python3.14 python3.14-venv python3.14-dev \
+    # ── Shell & system ──
+    bash sudo gosu locales \
+    # ── Editors ──
+    vim nano \
+    # ── Security & certs ──
+    ca-certificates gnupg gpg gpg-agent lsb-release \
+    # ── Monitoring ──
+    procps htop \
+    # ── Text processing ──
+    tree less jq file diffutils \
+    # ── Archiving ──
+    zip unzip gzip bzip2 xz-utils tar \
+    # ── Network ──
+    net-tools iputils-ping openssh-client rsync netcat dnsutils \
+    # ── Misc ──
     psmisc whois time \
     && rm -rf /var/lib/apt/lists/* \
     && locale-gen en_US.UTF-8
 
 ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8
 
-# ─── Node.js 22.x + Docker CLI (COMBINED for speed) ──────────────
+# ─── Node.js 22.x via NodeSource ─────────────────────────────────
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/* \
@@ -70,12 +94,12 @@ RUN su -c "npm install -g @anthropic-ai/claude-code 2>&1 | tail -5" cloudshell &
 # It runs on localhost:8082 and translates Anthropic-format requests
 # to NVIDIA NIM format using the NVIDIA_NIM_API_KEY.
 #
-# OPTIMIZED: Install uv + Python 3.14 + free-claude-code in ONE layer
-# to minimize Docker build time. Python 3.14 is required by free-claude-code.
+# SPEED: Uses deadsnakes Python 3.14 (already installed above via apt)
+# so uv doesn't need to compile from source. Only uv + the tool itself.
 RUN curl -fsSL https://astral.sh/uv/install.sh | sh \
     && export PATH="/root/.local/bin:$PATH" \
-    && uv python install 3.14 \
-    && uv tool install --force "free-claude-code @ git+https://github.com/Alishahryar1/free-claude-code.git" \
+    && uv tool install --force --python /usr/bin/python3.14 \
+        "free-claude-code @ git+https://github.com/Alishahryar1/free-claude-code.git" \
     && ln -sf /root/.local/bin/fcc-server /usr/local/bin/fcc-server \
     && ln -sf /root/.local/bin/fcc-claude /usr/local/bin/fcc-claude \
     && ln -sf /root/.local/bin/free-claude-code /usr/local/bin/free-claude-code \
