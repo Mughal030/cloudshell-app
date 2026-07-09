@@ -581,6 +581,7 @@ setup-fcc-proxy() {
     fi
     echo ""
     echo "  Creating .env with your NVIDIA key..."
+    _fcc_update_env PORT "8082"
     _fcc_update_env NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY:-nvapi-YOUR-KEY-HERE}"
     _fcc_update_env MODEL "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
     _fcc_update_env ANTHROPIC_AUTH_TOKEN "freecc"
@@ -599,12 +600,13 @@ fcc-start() {
     echo "Starting free-claude-code proxy on port 8082..."
 
     # Ensure .env exists with NVIDIA key
+    _fcc_update_env PORT "8082"
     _fcc_update_env NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY:-}"
     _fcc_update_env MODEL "nvidia_nim/${ANTHROPIC_MODEL:-nvidia/nemotron-3-super-120b-a12b}"
     _fcc_update_env ANTHROPIC_AUTH_TOKEN "freecc"
 
-    # Start in background, suppress output
-    nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+    # Start in background, explicitly set PORT=8082 to avoid conflict with Next.js on 7860
+    PORT=8082 nohup fcc-server > /tmp/fcc-server.log 2>&1 &
     local PID=$!
     echo "  Started with PID $PID"
 
@@ -1052,6 +1054,7 @@ cat > /home/cloudshell/.free-claude-code/.env << FCCEOF
 NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}"
 MODEL="nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
 ANTHROPIC_AUTH_TOKEN="freecc"
+PORT="8082"
 FCC_OPEN_BROWSER="false"
 MESSAGING_PLATFORM="none"
 ENABLE_MODEL_THINKING="true"
@@ -1078,7 +1081,7 @@ fi
 
 # Start fcc-server in background as cloudshell user
 if command -v fcc-server &>/dev/null; then
-    gosu cloudshell bash -c 'nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+    gosu cloudshell bash -c 'PORT=8082 nohup fcc-server > /tmp/fcc-server.log 2>&1 &
         echo "fcc-server PID: $!"' 2>/dev/null || true
     # Give it a few seconds to start
     sleep 3
