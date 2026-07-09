@@ -610,8 +610,8 @@ fcc-start() {
     _fcc_update_env MODEL "nvidia_nim/${ANTHROPIC_MODEL:-nvidia/nemotron-3-super-120b-a12b}"
     _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
 
-    # Start in background, explicitly set PORT=8082 to avoid conflict with Next.js on 7860
-    PORT=8082 nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+    # Start in background (PORT=8082 is already the global default)
+    nohup fcc-server > /tmp/fcc-server.log 2>&1 &
     local PID=$!
     echo "  Started with PID $PID"
 
@@ -1093,7 +1093,7 @@ fi
 
 # Start fcc-server in background as cloudshell user
 if command -v fcc-server &>/dev/null; then
-    gosu cloudshell bash -c 'PORT=8082 nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+    gosu cloudshell bash -c 'nohup fcc-server > /tmp/fcc-server.log 2>&1 &
         echo "fcc-server PID: $!"' 2>/dev/null || true
     # Give it a few seconds to start
     sleep 3

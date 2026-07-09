@@ -93,7 +93,10 @@ ENV ANTHROPIC_BASE_URL="http://localhost:8082" \
     NVIDIA_NIM_API_KEY="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"
 
 # ─── Environment Variables ───────────────────────────────────────
-ENV PORT=7860 \
+# IMPORTANT: PORT=8082 is for fcc-server proxy. The Next.js web server
+# uses APP_PORT=7860 instead, to avoid conflicting with fcc-server.
+ENV PORT=8082 \
+    APP_PORT=7860 \
     NODE_ENV=production \
     HOME=/home/cloudshell \
     USER=cloudshell \

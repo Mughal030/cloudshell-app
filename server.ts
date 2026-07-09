@@ -33,7 +33,7 @@ process.on('exit', (code) => {
 })
 
 // ─── Configuration ───────────────────────────────────────────────
-const PORT = parseInt(process.env.PORT || '3000', 10)
+const PORT = parseInt(process.env.APP_PORT || process.env.PORT || '3000', 10)
 const DEFAULT_WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/home/z/my-project/workspace'
 const SHELL = process.env.SHELL || '/bin/bash'
 const dev = process.env.NODE_ENV !== 'production'
