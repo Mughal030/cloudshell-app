@@ -1249,3 +1249,23 @@ Stage Summary:
 - Terminal auto-start now works with retry logic (1s, 2s, 4s, 8s, 16s backoff)
 - File manager action buttons are consistently visible for all files and folders
 - Changes pushed to: GitHub (origin/main) and HuggingFace (hf/main)
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix FCC proxy not receiving NVIDIA API key from Settings panel
+
+Work Log:
+- Diagnosed root cause: Settings panel only saves key to users.json, but FCC proxy reads from ~/.fcc/.env
+- The gap: nobody bridges Settings → ~/.fcc/.env → fcc-server restart
+- Added updateFccEnv() function to keys API route that mirrors _fcc_update_env from entrypoint
+- When NVIDIA key is saved (POST), now also: updates ~/.fcc/.env, updates ~/.bashrc_env, restarts fcc-server
+- When NVIDIA key is deleted (DELETE), clears from both files and restarts proxy
+- restartFccProxy() finds fcc-server binary across multiple possible paths
+- Updated Settings panel success message to mention proxy auto-restart
+- Updated "How it works" section with clearer instructions
+
+Stage Summary:
+- FCC proxy now automatically gets the user's NVIDIA key when saved via Settings
+- Key flows: Settings Panel → POST /api/auth/keys → users.json + ~/.fcc/.env + ~/.bashrc_env + fcc-server restart
+- Claude Code should now work immediately after saving NVIDIA key (~5 seconds)
+- Pushed to both GitHub and HuggingFace
