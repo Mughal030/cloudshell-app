@@ -29,7 +29,7 @@ export function ToolStatus({ tools, checkTools, onInstall, sendCommandToTerminal
   const installedCount = tools.filter(t => t.installed).length
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--nx-border)]/50">
         <span className="text-xs font-medium text-[var(--nx-text-secondary)]">
@@ -47,7 +47,7 @@ export function ToolStatus({ tools, checkTools, onInstall, sendCommandToTerminal
       </div>
 
       {/* Tools Grid */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="grid grid-cols-1 gap-0.5 p-1">
           {tools.map((tool) => (
             <div

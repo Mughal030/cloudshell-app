@@ -378,7 +378,7 @@ export function FileManager({
   const absolutePath = workspaceRoot ? `${workspaceRoot}${currentPath ? '/' + currentPath : ''}` : currentPath
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Absolute path display */}
       <div className="px-2 py-1 border-b border-[var(--nx-border)]/50 bg-[var(--nx-bg-primary)]/40">
         <div className="text-[9px] font-mono text-[var(--nx-text-dim)] truncate" title={absolutePath}>
@@ -502,7 +502,7 @@ export function FileManager({
       )}
 
       {/* File list */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="py-1">
           {/* Inline error state with retry button (visible until next successful load) */}
           {loadError && !loading && (

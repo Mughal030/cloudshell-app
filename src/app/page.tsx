@@ -374,7 +374,7 @@ export default function Home() {
           className="border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/80 backdrop-blur-md shrink-0 nx-panel-enter"
           style={{ height: 450 }}
         >
-          <div className="h-full flex flex-col overflow-hidden">
+          <div className="h-full flex flex-col overflow-hidden min-h-0">
             <div className="flex items-center justify-between px-3 h-7 border-b border-[var(--nx-border)] shrink-0">
               <span className="text-[10px] font-semibold text-[var(--nx-text-muted)] uppercase tracking-wider">
                 {MENU_ITEMS.find(m => m.value === activeMenu)?.label}
@@ -383,7 +383,7 @@ export default function Home() {
                 <X className="h-3 w-3" />
               </Button>
             </div>
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden min-h-0">
               {activeMenu === 'packages' && (
                 <PackageSidebar installedPackages={installedPkgs} sendCommandToTerminal={sendCommandToTerminal} connected={connected} />
               )}
@@ -542,7 +542,7 @@ function QuickInstallPanel({ sendCommandToTerminal, connected }: { sendCommandTo
   }
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className="h-full min-h-0">
       <div className="p-3">
         {/* Toolbar header: explains the toolkit + shows count */}
         <div className="flex items-center justify-between mb-3 pb-2 border-b border-[var(--nx-border)]">

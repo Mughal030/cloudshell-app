@@ -123,7 +123,7 @@ export function PackageSidebar({ installedPackages, sendCommandToTerminal, conne
     acc + cat.packages.filter(p => installedPackages.has(p.name)).length, 0)
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header with search */}
       <div className="px-3 py-2 border-b border-[var(--nx-border)] space-y-2">
         <div className="flex items-center justify-between">
@@ -164,7 +164,7 @@ export function PackageSidebar({ installedPackages, sendCommandToTerminal, conne
       </div>
 
       {/* Package List */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-1.5 space-y-1">
           {filteredCategories.map((category) => {
             const CatIcon = category.icon
