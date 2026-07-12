@@ -720,7 +720,7 @@ function SettingsPanel() {
       })
       const data = await res.json()
       if (data.success) {
-        setMessage({ type: 'success', text: `${provider === 'nvidia' ? 'NVIDIA NIM' : 'OpenRouter'} API key saved! Start a new terminal to use it.` })
+        setMessage({ type: 'success', text: `${provider === 'nvidia' ? 'NVIDIA NIM' : 'OpenRouter'} API key saved!${provider === 'nvidia' ? ' FCC proxy is restarting with your key — Claude Code will work in ~5 seconds.' : ' Start a new terminal to use it.'}` })
         if (provider === 'nvidia') { setNvidiaKeySet(true); setNvidiaKey('') }
         else { setOpenrouterKeySet(true); setOpenrouterKey('') }
       } else {
@@ -941,9 +941,9 @@ function SettingsPanel() {
           <ul className="list-disc pl-4 space-y-0.5">
             <li>Your API keys are stored securely and only used in YOUR terminal sessions</li>
             <li>Other users cannot see or use your keys</li>
-            <li>NVIDIA NIM key: Use &quot;fcc-claude&quot; in terminal to start Claude Code</li>
+            <li>NVIDIA NIM key: Saving auto-updates the FCC proxy — Claude Code works instantly</li>
             <li>OpenRouter key: Configure in terminal with &quot;export OPENROUTER_API_KEY=...&quot;</li>
-            <li>Changes take effect in NEW terminal sessions (existing terminals keep their env)</li>
+            <li>Use &quot;fcc-claude&quot; in terminal to start Claude Code via the NVIDIA NIM proxy</li>
           </ul>
         </div>
       </div>
