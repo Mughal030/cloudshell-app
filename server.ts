@@ -645,7 +645,7 @@ app.prepare().then(() => {
           const dirName = basename(resolvedPath)
           res.writeHead(200, {
             'Content-Type': 'application/zip',
-            'Content-Disposition': `attachment; filename="${dirName}.zip"`,
+            'Content-Disposition': `attachment; filename="${dirName}.zip"; filename*=UTF-8''${encodeURIComponent(dirName)}.zip`,
           })
           const archive = archiver('zip', { zlib: { level: 6 } })
           archive.directory(resolvedPath, dirName)
@@ -656,11 +656,32 @@ app.prepare().then(() => {
           })
           archive.finalize()
         } else {
-          // Stream individual file
+          // Stream individual file with proper MIME type
           const fileName = basename(resolvedPath)
+          const ext = fileName.split('.').pop()?.toLowerCase() || ''
+          const mimeMap: Record<string, string> = {
+            // Documents
+            'pdf': 'application/pdf', 'doc': 'application/msword', 'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            // Images
+            'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'gif': 'image/gif', 'svg': 'image/svg+xml', 'webp': 'image/webp', 'ico': 'image/x-icon',
+            // Audio
+            'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg',
+            // Video
+            'mp4': 'video/mp4', 'webm': 'video/webm', 'avi': 'video/x-msvideo',
+            // Archives
+            'zip': 'application/zip', 'tar': 'application/x-tar', 'gz': 'application/gzip', '7z': 'application/x-7z-compressed',
+            // Code
+            'js': 'text/javascript', 'ts': 'text/typescript', 'py': 'text/x-python', 'html': 'text/html', 'css': 'text/css',
+            'json': 'application/json', 'xml': 'application/xml', 'yaml': 'text/yaml', 'yml': 'text/yaml',
+            // Text
+            'md': 'text/markdown', 'txt': 'text/plain', 'csv': 'text/csv', 'log': 'text/plain',
+          }
+          const contentType = mimeMap[ext] || 'application/octet-stream'
+          // Force download for binary types, allow inline viewing for text types
+          const isInlineViewable = contentType.startsWith('text/') || contentType === 'application/json' || contentType === 'image/svg+xml'
           res.writeHead(200, {
-            'Content-Type': 'application/octet-stream',
-            'Content-Disposition': `attachment; filename="${fileName}"`,
+            'Content-Type': contentType,
+            'Content-Disposition': `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
             'Content-Length': fileStat.size,
           })
           const stream = createReadStream(resolvedPath)

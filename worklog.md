@@ -1144,3 +1144,36 @@ Stage Summary:
 - xterm stale closure fix (commit aba3851)
 - Pushed to both origin (GitHub) and hf (HuggingFace Spaces)
 - HF Space building and deploying
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: Fix app not opening properly, redesign login/signup and all pages, fix scrolling, download files/folders, file types support
+
+Work Log:
+- Diagnosed critical bug: file-manager getAuthToken() only checked document.cookie, but auth stores token in localStorage — downloads always failed with "Authentication token not found"
+- Fixed getAuthToken() to check localStorage FIRST, then fallback to cookies
+- Changed download trigger from window.open() to programmatic <a> click to avoid popup blockers
+- Added file type icons with color coding (FileCode blue, FileText green, ImageIcon amber, FileAudio red, FileVideo orange, FileArchive yellow, Database purple, etc.)
+- Completely redesigned login page with new NexusAuthLayout (glassmorphism cards, animated gradient orbs, indigo/purple theme)
+- Completely redesigned signup page with matching NexusAuthLayout (gradient accents, strength meter, input focus effects)
+- Created new NexusAuthLayout component replacing old WarlandAuthLayout
+- Migrated entire CSS theme from "Warland Forge" (gold/amber/crimson) to "Nexus Indigo" (indigo/purple/midnight blue)
+- Updated all dark mode CSS variables: backgrounds, borders, text, accents, syntax highlighting, command intelligence colors
+- Updated all hardcoded utility classes: nx-hover-lift, nx-gradient-border, nx-panel-glow, nx-tab-active, nx-glass, nx-divider-aurora, nx-shadow-aurora, nx-suggest-icon, nx-pkg-icon, nx-env-dot, body background-image
+- Updated xterm terminal ANSI color palette to match Nexus Indigo theme
+- Updated page.tsx logo gradient from gold to indigo, admin badge from gold to indigo
+- Fixed Settings panel to use localStorage instead of document.cookie for API key management
+- Added proper MIME type mapping to server download endpoint (PDF, images, audio, video, archives, code, text)
+- Added UTF-8 filename encoding (filename*=UTF-8'') to Content-Disposition headers for both file and folder ZIP downloads
+- Verified all changes compile successfully with next build
+
+Stage Summary:
+- Download auth bug fixed: token now read from localStorage correctly
+- File type icons added with proper color coding for 50+ file extensions
+- Login/signup pages completely redesigned with modern glassmorphism + animated gradient design
+- Full theme migration: Warland Forge (gold/amber) → Nexus Indigo (indigo/purple)
+- All CSS utility classes updated to use indigo/purple palette
+- Server download endpoint enhanced with MIME types and UTF-8 filename support
+- Settings panel fixed to use localStorage (was using cookies)
+- Build verified successful

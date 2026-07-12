@@ -35,7 +35,7 @@ const CodeEditor = dynamic(() => import('@/components/terminal/code-editor').the
 
 const XtermTerminal = dynamic(
   () => import('@/components/terminal/xterm-terminal').then(mod => ({ default: mod.XtermTerminal })),
-  { ssr: false, loading: () => <div className="w-full h-full bg-[#07040A]" /> }
+  { ssr: false, loading: () => <div className="w-full h-full bg-[#060816]" /> }
 )
 // Memoize so terminal instances don't re-render when parent state changes
 const MemoizedXtermTerminal = memo(XtermTerminal)
@@ -297,9 +297,9 @@ export default function Home() {
       <header className="flex items-center justify-between px-4 h-11 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/90 backdrop-blur-md shrink-0 nx-panel-glow">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Image src="/jasbol-hack-logo.png" alt="Jasbol Hack" width={28} height={28} className="rounded-md" priority style={{ filter: 'drop-shadow(0 0 8px rgba(245,179,66,0.4))' }} />
+            <Image src="/jasbol-hack-logo.png" alt="Jasbol Hack" width={28} height={28} className="rounded-md" priority style={{ filter: 'drop-shadow(0 0 8px rgba(129, 140, 248, 0.4))' }} />
             <h1 className="text-sm font-bold tracking-wide">
-              <span className="nx-text-aurora">Jasbol</span>
+              <span style={{ background: 'linear-gradient(135deg, #818CF8, #6366F1)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Jasbol</span>
               <span className="text-[var(--nx-text)] ml-0.5">Hack</span>
             </h1>
           </div>
@@ -336,7 +336,7 @@ export default function Home() {
               <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] nx-hover-lift">
                 {currentUser.role === 'admin' ? <Shield className="h-3 w-3 text-[var(--nx-accent)]" /> : <User className="h-3 w-3 text-[var(--nx-accent-teal)]" />}
                 <span className="text-[10px] font-medium">{currentUser.username}</span>
-                {currentUser.role === 'admin' && <span className="text-[8px] px-1 py-0.5 rounded font-bold tracking-wider" style={{ background: 'rgba(245,179,66,0.18)', color: 'var(--nx-accent)' }}>ADMIN</span>}
+                {currentUser.role === 'admin' && <span className="text-[8px] px-1 py-0.5 rounded font-bold tracking-wider" style={{ background: 'rgba(129, 140, 248, 0.18)', color: '#818CF8' }}>ADMIN</span>}
               </div>
               <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-muted)] hover:text-[var(--nx-error)] hover:bg-[var(--nx-bg-hover)] transition-colors" onClick={handleLogout} title="Logout">
                 <LogOut className="h-3.5 w-3.5" />
@@ -604,10 +604,7 @@ function SettingsPanel() {
 
   // Load current key status on mount
   useEffect(() => {
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('jasbol-token=') || row.startsWith('__Host-jasbol-token='))
-      ?.split('=')[1]
+    const token = localStorage.getItem('jasbol-token')
     if (!token) return
 
     fetch('/api/auth/keys', {
@@ -623,10 +620,7 @@ function SettingsPanel() {
       .catch(() => setLoaded(true))
   }, [])
 
-  const getToken = () => document.cookie
-    .split('; ')
-    .find(row => row.startsWith('jasbol-token=') || row.startsWith('__Host-jasbol-token='))
-    ?.split('=')[1]
+  const getToken = () => localStorage.getItem('jasbol-token')
 
   const handleSaveKey = async (provider: 'nvidia' | 'openrouter', key: string) => {
     const token = getToken()

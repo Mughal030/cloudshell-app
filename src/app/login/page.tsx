@@ -3,10 +3,10 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Eye, EyeOff, Lock, User, ArrowRight, Fingerprint, ShieldAlert,
-  Terminal, Activity,
+  Eye, EyeOff, Lock, User, ArrowRight, Fingerprint, AlertCircle,
+  Terminal,
 } from 'lucide-react'
-import { WarlandAuthLayout } from '@/components/auth/warland-auth-layout'
+import { NexusAuthLayout } from '@/components/auth/nexus-auth-layout'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -35,7 +35,6 @@ export default function LoginPage() {
       const data = await res.json()
 
       if (data.success) {
-        // Persist token in localStorage for socket.io auth + use alongside httpOnly cookie
         localStorage.setItem('jasbol-token', data.token)
         localStorage.setItem('jasbol-user', JSON.stringify(data.user))
         router.push('/')
@@ -53,85 +52,80 @@ export default function LoginPage() {
   }
 
   return (
-    <WarlandAuthLayout>
-      {/* ── Form Card ── */}
-      <div className="wl-card rounded-2xl overflow-hidden">
-        {/* Corner brackets */}
-        <span className="wl-corner wl-corner-tl" />
-        <span className="wl-corner wl-corner-tr" />
-        <span className="wl-corner wl-corner-bl" />
-        <span className="wl-corner wl-corner-br" />
-
-        {/* Top accent bar with terminal icon */}
+    <NexusAuthLayout>
+      {/* ── Glass Card ── */}
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{
+          background: 'rgba(15, 20, 35, 0.65)',
+          border: '1px solid rgba(139, 92, 246, 0.12)',
+          backdropFilter: 'blur(20px)',
+          boxShadow: '0 0 60px rgba(99, 102, 241, 0.06), 0 25px 50px rgba(0, 0, 0, 0.3)',
+        }}
+      >
+        {/* Top gradient accent bar */}
         <div
-          className="h-1 relative"
+          className="h-[3px] relative"
           style={{
-            background:
-              'linear-gradient(90deg, #0891B2 0%, #06B6D4 20%, #22D3EE 50%, #06B6D4 80%, #0891B2 100%)',
-            boxShadow: '0 0 16px rgba(6, 182, 212, 0.3)',
+            background: 'linear-gradient(90deg, transparent 0%, #6366F1 20%, #818CF8 50%, #6366F1 80%, transparent 100%)',
           }}
-        >
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <Terminal
-              className="h-3 w-3"
-              style={{ color: '#22D3EE', filter: 'drop-shadow(0 0 4px rgba(6, 182, 212, 0.8))' }}
-            />
-          </div>
-        </div>
+        />
 
         {/* Header */}
-        <div className="px-8 pt-7 pb-4 text-center relative">
-          <h2
-            className="wl-font-display text-2xl font-bold mb-1.5"
-            style={{ color: '#E2E8F0' }}
-          >
-            <span className="wl-text-gold">Access</span>{' '}
-            Terminal
-          </h2>
-          <p className="text-sm" style={{ color: '#64748B' }}>
-            Sign in to your secure workspace
-          </p>
-
-          {/* Encrypted connection badge */}
+        <div className="px-8 pt-8 pb-5 text-center">
+          {/* Icon circle */}
           <div
-            className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full"
+            className="mx-auto mb-4 w-12 h-12 rounded-2xl flex items-center justify-center"
             style={{
-              background: 'rgba(6, 182, 212, 0.08)',
-              border: '1px solid rgba(6, 182, 212, 0.2)',
+              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.1))',
+              border: '1px solid rgba(129, 140, 248, 0.15)',
             }}
           >
-            <Lock className="w-3 h-3" style={{ color: '#06B6D4' }} />
-            <span
-              className="text-[10px] font-semibold tracking-[0.15em] uppercase wl-font-serif"
-              style={{ color: '#06B6D4' }}
-            >
-              Encrypted Connection
-            </span>
+            <Terminal className="h-5 w-5" style={{ color: '#818CF8' }} />
+          </div>
+
+          <h2 className="text-2xl font-bold tracking-tight" style={{ color: '#F1F5F9' }}>
+            Welcome back
+          </h2>
+          <p className="text-sm mt-1.5" style={{ color: '#64748B' }}>
+            Sign in to your cloud terminal
+          </p>
+
+          {/* Secure connection badge */}
+          <div
+            className="inline-flex items-center gap-1.5 mt-4 px-3 py-1.5 rounded-lg text-[10px] font-semibold tracking-wider uppercase"
+            style={{
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.15)',
+              color: '#34D399',
+            }}
+          >
+            <Lock className="w-3 h-3" />
+            Encrypted Connection
           </div>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-8 pb-7">
+        <form onSubmit={handleSubmit} className="px-8 pb-8">
           {error && (
             <div
-              className="mb-4 p-3 rounded-lg text-sm flex items-start gap-2"
+              className="mb-5 p-3.5 rounded-xl text-sm flex items-start gap-2.5"
               style={{
-                background: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid rgba(239, 68, 68, 0.25)',
+                background: 'rgba(239, 68, 68, 0.06)',
+                border: '1px solid rgba(239, 68, 68, 0.15)',
                 color: '#FCA5A5',
               }}
             >
-              <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#EF4444' }} />
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#EF4444' }} />
               <div className="flex-1">
                 <div>{error}</div>
                 {attemptsRemaining !== null && attemptsRemaining > 0 && (
-                  <div className="text-[10px] opacity-80 mt-1">
-                    {attemptsRemaining} attempt{attemptsRemaining !== 1 ? 's' : ''}{' '}
-                    remaining before lockout
+                  <div className="text-[10px] opacity-70 mt-1">
+                    {attemptsRemaining} attempt{attemptsRemaining !== 1 ? 's' : ''} remaining before lockout
                   </div>
                 )}
                 {retryAfter && (
-                  <div className="text-[10px] opacity-80 mt-1">
+                  <div className="text-[10px] opacity-70 mt-1">
                     Rate-limited — wait ~{retryAfter}s
                   </div>
                 )}
@@ -142,14 +136,14 @@ export default function LoginPage() {
           {/* Username field */}
           <div className="mb-4">
             <label
-              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.15em] wl-font-serif"
+              className="block text-[11px] font-semibold mb-2 uppercase tracking-[0.12em]"
               style={{ color: '#94A3B8' }}
             >
               Username
             </label>
-            <div className="relative group">
+            <div className="relative">
               <div
-                className="absolute left-3 top-1/2 -translate-y-1/2 transition-colors"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2"
                 style={{ color: '#475569' }}
               >
                 <User className="w-4 h-4" />
@@ -158,7 +152,20 @@ export default function LoginPage() {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="wl-input w-full pl-10 pr-4 py-3 rounded-xl text-sm font-mono"
+                className="w-full pl-11 pr-4 py-3 rounded-xl text-sm font-mono transition-all duration-200 outline-none"
+                style={{
+                  background: 'rgba(15, 23, 42, 0.5)',
+                  border: '1px solid rgba(100, 116, 139, 0.2)',
+                  color: '#E2E8F0',
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(129, 140, 248, 0.4)'
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(129, 140, 248, 0.08)'
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(100, 116, 139, 0.2)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
                 placeholder="Enter your username"
                 required
                 maxLength={60}
@@ -172,14 +179,14 @@ export default function LoginPage() {
           {/* Password field */}
           <div className="mb-6">
             <label
-              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.15em] wl-font-serif"
+              className="block text-[11px] font-semibold mb-2 uppercase tracking-[0.12em]"
               style={{ color: '#94A3B8' }}
             >
               Password
             </label>
-            <div className="relative group">
+            <div className="relative">
               <div
-                className="absolute left-3 top-1/2 -translate-y-1/2 transition-colors"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2"
                 style={{ color: '#475569' }}
               >
                 <Lock className="w-4 h-4" />
@@ -188,7 +195,20 @@ export default function LoginPage() {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="wl-input w-full pl-10 pr-12 py-3 rounded-xl text-sm font-mono"
+                className="w-full pl-11 pr-12 py-3 rounded-xl text-sm font-mono transition-all duration-200 outline-none"
+                style={{
+                  background: 'rgba(15, 23, 42, 0.5)',
+                  border: '1px solid rgba(100, 116, 139, 0.2)',
+                  color: '#E2E8F0',
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(129, 140, 248, 0.4)'
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(129, 140, 248, 0.08)'
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(100, 116, 139, 0.2)'
+                  e.currentTarget.style.boxShadow = 'none'
+                }}
                 placeholder="Enter your password"
                 required
                 maxLength={200}
@@ -197,9 +217,9 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
                 style={{ color: '#475569' }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#06B6D4')}
+                onMouseEnter={(e) => (e.currentTarget.style.color = '#818CF8')}
                 onMouseLeave={(e) => (e.currentTarget.style.color = '#475569')}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
@@ -213,44 +233,62 @@ export default function LoginPage() {
             ref={submitRef}
             type="submit"
             disabled={loading}
-            className="wl-btn-gold w-full py-3.5 rounded-xl font-semibold text-sm relative flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full py-3.5 rounded-xl font-semibold text-sm relative flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            style={{
+              background: 'linear-gradient(135deg, #6366F1, #818CF8)',
+              color: '#FFFFFF',
+              boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2)',
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) {
+                e.currentTarget.style.boxShadow = '0 6px 25px rgba(99, 102, 241, 0.4), 0 2px 6px rgba(0, 0, 0, 0.2)'
+                e.currentTarget.style.transform = 'translateY(-1px)'
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = '0 4px 15px rgba(99, 102, 241, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2)'
+              e.currentTarget.style.transform = 'translateY(0)'
+            }}
           >
-            <span className="relative z-10 flex items-center justify-center gap-2">
-              {loading ? (
-                <>
-                  <div
-                    className="w-4 h-4 border-2 rounded-full animate-spin"
-                    style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#FFFFFF' }}
-                  />
-                  Authenticating…
-                </>
-              ) : (
-                <>
-                  <Fingerprint className="w-4 h-4" />
-                  Access Terminal
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </>
-              )}
-            </span>
+            {loading ? (
+              <>
+                <div
+                  className="w-4 h-4 border-2 rounded-full animate-spin"
+                  style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#FFFFFF' }}
+                />
+                Authenticating...
+              </>
+            ) : (
+              <>
+                <Fingerprint className="w-4 h-4" />
+                Sign In
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </button>
 
           {/* Divider */}
-          <div className="wl-divider my-6">
-            <span className="wl-divider-gem" />
+          <div className="my-6 flex items-center gap-3">
+            <div className="flex-1 h-px" style={{ background: 'rgba(100, 116, 139, 0.15)' }} />
+            <span className="text-[10px] uppercase tracking-[0.15em] font-medium" style={{ color: '#475569' }}>
+              or
+            </span>
+            <div className="flex-1 h-px" style={{ background: 'rgba(100, 116, 139, 0.15)' }} />
           </div>
 
           {/* Signup link */}
           <div className="text-center">
             <span className="text-sm" style={{ color: '#64748B' }}>
-              No account yet?{' '}
+              Don&apos;t have an account?{' '}
             </span>
             <button
               type="button"
               onClick={() => router.push('/signup')}
-              className="text-sm font-semibold hover:underline inline-flex items-center gap-1.5 wl-font-serif tracking-wide"
-              style={{ color: '#06B6D4' }}
+              className="text-sm font-semibold hover:underline inline-flex items-center gap-1.5 tracking-wide transition-colors"
+              style={{ color: '#818CF8' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#A5B4FC')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#818CF8')}
             >
-              <Activity className="w-3 h-3" />
               Create Account
             </button>
           </div>
@@ -258,12 +296,9 @@ export default function LoginPage() {
       </div>
 
       {/* Footer note */}
-      <p
-        className="text-center text-[10px] mt-4 wl-font-serif"
-        style={{ color: '#475569' }}
-      >
-        A secure key unlocks an unbreakable terminal.
+      <p className="text-center text-[10px] mt-5" style={{ color: '#334155' }}>
+        Secured with JWT + bcrypt encryption
       </p>
-    </WarlandAuthLayout>
+    </NexusAuthLayout>
   )
 }

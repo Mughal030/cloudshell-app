@@ -4,26 +4,26 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ================================================================
-   AURORA ECLIPSE — Premium Dark Theme System v2
+   NEXUS INDIGO — Premium Dark Theme System v3
    ────────────────────────────────────────────────
-   NOW: Warland Forge palette — gold / ember / crimson on deep
-   obsidian. Same variable names so all existing components pick up
+   Deep indigo / purple on midnight blue.
+   Same variable names so all existing components pick up
    the new palette automatically. Light mode is unchanged.
 
-   Background:   #07040A  Deep obsidian (with subtle ember tint)
-   Surface:      #110A0C  Stone
-   Surface 2:    #1A1112  Panel
-   Border:       #3A2624  Burnt bronze
-   Text:         #F5E6D3  Warm parchment white
-   Muted:        #8A7860  Faded ink
-   Accent:       #F5B342  Royal gold (primary)
-   Accent 2:     #FF6B1A  Ember orange (secondary)
-   Accent 3:     #DC2626  Crimson (tertiary)
-   Aurora:       linear-gradient(135deg, #FFD27A 0%, #F5B342 50%, #FF6B1A 100%)
-                 gold → ember (flowing, premium)
-   Success:      #84CC16  Forest green
+   Background:   #060816  Deep midnight (with indigo tint)
+   Surface:      #0C1022  Panel
+   Surface 2:    #131833  Elevated
+   Border:       #1E2648  Indigo-tinted slate
+   Text:         #E2E8F0  Cool silver
+   Muted:        #64748B  Slate
+   Accent:       #818CF8  Indigo-400 (primary)
+   Accent 2:     #6366F1  Indigo-500 (secondary)
+   Accent 3:     #EC4899  Pink (tertiary)
+   Aurora:       linear-gradient(135deg, #818CF8 0%, #6366F1 50%, #8B5CF6 100%)
+                 indigo → purple (flowing, premium)
+   Success:      #34D399  Emerald
    Warning:      #FBBF24  Amber
-   Error:        #DC2626  Blood red
+   Error:        #F87171  Red
    ================================================================ */
 
 @theme inline {
@@ -151,87 +151,87 @@
 }
 
 /* ──────────────────────────────────────────────
-   DARK MODE — Warland Forge (default)
-   Gold / ember / crimson on deep obsidian.
+   DARK MODE — Nexus Indigo (default)
+   Deep indigo / purple on midnight blue.
    ────────────────────────────────────────────── */
 .dark {
-  /* Core surfaces — deep obsidian with ember tint */
-  --nx-bg-primary: #07040A;
-  --nx-bg-secondary: #110A0C;
-  --nx-bg-surface: #1A1112;
-  --nx-bg-hover: #25181A;
-  --nx-bg-active: #2C1C1E;
-  /* Borders — burnt bronze */
-  --nx-border: #3A2624;
-  --nx-border-focus: #F5B342;
-  /* Text — warm parchment */
-  --nx-text: #F5E6D3;
-  --nx-text-secondary: #C9B89A;
-  --nx-text-muted: #8A7860;
-  --nx-text-dim: #5C4E3D;
-  /* Accents — Warland */
-  --nx-accent: #F5B342;        /* gold */
-  --nx-accent-teal: #FF6B1A;   /* ember (kept name for compat) */
-  --nx-accent-pink: #DC2626;   /* crimson (kept name for compat) */
-  --nx-accent-glow: rgba(245, 179, 66, 0.18);
-  --nx-success: #84CC16;
-  --nx-error: #DC2626;
+  /* Core surfaces — deep midnight with indigo tint */
+  --nx-bg-primary: #060816;
+  --nx-bg-secondary: #0C1022;
+  --nx-bg-surface: #131833;
+  --nx-bg-hover: #1A2040;
+  --nx-bg-active: #222A4A;
+  /* Borders — indigo-tinted slate */
+  --nx-border: #1E2648;
+  --nx-border-focus: #818CF8;
+  /* Text — cool silver */
+  --nx-text: #E2E8F0;
+  --nx-text-secondary: #94A3B8;
+  --nx-text-muted: #64748B;
+  --nx-text-dim: #475569;
+  /* Accents — Nexus Indigo */
+  --nx-accent: #818CF8;        /* indigo-400 */
+  --nx-accent-teal: #6366F1;   /* indigo-500 (kept name for compat) */
+  --nx-accent-pink: #EC4899;   /* pink (kept name for compat) */
+  --nx-accent-glow: rgba(129, 140, 248, 0.18);
+  --nx-success: #34D399;
+  --nx-error: #F87171;
   --nx-warning: #FBBF24;
-  /* Syntax — gold/ember/crimson infused */
-  --nx-keyword: #FFD27A;       /* bright gold */
-  --nx-string: #84CC16;        /* forest green */
-  --nx-number: #FF6B1A;        /* ember */
-  --nx-comment: #5C4E3D;
-  --nx-function: #F5B342;      /* gold */
-  --nx-variable: #FFA15C;      /* ember highlight */
+  /* Syntax — indigo/purple infused */
+  --nx-keyword: #A5B4FC;       /* indigo-300 */
+  --nx-string: #34D399;        /* emerald */
+  --nx-number: #C084FC;        /* purple-400 */
+  --nx-comment: #475569;
+  --nx-function: #818CF8;      /* indigo-400 */
+  --nx-variable: #67E8F9;      /* cyan-300 */
   /* Command Intelligence */
-  --nx-cmd-installed: #84CC16;
-  --nx-cmd-known: #FFD27A;
-  --nx-cmd-unknown: #8A7860;
-  --nx-cmd-unknown-danger: #DC2626;
-  --nx-cmd-flag: #F5B342;
+  --nx-cmd-installed: #34D399;
+  --nx-cmd-known: #A5B4FC;
+  --nx-cmd-unknown: #64748B;
+  --nx-cmd-unknown-danger: #F87171;
+  --nx-cmd-flag: #818CF8;
   /* UI */
-  --nx-cursor: #F5B342;
-  --nx-selection: rgba(245, 179, 66, 0.20);
-  --nx-scrollbar: rgba(245, 179, 66, 0.18);
-  --nx-scrollbar-hover: rgba(245, 179, 66, 0.35);
-  /* Aurora gradient → Warland gold-ember gradient (same var name for compat) */
-  --nx-aurora: linear-gradient(135deg, #FFD27A 0%, #F5B342 50%, #FF6B1A 100%);
-  --nx-aurora-soft: linear-gradient(135deg, rgba(255,210,122,0.10) 0%, rgba(245,179,66,0.10) 50%, rgba(255,107,26,0.10) 100%);
-  --nx-gradient-accent: linear-gradient(135deg, #FFD27A, #F5B342);
+  --nx-cursor: #818CF8;
+  --nx-selection: rgba(129, 140, 248, 0.20);
+  --nx-scrollbar: rgba(129, 140, 248, 0.18);
+  --nx-scrollbar-hover: rgba(129, 140, 248, 0.35);
+  /* Aurora gradient → Nexus indigo-purple gradient (same var name for compat) */
+  --nx-aurora: linear-gradient(135deg, #818CF8 0%, #6366F1 50%, #8B5CF6 100%);
+  --nx-aurora-soft: linear-gradient(135deg, rgba(129,140,248,0.10) 0%, rgba(99,102,241,0.10) 50%, rgba(139,92,246,0.10) 100%);
+  --nx-gradient-accent: linear-gradient(135deg, #818CF8, #6366F1);
 
   /* shadcn compatibility */
-  --background: #07040A;
-  --foreground: #F5E6D3;
-  --card: #110A0C;
-  --card-foreground: #F5E6D3;
-  --popover: #1A1112;
-  --popover-foreground: #F5E6D3;
-  --primary: #F5B342;
-  --primary-foreground: #07040A;
-  --secondary: #1A1112;
-  --secondary-foreground: #F5E6D3;
-  --muted: #1A1112;
-  --muted-foreground: #C9B89A;
-  --accent: #25181A;
-  --accent-foreground: #F5E6D3;
-  --destructive: #DC2626;
-  --border: #3A2624;
-  --input: #3A2624;
-  --ring: #F5B342;
-  --chart-1: #F5B342;
-  --chart-2: #FF6B1A;
-  --chart-3: #FBBF24;
-  --chart-4: #DC2626;
-  --chart-5: #FFD27A;
-  --sidebar: #110A0C;
-  --sidebar-foreground: #F5E6D3;
-  --sidebar-primary: #F5B342;
-  --sidebar-primary-foreground: #07040A;
-  --sidebar-accent: #1A1112;
-  --sidebar-accent-foreground: #F5E6D3;
-  --sidebar-border: #3A2624;
-  --sidebar-ring: #F5B342;
+  --background: #060816;
+  --foreground: #E2E8F0;
+  --card: #0C1022;
+  --card-foreground: #E2E8F0;
+  --popover: #131833;
+  --popover-foreground: #E2E8F0;
+  --primary: #818CF8;
+  --primary-foreground: #060816;
+  --secondary: #131833;
+  --secondary-foreground: #E2E8F0;
+  --muted: #131833;
+  --muted-foreground: #94A3B8;
+  --accent: #1A2040;
+  --accent-foreground: #E2E8F0;
+  --destructive: #F87171;
+  --border: #1E2648;
+  --input: #1E2648;
+  --ring: #818CF8;
+  --chart-1: #818CF8;
+  --chart-2: #6366F1;
+  --chart-3: #34D399;
+  --chart-4: #EC4899;
+  --chart-5: #A78BFA;
+  --sidebar: #0C1022;
+  --sidebar-foreground: #E2E8F0;
+  --sidebar-primary: #818CF8;
+  --sidebar-primary-foreground: #060816;
+  --sidebar-accent: #131833;
+  --sidebar-accent-foreground: #E2E8F0;
+  --sidebar-border: #1E2648;
+  --sidebar-ring: #818CF8;
 }
 
 @layer base {
@@ -241,12 +241,12 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-inter), system-ui, sans-serif;
-    /* Warland ambient backdrop — fixed, very subtle, low-cost.
-       Bottom-anchored ember glow + side gold/crimson tints. */
+    /* Nexus ambient backdrop — fixed, very subtle, low-cost.
+       Bottom-anchored indigo glow + side purple tints. */
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% 110%, rgba(255, 107, 26, 0.08), transparent 60%),
-      radial-gradient(ellipse 60% 40% at 0% 100%, rgba(245, 179, 66, 0.05), transparent 60%),
-      radial-gradient(ellipse 60% 40% at 100% 100%, rgba(220, 38, 38, 0.05), transparent 60%);
+      radial-gradient(ellipse 80% 50% at 50% 110%, rgba(99, 102, 241, 0.06), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 0% 100%, rgba(139, 92, 246, 0.04), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 100% 100%, rgba(129, 140, 248, 0.04), transparent 60%);
     background-attachment: fixed;
     background-repeat: no-repeat;
   }
@@ -325,13 +325,13 @@
   to { opacity: 1; transform: translateX(0); }
 }
 
-/* Hover lift — premium feel (Warland gold-tinted) */
+/* Hover lift — premium feel (Nexus indigo-tinted) */
 .nx-hover-lift {
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .nx-hover-lift:hover {
   transform: translateY(-1.5px);
-  box-shadow: 0 4px 16px rgba(245, 179, 66, 0.22), 0 2px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 16px rgba(129, 140, 248, 0.22), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 /* Glow border on focus */
@@ -340,7 +340,7 @@
   border-color: var(--nx-border-focus);
 }
 
-/* Warland gold gradient border — the signature flowing border */
+/* Nexus indigo gradient border — the signature flowing border */
 .nx-gradient-border {
   position: relative;
 }
@@ -350,7 +350,7 @@
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, #FFD27A, #F5B342, #FF6B1A, #FFD27A);
+  background: linear-gradient(135deg, #A5B4FC, #818CF8, #6366F1, #A5B4FC);
   background-size: 300% 300%;
   animation: nx-aurora-flow 8s ease infinite;
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -382,12 +382,12 @@
   animation: nx-shimmer 4s ease-in-out infinite;
 }
 
-/* Ambient panel glow — Warland gold-tinted */
+/* Ambient panel glow — Nexus indigo-tinted */
 .nx-panel-glow {
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,0.04),
-    0 0 28px rgba(245, 179, 66, 0.05),
-    0 0 60px rgba(255, 107, 26, 0.03);
+    0 0 28px rgba(129, 140, 248, 0.05),
+    0 0 60px rgba(99, 102, 241, 0.03);
 }
 :root .nx-panel-glow {
   box-shadow:
@@ -395,7 +395,7 @@
     0 0 28px rgba(99, 102, 241, 0.06);
 }
 
-/* Active tab underline — Warland gold gradient */
+/* Active tab underline — Nexus indigo gradient */
 .nx-tab-active {
   position: relative;
 }
@@ -406,9 +406,9 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, #FFD27A, #F5B342, #FF6B1A);
+  background: linear-gradient(90deg, #A5B4FC, #818CF8, #6366F1);
   border-radius: 2px 2px 0 0;
-  box-shadow: 0 0 8px rgba(245, 179, 66, 0.5);
+  box-shadow: 0 0 8px rgba(129, 140, 248, 0.5);
 }
 
 /* Custom scrollbar — aurora-themed */
@@ -479,9 +479,9 @@
   border-radius: 4px;
   flex-shrink: 0;
 }
-.nx-suggest-icon.installed { background: rgba(132, 204, 22, 0.15); color: #84CC16; }
-.nx-suggest-icon.known { background: rgba(255, 210, 122, 0.15); color: #FFD27A; }
-.nx-suggest-icon.unknown { background: rgba(138, 120, 96, 0.15); color: #8A7860; }
+.nx-suggest-icon.installed { background: rgba(52, 211, 153, 0.15); color: #34D399; }
+.nx-suggest-icon.known { background: rgba(165, 180, 252, 0.15); color: #A5B4FC; }
+.nx-suggest-icon.unknown { background: rgba(100, 116, 139, 0.15); color: #64748B; }
 .nx-suggest-name { color: var(--nx-text); }
 .nx-suggest-desc { color: var(--nx-text-muted); font-size: 11px; margin-left: auto; }
 
@@ -511,13 +511,13 @@
   font-size: 11px;
   flex-shrink: 0;
 }
-.nx-pkg-icon.npm { background: rgba(220, 38, 38, 0.15); color: #F87171; }
-.nx-pkg-icon.pip { background: rgba(245, 179, 66, 0.15); color: #FFD27A; }
-.nx-pkg-icon.system { background: rgba(255, 210, 122, 0.15); color: #FFD27A; }
-.nx-pkg-icon.lang { background: rgba(255, 107, 26, 0.12); color: #FF6B1A; }
+.nx-pkg-icon.npm { background: rgba(239, 68, 68, 0.15); color: #F87171; }
+.nx-pkg-icon.pip { background: rgba(165, 180, 252, 0.15); color: #A5B4FC; }
+.nx-pkg-icon.system { background: rgba(129, 140, 248, 0.15); color: #818CF8; }
+.nx-pkg-icon.lang { background: rgba(167, 139, 250, 0.12); color: #A78BFA; }
 .nx-pkg-icon.devops { background: rgba(251, 191, 36, 0.12); color: #FBBF24; }
 
-/* Status bar environment indicators — Warland palette */
+/* Status bar environment indicators — Nexus palette */
 .nx-env-dot {
   width: 6px;
   height: 6px;
@@ -525,9 +525,9 @@
   display: inline-block;
   animation: nx-status-pulse 2s ease-in-out infinite;
 }
-.nx-env-dot.node { background: #84CC16; }
-.nx-env-dot.python { background: #FFD27A; }
-.nx-env-dot.docker { background: #FF6B1A; }
+.nx-env-dot.node { background: #34D399; }
+.nx-env-dot.python { background: #A5B4FC; }
+.nx-env-dot.docker { background: #818CF8; }
 
 /* ──────────────────────────────────────────────
    Aurora-specific utilities
@@ -554,36 +554,36 @@
   background: var(--nx-aurora-soft);
 }
 
-/* Glassmorphism panel — frosted glass effect (Warland obsidian) */
+/* Glassmorphism panel — frosted glass effect (Nexus midnight) */
 .nx-glass {
-  background: rgba(26, 17, 18, 0.65);
+  background: rgba(19, 24, 51, 0.65);
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
-  border: 1px solid rgba(245, 179, 66, 0.15);
+  border: 1px solid rgba(129, 140, 248, 0.15);
 }
 :root .nx-glass {
   background: rgba(241, 242, 248, 0.75);
   border: 1px solid rgba(99, 102, 241, 0.15);
 }
 
-/* Warland divider — thin gold gradient line */
+/* Nexus divider — thin indigo gradient line */
 .nx-divider-aurora {
   height: 1px;
-  background: linear-gradient(90deg, transparent, #FFD27A, #F5B342, #FF6B1A, transparent);
+  background: linear-gradient(90deg, transparent, #A5B4FC, #818CF8, #6366F1, transparent);
   opacity: 0.5;
 }
 
-/* Warland gold glow shadow — for buttons / important CTAs */
+/* Nexus indigo glow shadow — for buttons / important CTAs */
 .nx-shadow-aurora {
   box-shadow:
-    0 4px 20px rgba(245, 179, 66, 0.35),
-    0 0 40px rgba(255, 107, 26, 0.18),
+    0 4px 20px rgba(129, 140, 248, 0.35),
+    0 0 40px rgba(99, 102, 241, 0.18),
     0 2px 8px rgba(0, 0, 0, 0.4);
 }
 .nx-shadow-aurora:hover {
   box-shadow:
-    0 6px 28px rgba(245, 179, 66, 0.50),
-    0 0 60px rgba(255, 107, 26, 0.25),
+    0 6px 28px rgba(129, 140, 248, 0.50),
+    0 0 60px rgba(99, 102, 241, 0.25),
     0 4px 12px rgba(0, 0, 0, 0.5);
 }
 

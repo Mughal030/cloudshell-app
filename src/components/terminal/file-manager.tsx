@@ -22,12 +22,54 @@ import {
   Download,
   Upload,
   FolderArchive,
+  FileCode,
+  FileText,
+  Image as ImageIcon,
+  FileArchive,
+  FileVideo,
+  FileAudio,
+  Database,
+  FileType,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import type { FileInfo } from '@/hooks/use-socket'
+
+// ─── File type detection for icons and colors ────────────────────────
+function getFileTypeInfo(fileName: string) {
+  const ext = fileName.split('.').pop()?.toLowerCase() || ''
+  // Code files
+  if (['ts', 'tsx', 'js', 'jsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'cs', 'swift', 'kt', 'scala', 'php', 'sh', 'bash', 'zsh', 'fish'].includes(ext))
+    return { icon: FileCode, color: 'text-[#60A5FA]' } // blue
+  // Web files
+  if (['html', 'htm', 'css', 'scss', 'sass', 'less', 'vue', 'svelte'].includes(ext))
+    return { icon: FileCode, color: 'text-[#F472B6]' } // pink
+  // Config/data
+  if (['json', 'yaml', 'yml', 'toml', 'xml', 'csv', 'env', 'ini', 'conf', 'cfg'].includes(ext))
+    return { icon: Database, color: 'text-[#A78BFA]' } // purple
+  // Documents
+  if (['md', 'txt', 'log', 'doc', 'docx', 'rtf', 'pdf', 'odt'].includes(ext))
+    return { icon: FileText, color: 'text-[#34D399]' } // green
+  // Images
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'avif', 'tiff'].includes(ext))
+    return { icon: ImageIcon, color: 'text-[#FBBF24]' } // amber
+  // Audio
+  if (['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma'].includes(ext))
+    return { icon: FileAudio, color: 'text-[#F87171]' } // red
+  // Video
+  if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'webm', 'flv', 'm4v'].includes(ext))
+    return { icon: FileVideo, color: 'text-[#FB923C]' } // orange
+  // Archives
+  if (['zip', 'tar', 'gz', 'bz2', '7z', 'rar', 'xz', 'tgz', 'zst'].includes(ext))
+    return { icon: FileArchive, color: 'text-[#F59E0B]' } // yellow
+  // Lockfiles / package files
+  if (['lock', 'package-lock', 'yarn.lock'].includes(fileName) || ext === 'lock')
+    return { icon: FileType, color: 'text-[#94A3B8]' } // slate
+  // Default
+  return { icon: File, color: 'text-[var(--nx-text-secondary)]' }
+}
 
 interface FileManagerProps {
   listFiles: (path?: string, showHidden?: boolean) => Promise<{ files: FileInfo[]; error: string | null }>
@@ -75,11 +117,14 @@ export function FileManager({
   useEffect(() => { currentPathRef.current = currentPath }, [currentPath])
   useEffect(() => { showHiddenRef.current = showHidden }, [showHidden])
 
-  // ─── Helper: get auth token from cookie ──────────────────────────────
+  // ─── Helper: get auth token from localStorage (primary) or cookie (fallback) ──
   const getAuthToken = useCallback((): string | null => {
     try {
+      // Primary: localStorage (where login stores the token)
+      const lsToken = localStorage.getItem('jasbol-token')
+      if (lsToken) return lsToken
+      // Fallback: httpOnly-style cookie
       const cookies = document.cookie
-      // Try prod cookie first, then dev
       const prodMatch = cookies.match(/__Host-jasbol-token=([^;]+)/)
       if (prodMatch) return prodMatch[1]
       const devMatch = cookies.match(/jasbol-token=([^;]+)/)
@@ -101,8 +146,16 @@ export function FileManager({
     }
     const encodedPath = encodeURIComponent(filePath)
     const encodedToken = encodeURIComponent(token)
-    // Open download URL in a new tab — browser handles the download
-    window.open(`/api/files/download?path=${encodedPath}&token=${encodedToken}`, '_blank')
+    const downloadUrl = `/api/files/download?path=${encodedPath}&token=${encodedToken}`
+    // Use programmatic <a> click instead of window.open to avoid popup blockers
+    const a = document.createElement('a')
+    a.href = downloadUrl
+    a.download = '' // Let server Content-Disposition header set the filename
+    a.style.display = 'none'
+    document.body.appendChild(a)
+    a.click()
+    // Cleanup after a short delay
+    setTimeout(() => { document.body.removeChild(a) }, 100)
   }, [getAuthToken, toast])
 
   // ─── Auto-refresh crash-prevention machinery ───────────────────────
@@ -670,6 +723,9 @@ export function FileManager({
               const filePath = currentPath ? `${currentPath}/${file.name}` : file.name
               const isRenaming = renamingPath === filePath
               const isHidden = file.name.startsWith('.')
+              const typeInfo = file.type === 'directory' ? null : getFileTypeInfo(file.name)
+              const FileIcon = typeInfo?.icon || File
+              const iconColor = typeInfo?.color || 'text-[var(--nx-text-secondary)]'
               return (
                 <div
                   key={file.name}
@@ -678,7 +734,7 @@ export function FileManager({
                   {file.type === 'directory' ? (
                     <Folder className={`h-3.5 w-3.5 shrink-0 ${isHidden ? 'text-[var(--nx-text-dim)]' : 'text-[var(--nx-warning)]'}`} />
                   ) : (
-                    <File className={`h-3.5 w-3.5 shrink-0 ${isHidden ? 'text-[var(--nx-text-dim)]' : 'text-[var(--nx-text-secondary)]'}`} />
+                    <FileIcon className={`h-3.5 w-3.5 shrink-0 ${isHidden ? 'text-[var(--nx-text-dim)]' : iconColor}`} />
                   )}
                   {isRenaming ? (
                     <>
