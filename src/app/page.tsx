@@ -294,64 +294,64 @@ export default function Home() {
   return (
     <div className="flex flex-col h-screen bg-[var(--nx-bg-primary)] text-[var(--nx-text)] overflow-hidden transition-colors duration-200 nx-top-accent">
       {/* ═══ HEADER ═══ */}
-      <header className="relative flex items-center justify-between px-4 h-11 bg-[var(--nx-bg-secondary)]/90 backdrop-blur-md shrink-0 nx-panel-glow nx-border-glow nx-border-glow-bottom">
+      <header className="relative flex items-center justify-between px-4 h-12 bg-[var(--nx-bg-secondary)]/90 backdrop-blur-xl shrink-0 nx-header-accent nx-panel-glow">
         <div className="flex items-center gap-3">
-          {/* Logo with glow ring */}
+          {/* Logo with premium glow ring */}
           <div className="flex items-center gap-2.5">
-            <div className="nx-logo-ring">
-              <Image src="/jasbol-hack-logo.png" alt="Jasbol Hack" width={28} height={28} className="rounded-md" priority />
+            <div className="nx-logo-ring-premium">
+              <Image src="/jasbol-hack-logo.png" alt="Jasbol Hack" width={28} height={28} className="rounded-lg" priority />
             </div>
             <h1 className="text-sm font-bold tracking-wide">
-              <span style={{ background: 'linear-gradient(135deg, #818CF8, #6366F1)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Jasbol</span>
+              <span style={{ background: 'linear-gradient(135deg, #818CF8 0%, #6366F1 50%, #8B5CF6 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Jasbol</span>
               <span className="text-[var(--nx-text)] ml-0.5">Hack</span>
             </h1>
           </div>
 
           <Separator orientation="vertical" className="h-5 bg-[var(--nx-border)]" />
 
-          {/* Connection status — elegant pulse */}
+          {/* Connection status — premium pill */}
           <div className="flex items-center gap-1.5">
             {mounted && connected ? (
-              <div className="flex items-center gap-1.5">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--nx-success)] opacity-60" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--nx-success)] nx-pulse-elegant" />
-                </span>
-                <span className="text-[10px] text-[var(--nx-success)] font-medium tracking-wide">Live</span>
+              <div className="nx-status-pill live">
+                <span className="nx-status-dot" />
+                <span>Live</span>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5">
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--nx-error)]" style={{ animation: 'nx-pulse-elegant 1.6s ease-in-out infinite' }} />
-                <span className="text-[10px] text-[var(--nx-error)] font-medium">{mounted ? 'Offline' : 'Connecting...'}</span>
+              <div className="nx-status-pill offline">
+                <span className="nx-status-dot" />
+                <span>{mounted ? 'Offline' : 'Connecting...'}</span>
               </div>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* New Terminal button — better hover */}
-          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent)] hover:bg-[var(--nx-accent-glow)] transition-all duration-200 rounded-md" onClick={handleNewTerminal} disabled={creatingTerminal || !connected}>
+          {/* New Terminal button */}
+          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent)] hover:bg-[var(--nx-accent-glow)] transition-all duration-200 rounded-md nx-press" onClick={handleNewTerminal} disabled={creatingTerminal || !connected}>
             <Plus className="h-3.5 w-3.5" />New Terminal
           </Button>
 
           <Separator orientation="vertical" className="h-5 bg-[var(--nx-border)]" />
 
           {/* Theme toggle */}
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-secondary)] hover:text-[var(--nx-warning)] hover:bg-[var(--nx-bg-hover)] transition-all duration-200 rounded-md" onClick={() => setTheme(isDark ? 'light' : 'dark')} disabled={!mounted}>
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-secondary)] hover:text-[var(--nx-warning)] hover:bg-[var(--nx-bg-hover)] transition-all duration-200 rounded-md nx-press" onClick={() => setTheme(isDark ? 'light' : 'dark')} disabled={!mounted}>
             {mounted ? (isDark ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />) : <Sun className="h-3.5 w-3.5 opacity-0" />}
           </Button>
 
           <Separator orientation="vertical" className="h-5 bg-[var(--nx-border)]" />
 
-          {/* User badge — gradient border */}
+          {/* User badge — avatar circle + info */}
           {currentUser && (
-            <div className="flex items-center gap-1.5">
-              <div className="nx-user-badge nx-hover-lift flex items-center gap-1">
+            <div className="flex items-center gap-2">
+              <div className={`nx-avatar-circle ${currentUser.role === 'admin' ? 'admin' : ''}`}>
+                {currentUser.username.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex items-center gap-1 nx-hover-lift">
                 {currentUser.role === 'admin' ? <Shield className="h-3 w-3 text-[var(--nx-accent)]" /> : <User className="h-3 w-3 text-[var(--nx-accent-teal)]" />}
                 <span className="text-[10px] font-medium">{currentUser.username}</span>
                 {currentUser.role === 'admin' && <span className="text-[8px] px-1.5 py-0.5 rounded-md font-bold tracking-wider" style={{ background: 'linear-gradient(135deg, rgba(129, 140, 248, 0.18), rgba(99, 102, 241, 0.12))', color: '#818CF8' }}>ADMIN</span>}
               </div>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-muted)] hover:text-[var(--nx-error)] hover:bg-[var(--nx-error)]/10 transition-all duration-200 rounded-md" onClick={handleLogout} title="Logout">
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-muted)] hover:text-[var(--nx-error)] hover:bg-[var(--nx-error)]/10 transition-all duration-200 rounded-md nx-press" onClick={handleLogout} title="Logout">
                 <LogOut className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -359,19 +359,15 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ═══ HORIZONTAL MENU BAR — Pill Tabs ═══ */}
-      <nav className="flex items-center gap-1 px-3 h-10 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/50 backdrop-blur-md shrink-0 overflow-x-auto">
+      {/* ═══ HORIZONTAL MENU BAR — Frosted Glass Nav ═══ */}
+      <nav className="nx-glass-nav flex items-center gap-1 px-3 h-10 shrink-0 overflow-x-auto">
         {MENU_ITEMS.map(({ value, label, icon: Icon }) => {
           const isActive = activeMenu === value
           return (
             <button
               key={value}
               onClick={() => handleMenuClick(value)}
-              className={`flex items-center gap-1.5 px-3.5 h-7 rounded-full text-xs font-medium transition-all duration-200 shrink-0 ${
-                isActive
-                  ? 'bg-gradient-to-r from-[var(--nx-accent)]/15 to-[var(--nx-accent-teal)]/10 text-[var(--nx-accent)] nx-tab-dot shadow-[0_0_12px_var(--nx-accent-glow)]'
-                  : 'text-[var(--nx-text-muted)] hover:text-[var(--nx-text)] hover:bg-[var(--nx-bg-hover)] hover:scale-[1.02]'
-              }`}
+              className={`nx-nav-item nx-press shrink-0 ${isActive ? 'active' : ''}`}
               aria-pressed={isActive}
             >
               <Icon className={`h-3.5 w-3.5 transition-all duration-200 ${isActive ? 'text-[var(--nx-accent)]' : ''}`} />
@@ -381,13 +377,13 @@ export default function Home() {
           )
         })}
         <div className="flex-1" />
-        <span className="text-[10px] text-[var(--nx-text-dim)] pr-2 hidden sm:inline opacity-60">Click a tab to expand panel</span>
+        <span className="text-[10px] text-[var(--nx-text-dim)] pr-2 hidden sm:inline opacity-50">Click a tab to expand panel</span>
       </nav>
 
       {/* ═══ SLIDE-DOWN PANEL (horizontal, full-width) ═══ */}
       {activeMenu && (
         <div
-          className="relative border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/80 backdrop-blur-xl shrink-0 nx-panel-slide-down nx-panel-border-glow"
+          className="nx-slide-panel shrink-0"
           style={{ height: 450 }}
         >
           <div className="h-full flex flex-col overflow-hidden min-h-0">
@@ -440,21 +436,15 @@ export default function Home() {
           <ResizablePanelGroup direction="vertical" className="flex-1">
             <ResizablePanel defaultSize={65} minSize={30}>
               <div className="flex flex-col h-full">
-                {/* Terminal Tab Bar — Obsidian Aurora */}
-                <div className="flex items-center h-9 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/40 backdrop-blur-sm shrink-0 overflow-x-auto">
+                {/* Terminal Tab Bar — VS Code Style */}
+                <div className="nx-vs-tabbar shrink-0">
                   <ScrollArea className="flex-1">
-                    <div className="flex items-center h-9">
-                      {sessions.map((session, idx) => {
+                    <div className="flex items-end h-full">
+                      {sessions.map((session) => {
                         const isActiveTab = activeSessionId === session.sessionId
                         return (
                           <div key={session.sessionId}
-                            className={`group flex items-center gap-1.5 px-3 h-full text-xs transition-all duration-200 shrink-0 cursor-pointer relative ${
-                              idx < sessions.length - 1 ? 'border-r border-[var(--nx-border)]/40' : ''
-                            } ${
-                              isActiveTab
-                                ? 'bg-[var(--nx-bg-primary)] text-[var(--nx-accent)] nx-term-tab-active'
-                                : 'text-[var(--nx-text-muted)] hover:text-[var(--nx-text)] hover:bg-[var(--nx-bg-primary)]/40'
-                            }`}
+                            className={`nx-vs-tab group ${isActiveTab ? 'active' : ''}`}
                             onClick={() => setActiveSessionId(session.sessionId)}>
                             <SquareTerminal className={`h-3 w-3 shrink-0 transition-colors duration-200 ${isActiveTab ? 'text-[var(--nx-accent)]' : ''}`} />
                             <span className="truncate max-w-24">{session.label}</span>
@@ -470,7 +460,7 @@ export default function Home() {
                       })}
                     </div>
                   </ScrollArea>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 mx-1 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent)] hover:bg-[var(--nx-accent-glow)] shrink-0 transition-all duration-200 rounded-md" onClick={handleNewTerminal} disabled={creatingTerminal || !connected}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 mx-1 mb-0.5 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent)] hover:bg-[var(--nx-accent-glow)] shrink-0 transition-all duration-200 rounded-md nx-press" onClick={handleNewTerminal} disabled={creatingTerminal || !connected}>
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -478,24 +468,27 @@ export default function Home() {
                 {/* Terminal Content */}
                 <div className="flex-1 bg-[var(--nx-bg-primary)] overflow-hidden relative">
                   {sessions.length === 0 ? (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-center">
-                        <Terminal className="h-16 w-16 mx-auto mb-4 opacity-20" style={{ color: 'var(--nx-accent)' }} />
-                        <p className="text-base font-medium mb-1 nx-text-gradient-animated">
+                    <div className="nx-empty-splash">
+                      <div className="relative z-10 flex flex-col items-center">
+                        {/* Logo splash */}
+                        <div className="nx-logo-ring-premium mb-6">
+                          <Image src="/jasbol-hack-logo.png" alt="Jasbol Hack" width={56} height={56} className="rounded-xl" priority />
+                        </div>
+                        <Terminal className="h-12 w-12 mb-4 opacity-25" style={{ color: 'var(--nx-accent)' }} />
+                        <p className="text-xl font-bold mb-2 nx-gradient-text-premium">
                           {mounted && connected ? 'No Terminal Sessions' : 'Connecting...'}
                         </p>
-                        <p className="text-xs text-[var(--nx-text-dim)] mb-4">
-                          {mounted && connected ? 'Start a new terminal to begin' : 'Establishing connection'}
+                        <p className="text-xs text-[var(--nx-text-dim)] mb-6 max-w-xs text-center">
+                          {mounted && connected ? 'Launch your first terminal to start hacking' : 'Establishing WebSocket connection'}
                         </p>
                         {mounted && connected && (
-                          <Button
-                            size="sm"
-                            className="h-8 px-4 text-xs gap-1.5 bg-gradient-to-r from-[var(--nx-accent)]/20 to-[var(--nx-accent-teal)]/15 text-[var(--nx-accent)] border border-[var(--nx-accent)]/30 hover:from-[var(--nx-accent)]/30 hover:to-[var(--nx-accent-teal)]/25 hover:border-[var(--nx-accent)]/50 hover:shadow-[0_0_20px_var(--nx-accent-glow)] transition-all duration-200"
+                          <button
+                            className="nx-start-btn"
                             onClick={handleNewTerminal}
                             disabled={!connected}
                           >
-                            <Plus className="h-3.5 w-3.5" />Start Terminal
-                          </Button>
+                            <Plus className="h-4 w-4" />Start Terminal
+                          </button>
                         )}
                       </div>
                     </div>
@@ -518,24 +511,24 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ═══ STATUS BAR — Obsidian Aurora ═══ */}
-      <footer className="relative flex items-center justify-between px-3 h-6 bg-[var(--nx-bg-secondary)]/90 text-[10px] text-[var(--nx-text-muted)] shrink-0 nx-border-glow nx-border-glow-top">
+      {/* ═══ STATUS BAR — Premium ═══ */}
+      <footer className="nx-status-bar flex items-center justify-between px-3 h-7 text-[10px] text-[var(--nx-text-muted)] shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
             <SquareTerminal className="h-2.5 w-2.5 text-[var(--nx-accent)]" />
-            <span className="font-medium">bash</span>
+            <span className="font-semibold">bash</span>
           </div>
           <Separator orientation="vertical" className="h-3 bg-[var(--nx-border)]" />
           <span className="text-[var(--nx-text-dim)]">/workspace</span>
           <Separator orientation="vertical" className="h-3 bg-[var(--nx-border)]" />
 
-          {/* Environment dots — pulsing */}
-          <div className="flex items-center gap-1.5">
-            <span className="nx-env-dot node nx-env-dot-pulse" style={{ color: '#34D399' }} />
+          {/* Environment indicators — premium pills */}
+          <div className="nx-env-indicator">
+            <span className="nx-env-indicator-dot" style={{ background: '#34D399' }} />
             <span>Node</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="nx-env-dot python nx-env-dot-pulse" style={{ color: '#A5B4FC' }} />
+          <div className="nx-env-indicator">
+            <span className="nx-env-indicator-dot" style={{ background: '#A5B4FC' }} />
             <span>Py</span>
           </div>
 
@@ -550,9 +543,9 @@ export default function Home() {
           <span>{sessions.length} tab{sessions.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="flex items-center gap-3">
-          {/* Latency — more visible */}
+          {/* Latency — premium pill */}
           {mounted && connected && latency > 0 && (
-            <span className={`nx-latency ${latency > 200 ? 'text-[var(--nx-warning)]' : 'text-[var(--nx-success)]'}`}>
+            <span className={`nx-latency-pill ${latency > 300 ? 'error' : latency > 150 ? 'warning' : ''}`}>
               {latency}ms
             </span>
           )}

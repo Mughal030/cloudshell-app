@@ -125,36 +125,38 @@ export function PackageSidebar({ installedPackages, sendCommandToTerminal, conne
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Header with search */}
-      <div className="px-3 py-2 border-b border-[var(--nx-border)] space-y-2">
+      <div className="px-3 py-2 border-b border-[var(--nx-border)] space-y-2 relative" style={{background: 'linear-gradient(180deg, var(--nx-bg-secondary) 0%, transparent 100%)'}}>
+        {/* Gradient underline decoration */}
+        <div className="absolute bottom-0 left-3 right-3 h-px" style={{background: 'linear-gradient(90deg, transparent, var(--nx-accent-teal)/30, transparent)'}} />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <Package className="h-3.5 w-3.5 text-[var(--nx-accent-teal)]" />
-            <span className="text-xs font-medium text-[var(--nx-text)]">Packages</span>
+            <Package className="h-3.5 w-3.5 text-[var(--nx-accent-teal)] drop-shadow-[0_0_6px_rgba(99,102,241,0.3)]" />
+            <span className="text-xs font-semibold text-[var(--nx-text)]" style={{background: 'linear-gradient(135deg, var(--nx-text), var(--nx-accent-teal))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>Packages</span>
           </div>
-          <Badge variant="secondary" className="h-4 px-1.5 text-[8px] bg-[var(--nx-accent-teal)]/10 text-[var(--nx-accent-teal)] border-[var(--nx-accent-teal)]/20">
+          <Badge variant="secondary" className="h-4 px-1.5 text-[8px] bg-[var(--nx-accent-teal)]/10 text-[var(--nx-accent-teal)] border-[var(--nx-accent-teal)]/20 drop-shadow-[0_0_4px_rgba(99,102,241,0.15)]">
             {totalInstalled} installed
           </Badge>
         </div>
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--nx-text-dim)]" />
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--nx-text-dim)] transition-colors duration-200" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search packages..."
-            className="w-full pl-7 pr-2 py-1 text-[11px] bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] rounded-md text-[var(--nx-text)] placeholder-[var(--nx-text-dim)] focus:outline-none focus:border-[var(--nx-accent-teal)]/50 focus:ring-1 focus:ring-[var(--nx-accent-teal)]/20 transition-all"
+            placeholder="Filter packages by name or desc..."
+            className="w-full pl-7 pr-2 py-1 text-[11px] bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] rounded-md text-[var(--nx-text)] placeholder-[var(--nx-text-dim)] focus:outline-none focus:border-[var(--nx-accent-teal)]/50 focus:ring-1 focus:ring-[var(--nx-accent-teal)]/20 transition-all duration-300 focus:drop-shadow-[0_0_8px_rgba(99,102,241,0.15)] focus:bg-[var(--nx-bg-primary)]/80"
           />
         </div>
       </div>
 
       {/* Color Legend */}
-      <div className="px-3 py-1.5 border-b border-[var(--nx-border)] flex items-center gap-3 text-[9px]">
+      <div className="px-3 py-1.5 border-b border-[var(--nx-border)] flex items-center gap-3 text-[9px]" style={{background: 'linear-gradient(90deg, var(--nx-bg-primary) 0%, var(--nx-bg-secondary) 100%)'}}>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-[var(--nx-cmd-installed)]" />
+          <span className="w-2 h-2 rounded-full bg-[var(--nx-cmd-installed)] drop-shadow-[0_0_4px_rgba(52,211,153,0.4)]" />
           <span className="text-[var(--nx-text-muted)]">Installed</span>
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-[var(--nx-cmd-known)]" />
+          <span className="w-2 h-2 rounded-full bg-[var(--nx-cmd-known)] drop-shadow-[0_0_4px_rgba(99,102,241,0.4)]" />
           <span className="text-[var(--nx-text-muted)]">Known</span>
         </span>
         <span className="flex items-center gap-1">
@@ -175,34 +177,34 @@ export function PackageSidebar({ installedPackages, sendCommandToTerminal, conne
               <div key={category.name}>
                 {/* Category header */}
                 <button
-                  className="w-full flex items-center gap-1.5 px-2 py-1 rounded text-[10px] hover:bg-[var(--nx-bg-hover)] transition-colors"
+                  className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] hover:bg-[var(--nx-bg-hover)] transition-all duration-200 group/cat"
                   onClick={() => toggleCat(category.name)}
                 >
-                  <CatIcon className="h-3 w-3 text-[var(--nx-text-muted)]" />
+                  <CatIcon className="h-3.5 w-3.5 text-[var(--nx-text-muted)] group-hover/cat:drop-shadow-[0_0_4px_rgba(99,102,241,0.25)] transition-all duration-200" />
                   <span className="font-semibold text-[var(--nx-text-secondary)] uppercase tracking-wider flex-1 text-left">{category.name}</span>
-                  <Badge variant="secondary" className="h-3 px-1 text-[7px] bg-[var(--nx-bg-hover)] text-[var(--nx-text-muted)] border-0">
+                  <Badge variant="secondary" className="h-3 px-1 text-[7px] bg-[var(--nx-bg-hover)] text-[var(--nx-text-muted)] border-0 transition-all duration-200">
                     {catInstalled}/{category.packages.length}
                   </Badge>
-                  <span className="text-[var(--nx-text-dim)]">{isCollapsed ? '▸' : '▾'}</span>
+                  <span className="text-[var(--nx-text-dim)] transition-transform duration-200" style={{transform: isCollapsed ? 'rotate(0deg)' : 'rotate(0deg)'}}>{isCollapsed ? '▸' : '▾'}</span>
                 </button>
 
                 {/* Packages */}
                 {!isCollapsed && category.packages.map((pkg) => {
                   const isInstalled = installedPackages.has(pkg.name)
                   return (
-                    <div key={pkg.name} className="nx-pkg-item nx-hover-lift" onClick={() => sendCommandToTerminal(`which ${pkg.name} && ${pkg.name} --version || echo "${pkg.name} not found"`)}>
-                      <div className={`nx-pkg-icon ${category.iconClass}`}>
+                    <div key={pkg.name} className="nx-pkg-item nx-hover-lift relative" onClick={() => sendCommandToTerminal(`which ${pkg.name} && ${pkg.name} --version || echo "${pkg.name} not found"`)} style={{borderLeft: isInstalled ? '2px solid var(--nx-success)/40' : '2px solid transparent'}}>
+                      <div className={`nx-pkg-icon ${category.iconClass} ${isInstalled ? 'drop-shadow-[0_0_4px_rgba(52,211,153,0.4)]' : ''}`}>
                         {isInstalled ? '✓' : '·'}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className={`text-[11px] font-medium ${isInstalled ? 'text-[var(--nx-cmd-installed)]' : 'text-[var(--nx-text-secondary)]'}`}>
+                        <div className={`text-[11px] font-medium transition-colors duration-200 ${isInstalled ? 'text-[var(--nx-cmd-installed)]' : 'text-[var(--nx-text-secondary)]'}`}>
                           {pkg.name}
                         </div>
                         <div className="text-[9px] text-[var(--nx-text-dim)]">{pkg.desc}</div>
                       </div>
                       {isInstalled && (
-                        <Badge variant="secondary" className="h-3 px-1 text-[7px] bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20 shrink-0">
-                          OK
+                        <Badge variant="secondary" className="h-3 px-1 text-[7px] bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20 shrink-0 drop-shadow-[0_0_4px_rgba(52,211,153,0.25)]">
+                          ✓ OK
                         </Badge>
                       )}
                     </div>

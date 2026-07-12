@@ -522,31 +522,31 @@ export function FileManager({
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Absolute path display */}
-      <div className="px-2 py-1 border-b border-[var(--nx-border)]/50 bg-[var(--nx-bg-primary)]/40">
+      <div className="px-2 py-1 border-b border-[var(--nx-border)]/50" style={{background: 'linear-gradient(90deg, var(--nx-bg-primary) 0%, var(--nx-bg-secondary) 100%)'}}>
         <div className="text-[9px] font-mono text-[var(--nx-text-dim)] truncate" title={absolutePath}>
           {absolutePath || '/workspace'}
         </div>
       </div>
 
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[var(--nx-border)]/50 text-xs overflow-x-auto whitespace-nowrap">
+      <div className="flex items-center gap-1 px-2 py-1.5 border-b border-[var(--nx-border)]/50 text-xs overflow-x-auto whitespace-nowrap" style={{background: 'linear-gradient(90deg, var(--nx-bg-secondary) 0%, rgba(99,102,241,0.04) 50%, var(--nx-bg-secondary) 100%)'}}>
         <Button
           variant="ghost"
           size="icon"
-          className="h-5 w-5 shrink-0 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
+          className="h-5 w-5 shrink-0 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-all duration-200 hover:drop-shadow-[0_0_6px_rgba(99,102,241,0.4)]"
           onClick={handleNavigateHome}
           title="Go to workspace root"
         >
           <Home className="h-3 w-3" />
         </Button>
         {breadcrumbs.length === 0 ? (
-          <span className="text-[var(--nx-text-secondary)] text-xs">workspace</span>
+          <span className="text-[var(--nx-text-secondary)] text-xs font-medium">workspace</span>
         ) : (
           breadcrumbs.map((part, i) => (
             <span key={i} className="flex items-center gap-1 shrink-0">
-              <ChevronRight className="h-3 w-3 text-[var(--nx-text-dim)]" />
+              <span className="text-[var(--nx-text-dim)]/40 text-[6px] select-none">●</span>
               <button
-                className="text-[var(--nx-text-secondary)] hover:text-[var(--nx-text)] transition-colors"
+                className="text-[var(--nx-text-secondary)] hover:text-[var(--nx-text)] transition-all duration-200 px-1 py-0.5 rounded hover:bg-[var(--nx-bg-hover)]/60 hover:drop-shadow-[0_0_8px_rgba(99,102,241,0.25)]"
                 onClick={() => {
                   const path = breadcrumbs.slice(0, i + 1).join('/')
                   loadFiles(path, showHidden)
@@ -564,69 +564,71 @@ export function FileManager({
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
+          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-all duration-200 hover:drop-shadow-[0_0_6px_rgba(99,102,241,0.35)]"
           onClick={() => loadFiles(currentPath || undefined, showHidden)}
           disabled={loading}
-          title="Refresh"
+          title="Refresh file list"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
+          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-all duration-200 hover:drop-shadow-[0_0_6px_rgba(99,102,241,0.35)]"
           onClick={() => { setShowNewFile(true); setShowNewFolder(false); setNewItemName('') }}
-          title="New File"
+          title="Create new file"
         >
-          <FilePlus className="h-3.5 w-3.5" />
+          <FilePlus className="h-4 w-4" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
+          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-all duration-200 hover:drop-shadow-[0_0_6px_rgba(99,102,241,0.35)]"
           onClick={() => { setShowNewFolder(true); setShowNewFile(false); setNewItemName('') }}
-          title="New Folder"
+          title="Create new folder"
         >
-          <FolderPlus className="h-3.5 w-3.5" />
+          <FolderPlus className="h-4 w-4" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          className={`h-6 w-6 transition-colors ${showHidden ? 'text-[var(--nx-accent-teal)] bg-[var(--nx-accent-teal)]/10' : 'text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)]'}`}
+          className={`h-6 w-6 transition-all duration-200 ${showHidden ? 'text-[var(--nx-accent-teal)] bg-[var(--nx-accent-teal)]/10 drop-shadow-[0_0_6px_rgba(99,102,241,0.3)]' : 'text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] hover:drop-shadow-[0_0_6px_rgba(99,102,241,0.35)]'}`}
           onClick={() => setShowHidden(!showHidden)}
-          title={showHidden ? 'Hide hidden files' : 'Show hidden files'}
+          title={showHidden ? 'Hide hidden files (dotfiles)' : 'Show hidden files (dotfiles)'}
         >
-          {showHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+          {showHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
         </Button>
         {sendCommandToTerminal && (
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
+            className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-all duration-200 hover:drop-shadow-[0_0_6px_rgba(99,102,241,0.35)]"
             onClick={handleOpenTerminalHere}
-            title="Open terminal here"
+            title="Open terminal in current directory"
           >
-            <TerminalIcon className="h-3.5 w-3.5" />
+            <TerminalIcon className="h-4 w-4" />
           </Button>
         )}
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
+          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-all duration-200 hover:drop-shadow-[0_0_6px_rgba(99,102,241,0.35)]"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading || !connected}
-          title="Upload files"
+          title="Upload files to current directory"
         >
-          <Upload className={`h-3.5 w-3.5 ${uploading ? 'animate-pulse' : ''}`} />
+          <Upload className={`h-4 w-4 ${uploading ? 'animate-pulse' : ''}`} />
         </Button>
+        <div className="flex-1" />
         <Button
           variant="ghost"
-          size="icon"
-          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
+          size="sm"
+          className="h-6 text-[10px] gap-1 px-2 text-[var(--nx-accent-teal)] hover:text-[var(--nx-accent-teal)] bg-[var(--nx-accent-teal)]/8 hover:bg-[var(--nx-accent-teal)]/15 border border-[var(--nx-accent-teal)]/20 hover:border-[var(--nx-accent-teal)]/40 transition-all duration-200 hover:drop-shadow-[0_0_8px_rgba(99,102,241,0.3)]"
           onClick={() => triggerDownload(currentPath || '')}
-          title="Download current folder as ZIP"
+          title="Download current folder as ZIP archive"
         >
-          <FolderArchive className="h-3.5 w-3.5" />
+          <Download className="h-3 w-3" />
+          <span>Download All</span>
         </Button>
         {currentPath && (
           <Button
@@ -695,23 +697,29 @@ export function FileManager({
             </div>
           )}
           {files.length === 0 && !loading && !loadError && (
-            <div className="text-center text-[var(--nx-text-dim)] text-xs py-4 px-3">
-              <FolderOpen className="h-6 w-6 mx-auto mb-2 opacity-50" />
-              <div>Empty directory</div>
-              <div className="mt-2 text-[10px]">
-                Click <FilePlus className="inline h-2.5 w-2.5" /> to create a file,
-                or <FolderPlus className="inline h-2.5 w-2.5" /> to create a folder.
+            <div className="text-center text-[var(--nx-text-dim)] text-xs py-8 px-3">
+              <div className="relative inline-block mb-3">
+                <FolderOpen className="h-10 w-10 mx-auto opacity-30" style={{filter: 'drop-shadow(0 0 12px rgba(99,102,241,0.2))'}} />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-[8px] font-mono text-[var(--nx-accent-teal)]/60">∅</span>
+                </div>
+              </div>
+              <div className="text-sm font-medium" style={{background: 'linear-gradient(135deg, var(--nx-text-secondary), var(--nx-accent-teal))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>Empty directory</div>
+              <div className="mt-3 text-[10px] text-[var(--nx-text-muted)] space-y-1">
+                <div>Click <FilePlus className="inline h-2.5 w-2.5 text-[var(--nx-accent-teal)]/70" /> to create a file</div>
+                <div>or <FolderPlus className="inline h-2.5 w-2.5 text-[var(--nx-accent-teal)]/70" /> to create a folder</div>
               </div>
               {!showHidden && (
-                <div className="mt-1 text-[10px] opacity-70">
-                  Hidden files (dotfiles) are hidden. Click <EyeOff className="inline h-2.5 w-2.5" /> to show them.
+                <div className="mt-3 text-[10px] text-[var(--nx-text-dim)]/70">
+                  Dotfiles are hidden · Click <EyeOff className="inline h-2.5 w-2.5 text-[var(--nx-accent-teal)]/50" /> to reveal
                 </div>
               )}
             </div>
           )}
           {loading && files.length === 0 && (
-            <div className="text-center text-[var(--nx-text-dim)] text-xs py-4">
-              Loading...
+            <div className="text-center text-[var(--nx-text-dim)] text-xs py-8">
+              <RefreshCw className="h-5 w-5 mx-auto mb-2 animate-spin opacity-40" />
+              <span style={{background: 'linear-gradient(90deg, var(--nx-text-dim), var(--nx-text-muted))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>Loading files...</span>
             </div>
           )}
           {files
@@ -729,12 +737,21 @@ export function FileManager({
               return (
                 <div
                   key={file.name}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--nx-bg-hover)]/60 transition-colors group"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs relative transition-all duration-200 group"
+                  style={{borderLeft: '2px solid transparent'}}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.background = 'linear-gradient(90deg, rgba(99,102,241,0.08) 0%, var(--nx-bg-hover) 40%)'
+                    ;(e.currentTarget as HTMLDivElement).style.borderLeftColor = 'var(--nx-accent-teal)'
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.background = 'transparent'
+                    ;(e.currentTarget as HTMLDivElement).style.borderLeftColor = 'transparent'
+                  }}
                 >
                   {file.type === 'directory' ? (
-                    <Folder className={`h-3.5 w-3.5 shrink-0 ${isHidden ? 'text-[var(--nx-text-dim)]' : 'text-[var(--nx-warning)]'}`} />
+                    <Folder className={`h-4 w-4 shrink-0 transition-all duration-200 group-hover:drop-shadow-[0_0_6px_rgba(251,191,36,0.4)] ${isHidden ? 'text-[var(--nx-text-dim)]' : 'text-[var(--nx-warning)]'}`} />
                   ) : (
-                    <FileIcon className={`h-3.5 w-3.5 shrink-0 ${isHidden ? 'text-[var(--nx-text-dim)]' : iconColor}`} />
+                    <FileIcon className={`h-4 w-4 shrink-0 transition-all duration-200 group-hover:drop-shadow-[0_0_6px_rgba(99,102,241,0.3)] ${isHidden ? 'text-[var(--nx-text-dim)]' : iconColor}`} />
                   )}
                   {isRenaming ? (
                     <>
@@ -769,49 +786,49 @@ export function FileManager({
                       >
                         {file.name}
                       </button>
-                      <span className="text-[var(--nx-text-dim)] text-[10px] shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-[var(--nx-text-dim)] text-[10px] shrink-0 font-mono opacity-0 group-hover:opacity-100 transition-all duration-300">
                         {formatSize(file.size)}
                       </span>
-                      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out">
                         {file.type !== 'directory' && (
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)]"
+                            className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)] hover:drop-shadow-[0_0_4px_rgba(99,102,241,0.3)] transition-all duration-200"
                             onClick={(e) => { e.stopPropagation(); triggerDownload(filePath) }}
-                            title="Download"
+                            title="Download file"
                           >
-                            <Download className="h-2.5 w-2.5" />
+                            <Download className="h-3 w-3" />
                           </Button>
                         )}
                         {file.type === 'directory' && (
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)]"
+                            className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)] hover:drop-shadow-[0_0_4px_rgba(99,102,241,0.3)] transition-all duration-200"
                             onClick={(e) => { e.stopPropagation(); triggerDownload(filePath) }}
-                            title="Download as ZIP"
+                            title="Download folder as ZIP"
                           >
-                            <FolderArchive className="h-2.5 w-2.5" />
+                            <FolderArchive className="h-3 w-3" />
                           </Button>
                         )}
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)]"
+                          className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-warning)] hover:drop-shadow-[0_0_4px_rgba(251,191,36,0.3)] transition-all duration-200"
                           onClick={(e) => { e.stopPropagation(); handleRenameStart(file.name) }}
-                          title="Rename"
+                          title="Rename item"
                         >
-                          <Pencil className="h-2.5 w-2.5" />
+                          <Pencil className="h-3 w-3" />
                         </Button>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-error)]"
+                          className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-error)] hover:drop-shadow-[0_0_4px_rgba(248,113,113,0.3)] transition-all duration-200"
                           onClick={(e) => { e.stopPropagation(); handleDelete(file.name, file.type === 'directory') }}
-                          title="Delete"
+                          title="Delete item"
                         >
-                          <Trash2 className="h-2.5 w-2.5" />
+                          <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
                     </>
@@ -823,18 +840,21 @@ export function FileManager({
       </ScrollArea>
 
       {/* Footer hint */}
-      <div className="px-2 py-1 border-t border-[var(--nx-border)]/50 bg-[var(--nx-bg-primary)]/40 flex items-center justify-between">
-        <div className="text-[9px] text-[var(--nx-text-dim)] truncate">
-          {files.length} item{files.length !== 1 ? 's' : ''}{showHidden ? ' • showing hidden' : ''} • live sync
+      <div className="px-2 py-1.5 flex items-center justify-between" style={{borderTop: '1px solid transparent', borderImage: 'linear-gradient(90deg, transparent, var(--nx-accent-teal)/20, transparent) 1', background: 'linear-gradient(90deg, var(--nx-bg-primary), var(--nx-bg-secondary))'}}>
+        <div className="text-[9px] text-[var(--nx-text-dim)] truncate flex items-center gap-1.5">
+          <span className="inline-block w-1 h-1 rounded-full bg-[var(--nx-success)]/60 animate-pulse" />
+          <span>{files.length} item{files.length !== 1 ? 's' : ''}{showHidden ? ' · hidden shown' : ''}</span>
+          <span className="text-[var(--nx-text-dim)]/50">·</span>
+          <span className="text-[var(--nx-success)]/50">live sync</span>
         </div>
         <Button
           variant="ghost"
           size="sm"
-          className="h-5 text-[9px] gap-1 text-[var(--nx-text-dim)] hover:text-[var(--nx-accent-teal)] transition-colors"
+          className="h-5 text-[9px] gap-1 px-2 text-[var(--nx-accent-teal)] bg-[var(--nx-accent-teal)]/8 hover:bg-[var(--nx-accent-teal)]/15 border border-[var(--nx-accent-teal)]/15 hover:border-[var(--nx-accent-teal)]/30 transition-all duration-200 hover:drop-shadow-[0_0_8px_rgba(99,102,241,0.25)]"
           onClick={() => triggerDownload(currentPath || '')}
-          title="Download current folder as ZIP"
+          title="Download current folder as ZIP archive"
         >
-          <Download className="h-2.5 w-2.5" />
+          <Download className="h-3 w-3" />
           ZIP
         </Button>
       </div>

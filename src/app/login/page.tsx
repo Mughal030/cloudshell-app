@@ -18,6 +18,9 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(null)
   const [retryAfter, setRetryAfter] = useState<number | null>(null)
+  const [usernameFocused, setUsernameFocused] = useState(false)
+  const [passwordFocused, setPasswordFocused] = useState(false)
+  const [shakeError, setShakeError] = useState(false)
   const submitRef = useRef<HTMLButtonElement>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,9 +47,13 @@ export default function LoginPage() {
         const m = typeof data.error === 'string' ? data.error.match(/(\d+)\s+attempt/i) : null
         if (m) setAttemptsRemaining(parseInt(m[1], 10))
         if (res.status === 429) setRetryAfter(60)
+        setShakeError(true)
+        setTimeout(() => setShakeError(false), 600)
       }
     } catch {
       setError('Network error. Please try again.')
+      setShakeError(true)
+      setTimeout(() => setShakeError(false), 600)
     } finally {
       setLoading(false)
     }
@@ -56,93 +63,157 @@ export default function LoginPage() {
     <NexusAuthLayout>
       {/* ── Glass Card ── */}
       <div
-        className="rounded-2xl overflow-hidden relative"
+        className={`rounded-2xl overflow-hidden relative ${shakeError ? 'animate-[errorShake_0.5s_ease-in-out]' : ''}`}
         style={{
-          background: 'rgba(8, 12, 25, 0.7)',
-          border: '1px solid rgba(6, 182, 212, 0.1)',
-          backdropFilter: 'blur(32px)',
-          boxShadow: '0 0 80px rgba(6, 182, 212, 0.04), 0 0 120px rgba(99, 102, 241, 0.03), 0 25px 60px rgba(0, 0, 0, 0.4)',
+          background: 'rgba(8, 12, 25, 0.75)',
+          border: '1px solid rgba(6, 182, 212, 0.08)',
+          backdropFilter: 'blur(48px) saturate(1.4)',
+          WebkitBackdropFilter: 'blur(48px) saturate(1.4)',
+          boxShadow: '0 0 100px rgba(6, 182, 212, 0.06), 0 0 160px rgba(99, 102, 241, 0.04), 0 32px 80px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.03)',
         }}
       >
-        {/* Animated gradient border glow */}
+        {/* Rotating shimmer border — conic gradient animation */}
         <div
-          className="absolute inset-0 rounded-2xl pointer-events-none animate-[borderGlow_4s_ease-in-out_infinite]"
-          style={{
-            background: 'linear-gradient(135deg, rgba(6,182,212,0.12), transparent 30%, transparent 70%, rgba(99,102,241,0.12))',
-            mask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
-            maskComposite: 'exclude',
-            WebkitMaskComposite: 'xor',
-            padding: '1px',
-          }}
-        />
-
-        {/* Top gradient accent bar — animated shimmer */}
-        <div className="h-[3px] relative overflow-hidden">
+          className="absolute inset-0 rounded-2xl pointer-events-none overflow-hidden"
+          style={{ padding: '1.5px' }}
+        >
           <div
-            className="absolute inset-0"
+            className="absolute inset-[-100%] animate-[rotateBorder_6s_linear_infinite]"
             style={{
-              background: 'linear-gradient(90deg, transparent 0%, #06B6D4 20%, #6366F1 50%, #8B5CF6 80%, transparent 100%)',
+              background: 'conic-gradient(from 0deg, transparent 0%, rgba(6,182,212,0.4) 10%, transparent 20%, transparent 40%, rgba(99,102,241,0.4) 50%, transparent 60%, transparent 80%, rgba(139,92,246,0.3) 90%, transparent 100%)',
             }}
           />
           <div
-            className="absolute inset-0 animate-[shimmer_3s_ease-in-out_infinite]"
+            className="absolute inset-0 rounded-2xl"
             style={{
-              background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)',
+              background: 'rgba(8, 12, 25, 0.97)',
+              margin: '1.5px',
+            }}
+          />
+        </div>
+
+        {/* Inner glow layer */}
+        <div
+          className="absolute inset-0 rounded-2xl pointer-events-none"
+          style={{
+            background: 'radial-gradient(ellipse 60% 40% at 50% 0%, rgba(6,182,212,0.06), transparent 70%)',
+          }}
+        />
+
+        {/* Top aurora accent bar — animated flowing */}
+        <div className="h-[4px] relative overflow-hidden">
+          <div
+            className="absolute inset-0 animate-[auroraFlow_8s_ease-in-out_infinite]"
+            style={{
+              background: 'linear-gradient(90deg, transparent 0%, #06B6D4 15%, #6366F1 35%, #8B5CF6 55%, #06B6D4 75%, transparent 100%)',
               backgroundSize: '200% 100%',
+            }}
+          />
+          <div
+            className="absolute inset-0 animate-[shimmerSweep_2.5s_ease-in-out_infinite]"
+            style={{
+              background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.5) 50%, transparent 100%)',
+              backgroundSize: '200% 100%',
+            }}
+          />
+          {/* Glow underneath the bar */}
+          <div
+            className="absolute inset-x-0 top-0 h-[20px] pointer-events-none"
+            style={{
+              background: 'linear-gradient(180deg, rgba(6,182,212,0.15), transparent)',
             }}
           />
         </div>
 
         {/* Header */}
-        <div className="px-9 pt-9 pb-6 text-center">
-          {/* Icon circle with glow */}
-          <div
-            className="mx-auto mb-5 w-14 h-14 rounded-2xl flex items-center justify-center relative"
-            style={{
-              background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(99, 102, 241, 0.08))',
-              border: '1px solid rgba(6, 182, 212, 0.15)',
-              boxShadow: '0 0 20px rgba(6, 182, 212, 0.08)',
-            }}
-          >
-            <Terminal className="h-6 w-6" style={{ color: '#06B6D4' }} />
+        <div className="px-9 pt-10 pb-7 text-center relative z-10">
+          {/* Icon circle — larger, dramatic glow, pulse */}
+          <div className="relative mx-auto mb-6">
+            <div
+              className="w-[68px] h-[68px] rounded-2xl flex items-center justify-center relative animate-[iconPulse_3s_ease-in-out_infinite]"
+              style={{
+                background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(99, 102, 241, 0.1))',
+                border: '1.5px solid rgba(6, 182, 212, 0.25)',
+                boxShadow: '0 0 30px rgba(6, 182, 212, 0.12), 0 0 60px rgba(6, 182, 212, 0.06), inset 0 0 20px rgba(6, 182, 212, 0.05)',
+              }}
+            >
+              <Terminal
+                className="h-7 w-7"
+                style={{
+                  color: '#06B6D4',
+                  filter: 'drop-shadow(0 0 6px rgba(6, 182, 212, 0.5))',
+                }}
+              />
+            </div>
+            {/* Outer glow ring */}
+            <div
+              className="absolute -inset-3 rounded-3xl pointer-events-none animate-[glowRing_3s_ease-in-out_infinite]"
+              style={{
+                border: '1px solid rgba(6, 182, 212, 0.08)',
+                boxShadow: '0 0 40px rgba(6, 182, 212, 0.06)',
+              }}
+            />
           </div>
 
-          <h2 className="text-[26px] font-bold tracking-tight" style={{ color: '#F1F5F9' }}>
+          <h2
+            className="text-[30px] font-extrabold tracking-tight"
+            style={{
+              background: 'linear-gradient(135deg, #F1F5F9 0%, #06B6D4 50%, #818CF8 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
             Welcome back
           </h2>
-          <p className="text-[14px] mt-2" style={{ color: '#64748B' }}>
+          <p className="text-[14px] mt-2.5" style={{ color: '#64748B' }}>
             Sign in to your cloud terminal
           </p>
 
-          {/* Secure connection badge — subtle pulse */}
+          {/* Encrypted Connection badge — more prominent with lock animation */}
           <div
-            className="inline-flex items-center gap-1.5 mt-5 px-3.5 py-1.5 rounded-lg text-[10px] font-semibold tracking-wider uppercase animate-[subtlePulse_3s_ease-in-out_infinite]"
+            className="inline-flex items-center gap-2 mt-5 px-4 py-2 rounded-xl text-[10px] font-semibold tracking-[0.15em] uppercase relative overflow-hidden"
             style={{
               background: 'rgba(6, 182, 212, 0.06)',
-              border: '1px solid rgba(6, 182, 212, 0.12)',
+              border: '1px solid rgba(6, 182, 212, 0.15)',
               color: '#06B6D4',
+              boxShadow: '0 0 20px rgba(6, 182, 212, 0.04)',
             }}
           >
-            <Lock className="w-3 h-3" />
+            <Lock
+              className="w-3.5 h-3.5 animate-[lockPulse_2s_ease-in-out_infinite]"
+              style={{ filter: 'drop-shadow(0 0 4px rgba(6, 182, 212, 0.3))' }}
+            />
             Encrypted Connection
+            {/* Subtle shimmer on badge */}
+            <div
+              className="absolute inset-0 pointer-events-none animate-[badgeShimmer_4s_ease-in-out_infinite]"
+              style={{
+                background: 'linear-gradient(90deg, transparent 0%, rgba(6,182,212,0.08) 50%, transparent 100%)',
+                backgroundSize: '200% 100%',
+              }}
+            />
           </div>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-9 pb-9">
-          {/* Error message — smooth transition */}
+        <form onSubmit={handleSubmit} className="px-9 pb-9 relative z-10">
+          {/* Error message — slide down with shake */}
           {error && (
             <div
-              className="mb-6 p-4 rounded-xl text-sm flex items-start gap-3 animate-[fadeSlideIn_0.3s_ease-out_both]"
+              className="mb-6 p-4 rounded-xl text-sm flex items-start gap-3 animate-[errorSlideIn_0.4s_ease-out_both]"
               style={{
-                background: 'rgba(239, 68, 68, 0.05)',
-                border: '1px solid rgba(239, 68, 68, 0.12)',
+                background: 'rgba(239, 68, 68, 0.06)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
                 color: '#FCA5A5',
+                boxShadow: '0 0 24px rgba(239, 68, 68, 0.08), inset 0 0 30px rgba(239, 68, 68, 0.02)',
               }}
             >
-              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#EF4444' }} />
+              <AlertCircle
+                className="w-4 h-4 mt-0.5 shrink-0 animate-[errorPulse_1.5s_ease-in-out_infinite]"
+                style={{ color: '#EF4444', filter: 'drop-shadow(0 0 4px rgba(239, 68, 68, 0.4))' }}
+              />
               <div className="flex-1">
-                <div>{error}</div>
+                <div className="font-medium">{error}</div>
                 {attemptsRemaining !== null && attemptsRemaining > 0 && (
                   <div className="text-[10px] opacity-70 mt-1">
                     {attemptsRemaining} attempt{attemptsRemaining !== 1 ? 's' : ''} remaining before lockout
@@ -157,18 +228,27 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Username field */}
-          <div className="mb-5">
-            <label
-              className="block text-[11px] font-semibold mb-2.5 uppercase tracking-[0.12em]"
-              style={{ color: '#94A3B8' }}
-            >
-              Username
-            </label>
+          {/* Username field — floating label */}
+          <div className="mb-6 relative">
             <div className="relative group">
+              {/* Left accent bar that glows on focus */}
               <div
-                className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300"
-                style={{ color: '#475569' }}
+                className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl transition-all duration-500 z-10"
+                style={{
+                  background: usernameFocused
+                    ? 'linear-gradient(180deg, #06B6D4, #6366F1)'
+                    : 'rgba(100, 116, 139, 0.15)',
+                  boxShadow: usernameFocused
+                    ? '0 0 12px rgba(6, 182, 212, 0.3), 0 0 4px rgba(6, 182, 212, 0.5)'
+                    : 'none',
+                }}
+              />
+              <div
+                className="absolute left-4 top-1/2 -translate-y-1/2 transition-all duration-300 z-10"
+                style={{
+                  color: usernameFocused ? '#06B6D4' : '#475569',
+                  filter: usernameFocused ? 'drop-shadow(0 0 4px rgba(6, 182, 212, 0.3))' : 'none',
+                }}
               >
                 <User className="w-[18px] h-[18px]" />
               </div>
@@ -176,47 +256,65 @@ export default function LoginPage() {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 rounded-xl text-[14px] font-mono transition-all duration-300 outline-none"
+                className="w-full pl-12 pr-4 py-4 rounded-xl text-[14px] font-mono transition-all duration-500 outline-none peer"
                 style={{
-                  background: 'rgba(6, 10, 22, 0.6)',
-                  border: '1px solid rgba(100, 116, 139, 0.15)',
-                  borderLeft: '3px solid rgba(100, 116, 139, 0.1)',
+                  background: usernameFocused ? 'rgba(6, 10, 22, 0.9)' : 'rgba(6, 10, 22, 0.6)',
+                  border: usernameFocused ? '1px solid rgba(6, 182, 212, 0.3)' : '1px solid rgba(100, 116, 139, 0.12)',
                   color: '#E2E8F0',
+                  boxShadow: usernameFocused
+                    ? '0 0 0 3px rgba(6, 182, 212, 0.08), 0 0 30px rgba(6, 182, 212, 0.06), inset 0 0 20px rgba(6, 182, 212, 0.02)'
+                    : 'none',
                 }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.35)'
-                  e.currentTarget.style.borderLeftColor = '#06B6D4'
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(6, 182, 212, 0.06), 0 0 20px rgba(6, 182, 212, 0.04)'
-                  e.currentTarget.style.background = 'rgba(6, 10, 22, 0.8)'
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(100, 116, 139, 0.15)'
-                  e.currentTarget.style.borderLeftColor = 'rgba(100, 116, 139, 0.1)'
-                  e.currentTarget.style.boxShadow = 'none'
-                  e.currentTarget.style.background = 'rgba(6, 10, 22, 0.6)'
-                }}
-                placeholder="Enter your username"
+                onFocus={() => setUsernameFocused(true)}
+                onBlur={() => setUsernameFocused(false)}
+                placeholder=" "
                 required
                 maxLength={60}
                 autoComplete="username"
                 autoCapitalize="none"
                 spellCheck={false}
               />
+              {/* Floating label */}
+              <label
+                className="absolute left-12 transition-all duration-300 pointer-events-none z-10"
+                style={{
+                  top: usernameFocused || username ? '6px' : '50%',
+                  transform: usernameFocused || username ? 'translateY(0)' : 'translateY(-50%)',
+                  fontSize: usernameFocused || username ? '9px' : '14px',
+                  color: usernameFocused ? '#06B6D4' : '#475569',
+                  fontWeight: usernameFocused || username ? 700 : 400,
+                  letterSpacing: usernameFocused || username ? '0.12em' : '0',
+                  textTransform: usernameFocused || username ? 'uppercase' : 'none',
+                  opacity: usernameFocused || username ? 0.8 : 1,
+                  filter: usernameFocused ? 'drop-shadow(0 0 4px rgba(6, 182, 212, 0.3))' : 'none',
+                }}
+              >
+                Username
+              </label>
             </div>
           </div>
 
-          {/* Password field */}
-          <div className="mb-5">
-            <label
-              className="block text-[11px] font-semibold mb-2.5 uppercase tracking-[0.12em]"
-              style={{ color: '#94A3B8' }}
-            >
-              Password
-            </label>
+          {/* Password field — floating label */}
+          <div className="mb-6 relative">
             <div className="relative group">
+              {/* Left accent bar */}
               <div
-                className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300"
-                style={{ color: '#475569' }}
+                className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl transition-all duration-500 z-10"
+                style={{
+                  background: passwordFocused
+                    ? 'linear-gradient(180deg, #06B6D4, #6366F1)'
+                    : 'rgba(100, 116, 139, 0.15)',
+                  boxShadow: passwordFocused
+                    ? '0 0 12px rgba(6, 182, 212, 0.3), 0 0 4px rgba(6, 182, 212, 0.5)'
+                    : 'none',
+                }}
+              />
+              <div
+                className="absolute left-4 top-1/2 -translate-y-1/2 transition-all duration-300 z-10"
+                style={{
+                  color: passwordFocused ? '#06B6D4' : '#475569',
+                  filter: passwordFocused ? 'drop-shadow(0 0 4px rgba(6, 182, 212, 0.3))' : 'none',
+                }}
               >
                 <Lock className="w-[18px] h-[18px]" />
               </div>
@@ -224,37 +322,52 @@ export default function LoginPage() {
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-12 pr-13 py-3.5 rounded-xl text-[14px] font-mono transition-all duration-300 outline-none"
+                className="w-full pl-12 pr-13 py-4 rounded-xl text-[14px] font-mono transition-all duration-500 outline-none"
                 style={{
-                  background: 'rgba(6, 10, 22, 0.6)',
-                  border: '1px solid rgba(100, 116, 139, 0.15)',
-                  borderLeft: '3px solid rgba(100, 116, 139, 0.1)',
+                  background: passwordFocused ? 'rgba(6, 10, 22, 0.9)' : 'rgba(6, 10, 22, 0.6)',
+                  border: passwordFocused ? '1px solid rgba(6, 182, 212, 0.3)' : '1px solid rgba(100, 116, 139, 0.12)',
                   color: '#E2E8F0',
+                  boxShadow: passwordFocused
+                    ? '0 0 0 3px rgba(6, 182, 212, 0.08), 0 0 30px rgba(6, 182, 212, 0.06), inset 0 0 20px rgba(6, 182, 212, 0.02)'
+                    : 'none',
                 }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.35)'
-                  e.currentTarget.style.borderLeftColor = '#06B6D4'
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(6, 182, 212, 0.06), 0 0 20px rgba(6, 182, 212, 0.04)'
-                  e.currentTarget.style.background = 'rgba(6, 10, 22, 0.8)'
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(100, 116, 139, 0.15)'
-                  e.currentTarget.style.borderLeftColor = 'rgba(100, 116, 139, 0.1)'
-                  e.currentTarget.style.boxShadow = 'none'
-                  e.currentTarget.style.background = 'rgba(6, 10, 22, 0.6)'
-                }}
-                placeholder="Enter your password"
+                onFocus={() => setPasswordFocused(true)}
+                onBlur={() => setPasswordFocused(false)}
+                placeholder=" "
                 required
                 maxLength={200}
                 autoComplete="current-password"
               />
+              {/* Floating label */}
+              <label
+                className="absolute left-12 transition-all duration-300 pointer-events-none z-10"
+                style={{
+                  top: passwordFocused || password ? '6px' : '50%',
+                  transform: passwordFocused || password ? 'translateY(0)' : 'translateY(-50%)',
+                  fontSize: passwordFocused || password ? '9px' : '14px',
+                  color: passwordFocused ? '#06B6D4' : '#475569',
+                  fontWeight: passwordFocused || password ? 700 : 400,
+                  letterSpacing: passwordFocused || password ? '0.12em' : '0',
+                  textTransform: passwordFocused || password ? 'uppercase' : 'none',
+                  opacity: passwordFocused || password ? 0.8 : 1,
+                  filter: passwordFocused ? 'drop-shadow(0 0 4px rgba(6, 182, 212, 0.3))' : 'none',
+                }}
+              >
+                Password
+              </label>
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 transition-all duration-300"
+                className="absolute right-4 top-1/2 -translate-y-1/2 transition-all duration-300 z-10"
                 style={{ color: '#475569' }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#06B6D4')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = '#475569')}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#06B6D4'
+                  e.currentTarget.style.filter = 'drop-shadow(0 0 4px rgba(6, 182, 212, 0.3))'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#475569'
+                  e.currentTarget.style.filter = 'none'
+                }}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? <EyeOff className="w-[18px] h-[18px]" /> : <Eye className="w-[18px] h-[18px]" />}
@@ -262,9 +375,9 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Remember me + forgot area */}
-          <div className="mb-7 flex items-center justify-between">
-            <label className="flex items-center gap-2.5 cursor-pointer group">
+          {/* Remember me — sleek toggle switch */}
+          <div className="mb-8 flex items-center justify-between">
+            <label className="flex items-center gap-3 cursor-pointer group">
               <div className="relative">
                 <input
                   type="checkbox"
@@ -272,62 +385,106 @@ export default function LoginPage() {
                   onChange={(e) => setRememberMe(e.target.checked)}
                   className="sr-only"
                 />
+                {/* Toggle track */}
                 <div
-                  className="w-4 h-4 rounded flex items-center justify-center transition-all duration-300"
+                  className="w-[44px] h-[24px] rounded-full transition-all duration-400 relative"
                   style={{
-                    background: rememberMe ? 'rgba(6, 182, 212, 0.15)' : 'rgba(6, 10, 22, 0.6)',
-                    border: rememberMe ? '1px solid rgba(6, 182, 212, 0.4)' : '1px solid rgba(100, 116, 139, 0.2)',
-                    boxShadow: rememberMe ? '0 0 8px rgba(6, 182, 212, 0.1)' : 'none',
+                    background: rememberMe
+                      ? 'linear-gradient(135deg, rgba(6, 182, 212, 0.3), rgba(99, 102, 241, 0.2))'
+                      : 'rgba(30, 41, 59, 0.5)',
+                    border: rememberMe
+                      ? '1px solid rgba(6, 182, 212, 0.4)'
+                      : '1px solid rgba(100, 116, 139, 0.2)',
+                    boxShadow: rememberMe
+                      ? '0 0 16px rgba(6, 182, 212, 0.15), inset 0 0 8px rgba(6, 182, 212, 0.1)'
+                      : 'none',
                   }}
+                  onClick={() => setRememberMe(!rememberMe)}
                 >
-                  {rememberMe && (
-                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                      <path d="M2 6L5 9L10 3" stroke="#06B6D4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  )}
+                  {/* Toggle thumb */}
+                  <div
+                    className="absolute top-[2px] w-[18px] h-[18px] rounded-full transition-all duration-400 flex items-center justify-center"
+                    style={{
+                      left: rememberMe ? '22px' : '2px',
+                      background: rememberMe
+                        ? 'linear-gradient(135deg, #06B6D4, #6366F1)'
+                        : 'rgba(100, 116, 139, 0.4)',
+                      boxShadow: rememberMe
+                        ? '0 0 8px rgba(6, 182, 212, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3)'
+                        : '0 1px 3px rgba(0, 0, 0, 0.2)',
+                    }}
+                  >
+                    {rememberMe && (
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                        <path d="M2 6L5 9L10 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
                 </div>
               </div>
               <span
                 className="text-[12px] transition-colors duration-300"
-                style={{ color: '#64748B' }}
+                style={{ color: rememberMe ? '#94A3B8' : '#64748B' }}
               >
                 Remember me
               </span>
             </label>
           </div>
 
-          {/* Login button — shimmer gradient */}
+          {/* Login button — dramatic gradient with animated flow, glow, press animation */}
           <button
             ref={submitRef}
             type="submit"
             disabled={loading}
-            className="w-full py-4 rounded-xl font-semibold text-[14px] relative flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 overflow-hidden"
+            className="w-full py-[18px] rounded-xl font-bold text-[15px] relative flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 overflow-hidden group"
             style={{
-              background: 'linear-gradient(135deg, #06B6D4, #6366F1, #8B5CF6)',
+              background: 'linear-gradient(135deg, #06B6D4, #6366F1, #8B5CF6, #06B6D4)',
+              backgroundSize: '300% 300%',
+              animation: loading ? 'none' : 'gradientFlow_4s_ease_infinite',
               color: '#FFFFFF',
-              boxShadow: '0 4px 20px rgba(6, 182, 212, 0.25), 0 2px 8px rgba(99, 102, 241, 0.2)',
+              boxShadow: '0 6px 30px rgba(6, 182, 212, 0.3), 0 4px 15px rgba(99, 102, 241, 0.25), 0 2px 6px rgba(0, 0, 0, 0.2)',
+              letterSpacing: '0.02em',
             }}
             onMouseEnter={(e) => {
               if (!loading) {
-                e.currentTarget.style.boxShadow = '0 8px 30px rgba(6, 182, 212, 0.35), 0 4px 12px rgba(99, 102, 241, 0.25)'
-                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = '0 10px 40px rgba(6, 182, 212, 0.4), 0 6px 20px rgba(99, 102, 241, 0.3), 0 0 60px rgba(6, 182, 212, 0.15)'
+                e.currentTarget.style.transform = 'translateY(-3px) scale(1.01)'
               }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(6, 182, 212, 0.25), 0 2px 8px rgba(99, 102, 241, 0.2)'
-              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 6px 30px rgba(6, 182, 212, 0.3), 0 4px 15px rgba(99, 102, 241, 0.25), 0 2px 6px rgba(0, 0, 0, 0.2)'
+              e.currentTarget.style.transform = 'translateY(0) scale(1)'
+            }}
+            onMouseDown={(e) => {
+              if (!loading) {
+                e.currentTarget.style.transform = 'translateY(-1px) scale(0.98)'
+                e.currentTarget.style.boxShadow = '0 4px 20px rgba(6, 182, 212, 0.3), 0 2px 10px rgba(99, 102, 241, 0.2)'
+              }
+            }}
+            onMouseUp={(e) => {
+              if (!loading) {
+                e.currentTarget.style.transform = 'translateY(-3px) scale(1.01)'
+                e.currentTarget.style.boxShadow = '0 10px 40px rgba(6, 182, 212, 0.4), 0 6px 20px rgba(99, 102, 241, 0.3), 0 0 60px rgba(6, 182, 212, 0.15)'
+              }
             }}
           >
             {/* Shimmer overlay */}
             {!loading && (
               <div
-                className="absolute inset-0 animate-[btnShimmer_2.5s_ease-in-out_infinite]"
+                className="absolute inset-0 animate-[btnShimmer_2s_ease-in-out_infinite]"
                 style={{
-                  background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%)',
+                  background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)',
                   backgroundSize: '200% 100%',
                 }}
               />
             )}
+            {/* Top highlight */}
+            <div
+              className="absolute inset-x-0 top-0 h-[1px]"
+              style={{
+                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
+              }}
+            />
             {loading ? (
               <>
                 <div
@@ -338,15 +495,15 @@ export default function LoginPage() {
               </>
             ) : (
               <>
-                <Fingerprint className="w-5 h-5" />
+                <Fingerprint className="w-5 h-5" style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.3))' }} />
                 Sign In
-                <ArrowRight className="w-5 h-5" />
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.3))' }} />
               </>
             )}
           </button>
 
           {/* Divider — gradient style */}
-          <div className="my-7 flex items-center gap-4">
+          <div className="my-8 flex items-center gap-4">
             <div
               className="flex-1 h-px"
               style={{ background: 'linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.15))' }}
@@ -360,7 +517,7 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* Signup link */}
+          {/* Signup link — secondary button style */}
           <div className="text-center">
             <span className="text-[13px]" style={{ color: '#64748B' }}>
               Don&apos;t have an account?{' '}
@@ -368,14 +525,24 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => router.push('/signup')}
-              className="text-[13px] font-semibold hover:underline inline-flex items-center gap-1.5 tracking-wide transition-all duration-300"
-              style={{ color: '#06B6D4' }}
+              className="inline-flex items-center gap-2 text-[13px] font-semibold tracking-wide transition-all duration-300 px-5 py-2.5 rounded-lg relative overflow-hidden"
+              style={{
+                color: '#06B6D4',
+                background: 'transparent',
+                border: '1px solid rgba(6, 182, 212, 0.15)',
+              }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.color = '#22D3EE'
+                e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.4)'
+                e.currentTarget.style.boxShadow = '0 0 20px rgba(6, 182, 212, 0.1), 0 0 40px rgba(6, 182, 212, 0.05)'
+                e.currentTarget.style.background = 'rgba(6, 182, 212, 0.05)'
                 e.currentTarget.style.textShadow = '0 0 12px rgba(6, 182, 212, 0.3)'
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.color = '#06B6D4'
+                e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.15)'
+                e.currentTarget.style.boxShadow = 'none'
+                e.currentTarget.style.background = 'transparent'
                 e.currentTarget.style.textShadow = 'none'
               }}
             >
@@ -394,25 +561,60 @@ export default function LoginPage() {
 
       {/* ───── Keyframe Animations ───── */}
       <style jsx>{`
-        @keyframes borderGlow {
-          0%, 100% { opacity: 0.5; }
-          50% { opacity: 1; }
+        @keyframes rotateBorder {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
-        @keyframes shimmer {
+        @keyframes auroraFlow {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        @keyframes shimmerSweep {
           0% { background-position: 200% 0; }
           100% { background-position: -200% 0; }
+        }
+        @keyframes iconPulse {
+          0%, 100% { box-shadow: 0 0 30px rgba(6, 182, 212, 0.12), 0 0 60px rgba(6, 182, 212, 0.06), inset 0 0 20px rgba(6, 182, 212, 0.05); }
+          50% { box-shadow: 0 0 40px rgba(6, 182, 212, 0.2), 0 0 80px rgba(6, 182, 212, 0.1), inset 0 0 25px rgba(6, 182, 212, 0.08); }
+        }
+        @keyframes glowRing {
+          0%, 100% { opacity: 0.4; transform: scale(1); }
+          50% { opacity: 0.8; transform: scale(1.05); }
+        }
+        @keyframes lockPulse {
+          0%, 100% { opacity: 0.8; }
+          50% { opacity: 1; filter: drop-shadow(0 0 6px rgba(6, 182, 212, 0.5)); }
+        }
+        @keyframes badgeShimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+        @keyframes gradientFlow {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
         }
         @keyframes btnShimmer {
           0% { background-position: 200% 0; }
           100% { background-position: -200% 0; }
         }
-        @keyframes subtlePulse {
-          0%, 100% { opacity: 0.85; }
-          50% { opacity: 1; box-shadow: 0 0 12px rgba(6, 182, 212, 0.1); }
+        @keyframes errorSlideIn {
+          from { opacity: 0; transform: translateY(-12px) scaleY(0.95); }
+          to { opacity: 1; transform: translateY(0) scaleY(1); }
         }
-        @keyframes fadeSlideIn {
-          from { opacity: 0; transform: translateY(-8px); }
-          to { opacity: 1; transform: translateY(0); }
+        @keyframes errorPulse {
+          0%, 100% { opacity: 0.8; }
+          50% { opacity: 1; }
+        }
+        @keyframes errorShake {
+          0%, 100% { transform: translateX(0); }
+          10% { transform: translateX(-6px); }
+          20% { transform: translateX(5px); }
+          30% { transform: translateX(-4px); }
+          40% { transform: translateX(3px); }
+          50% { transform: translateX(-2px); }
+          60% { transform: translateX(1px); }
         }
       `}</style>
     </NexusAuthLayout>

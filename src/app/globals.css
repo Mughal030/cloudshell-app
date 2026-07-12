@@ -1305,3 +1305,482 @@
   background: linear-gradient(90deg, var(--wl-crimson) 0%, var(--wl-ember) 40%, var(--wl-gold) 80%, var(--wl-success) 100%);
 }
 
+/* ================================================================
+   PREMIUM IDE REDESIGN — Enhanced Visual System
+   ================================================================ */
+
+/* Header premium gradient top accent — thicker, more visible */
+.nx-header-accent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #818CF8, #6366F1, #8B5CF6, #A78BFA, #818CF8);
+  background-size: 200% 100%;
+  animation: nx-aurora-flow 4s ease infinite;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Enhanced logo glow — multi-layer with breathe */
+.nx-logo-ring-premium {
+  position: relative;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.nx-logo-ring-premium::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #818CF8, #6366F1, #8B5CF6, #A78BFA);
+  background-size: 300% 300%;
+  animation: nx-aurora-flow 5s ease infinite;
+  opacity: 0.4;
+  filter: blur(6px);
+  z-index: -1;
+}
+.nx-logo-ring-premium::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.15), rgba(99, 102, 241, 0.1));
+  filter: blur(12px);
+  z-index: -2;
+  animation: nx-logo-breathe 3s ease-in-out infinite;
+}
+@keyframes nx-logo-breathe {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+/* Status pill — premium frosted glass */
+.nx-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 7px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(8px);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nx-status-pill.live {
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  color: #34D399;
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.08), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.nx-status-pill.offline {
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  color: #F87171;
+  box-shadow: 0 0 12px rgba(248, 113, 113, 0.06);
+}
+.nx-status-pill .nx-status-dot {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.nx-status-pill.live .nx-status-dot {
+  background: #34D399;
+}
+.nx-status-pill.live .nx-status-dot::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(52, 211, 153, 0.5);
+  animation: nx-status-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes nx-status-ring {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 0; }
+}
+.nx-status-pill.offline .nx-status-dot {
+  background: #F87171;
+  animation: nx-offline-blink 1.6s ease-in-out infinite;
+}
+@keyframes nx-offline-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Avatar circle — user badge */
+.nx-avatar-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  position: relative;
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.2), rgba(99, 102, 241, 0.15));
+  color: var(--nx-accent);
+  border: 1px solid rgba(129, 140, 248, 0.25);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nx-avatar-circle.admin {
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.25), rgba(139, 92, 246, 0.2));
+  border-color: rgba(129, 140, 248, 0.35);
+  box-shadow: 0 0 8px rgba(129, 140, 248, 0.15);
+}
+
+/* Frosted glass nav bar */
+.nx-glass-nav {
+  background: rgba(12, 16, 34, 0.7);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border-bottom: 1px solid rgba(129, 140, 248, 0.08);
+  position: relative;
+}
+.nx-glass-nav::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 5%, rgba(129, 140, 248, 0.2) 30%, rgba(99, 102, 241, 0.35) 50%, rgba(129, 140, 248, 0.2) 70%, transparent 95%);
+  pointer-events: none;
+}
+:root .nx-glass-nav {
+  background: rgba(241, 242, 248, 0.8);
+  border-bottom-color: rgba(99, 102, 241, 0.08);
+}
+
+/* Modern nav item — frosted glass with animated underline */
+.nx-nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--nx-text-muted);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  overflow: hidden;
+  border: 1px solid transparent;
+}
+.nx-nav-item:hover {
+  color: var(--nx-text);
+  background: rgba(129, 140, 248, 0.06);
+  transform: translateY(-0.5px);
+}
+.nx-nav-item:active {
+  transform: translateY(0) scale(0.98);
+}
+.nx-nav-item.active {
+  color: var(--nx-accent);
+  background: rgba(129, 140, 248, 0.08);
+  border-color: rgba(129, 140, 248, 0.12);
+  box-shadow: 0 0 16px rgba(129, 140, 248, 0.08), inset 0 1px 0 rgba(255,255,255,0.03);
+}
+/* Animated underline indicator */
+.nx-nav-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #818CF8, #6366F1, transparent);
+  border-radius: 1px;
+  box-shadow: 0 0 8px rgba(129, 140, 248, 0.5);
+  animation: nx-underline-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes nx-underline-in {
+  from { width: 0%; opacity: 0; }
+  to { width: 60%; opacity: 1; }
+}
+
+/* Slide-down panel — smooth animation with max-height */
+.nx-slide-panel {
+  overflow: hidden;
+  animation: nx-slide-down-premium 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  background: rgba(12, 16, 34, 0.85);
+  backdrop-filter: blur(24px) saturate(130%);
+  -webkit-backdrop-filter: blur(24px) saturate(130%);
+  border-bottom: 1px solid rgba(129, 140, 248, 0.1);
+  position: relative;
+}
+.nx-slide-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 5%, rgba(129, 140, 248, 0.35) 30%, rgba(99, 102, 241, 0.5) 50%, rgba(129, 140, 248, 0.35) 70%, transparent 95%);
+  pointer-events: none;
+  z-index: 1;
+}
+:root .nx-slide-panel {
+  background: rgba(241, 242, 248, 0.9);
+  border-bottom-color: rgba(99, 102, 241, 0.1);
+}
+@keyframes nx-slide-down-premium {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scaleY(0.95);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+    max-height: 500px;
+  }
+}
+
+/* VS Code-like terminal tab bar */
+.nx-vs-tabbar {
+  display: flex;
+  align-items: flex-end;
+  height: 36px;
+  background: linear-gradient(180deg, rgba(12, 16, 34, 0.6) 0%, rgba(6, 8, 22, 0.4) 100%);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--nx-border);
+  position: relative;
+  overflow-x: auto;
+  padding-left: 4px;
+}
+:root .nx-vs-tabbar {
+  background: linear-gradient(180deg, rgba(241, 242, 248, 0.7) 0%, rgba(231, 233, 242, 0.5) 100%);
+}
+
+/* VS Code terminal tab */
+.nx-vs-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  height: 32px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--nx-text-muted);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 8px 8px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  margin-right: 2px;
+  flex-shrink: 0;
+}
+.nx-vs-tab:hover {
+  color: var(--nx-text-secondary);
+  background: rgba(129, 140, 248, 0.04);
+  border-color: rgba(129, 140, 248, 0.06);
+}
+.nx-vs-tab.active {
+  color: var(--nx-accent);
+  background: var(--nx-bg-primary);
+  border-color: var(--nx-border);
+  border-bottom-color: var(--nx-bg-primary);
+  margin-bottom: -1px;
+  padding-top: 1px;
+  z-index: 2;
+}
+/* Active tab top glow line */
+.nx-vs-tab.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #818CF8, #6366F1, transparent);
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 0 6px rgba(129, 140, 248, 0.4);
+}
+
+/* Empty state splash — premium centered */
+.nx-empty-splash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+/* Decorative background orbs */
+.nx-empty-splash::before {
+  content: '';
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(129, 140, 248, 0.08), transparent 70%);
+  filter: blur(40px);
+  pointer-events: none;
+}
+.nx-empty-splash::after {
+  content: '';
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.06), transparent 70%);
+  filter: blur(30px);
+  pointer-events: none;
+  top: 20%;
+  right: 20%;
+}
+
+/* Animated gradient text — premium version */
+.nx-gradient-text-premium {
+  background: linear-gradient(135deg, #818CF8, #6366F1, #8B5CF6, #A78BFA, #C084FC, #818CF8);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: nx-gradient-text 3s ease infinite;
+  font-weight: 700;
+}
+
+/* Premium start button */
+.nx-start-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.15), rgba(99, 102, 241, 0.1));
+  color: var(--nx-accent);
+  border: 1px solid rgba(129, 140, 248, 0.25);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(129, 140, 248, 0.1), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.nx-start-btn:hover {
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.25), rgba(99, 102, 241, 0.18));
+  border-color: rgba(129, 140, 248, 0.4);
+  box-shadow: 0 6px 24px rgba(129, 140, 248, 0.2), 0 0 40px rgba(129, 140, 248, 0.08);
+  transform: translateY(-2px);
+}
+.nx-start-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+.nx-start-btn::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.06) 50%, transparent 60%);
+  animation: nx-shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Enhanced status bar */
+.nx-status-bar {
+  position: relative;
+  background: linear-gradient(180deg, rgba(12, 16, 34, 0.95) 0%, rgba(6, 8, 22, 0.98) 100%);
+  border-top: 1px solid rgba(129, 140, 248, 0.08);
+  backdrop-filter: blur(12px);
+}
+.nx-status-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 5%, rgba(129, 140, 248, 0.25) 30%, rgba(99, 102, 241, 0.4) 50%, rgba(129, 140, 248, 0.25) 70%, transparent 95%);
+  pointer-events: none;
+}
+:root .nx-status-bar {
+  background: linear-gradient(180deg, rgba(241, 242, 248, 0.95) 0%, rgba(231, 233, 242, 0.98) 100%);
+}
+
+/* Status bar env dot — premium with label */
+.nx-env-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background: rgba(129, 140, 248, 0.05);
+  transition: all 0.2s ease;
+}
+.nx-env-indicator:hover {
+  background: rgba(129, 140, 248, 0.1);
+}
+.nx-env-indicator-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Latency badge — premium pill */
+.nx-latency-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.15);
+  color: #34D399;
+  transition: all 0.2s ease;
+}
+.nx-latency-pill.warning {
+  background: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.15);
+  color: #FBBF24;
+}
+.nx-latency-pill.error {
+  background: rgba(248, 113, 113, 0.08);
+  border-color: rgba(248, 113, 113, 0.15);
+  color: #F87171;
+}
+
+/* Micro-interactions: press scale */
+.nx-press:active {
+  transform: scale(0.97);
+  transition: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Micro-interactions: hover lift subtle */
+.nx-hover-glow:hover {
+  box-shadow: 0 2px 12px rgba(129, 140, 248, 0.12);
+}
+
+/* Smooth cubic-bezier transitions globally */
+.nx-smooth {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
