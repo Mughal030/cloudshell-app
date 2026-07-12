@@ -1118,3 +1118,29 @@ Stage Summary:
 - Proxy setup verified correct in all files
 - Push successful: GitHub ✅ HF Spaces ✅
 - HF Space will rebuild with new Docker image containing fcc-server proxy
+
+---
+Task ID: 1
+Agent: main
+Task: Fix top menu bar scrolling for Files tab and ensure all features working
+
+Work Log:
+- Investigated the panel height issue: Files/Packages/Tools tabs had only 280px height while Toolkit had 420px
+- Increased slide-down panel height from 280px to 450px for ALL tabs (page.tsx)
+- Verified all 4 panel components (FileManager, PackageSidebar, ToolStatus, QuickInstallPanel) use ScrollArea correctly
+- Fixed fcc-claude PORT collision: HF Spaces sets PORT=7860 at runtime which overrides ~/.fcc/.env PORT=8082
+  - Added fcc-claude wrapper that unsets PORT before launching the real binary
+  - Explicitly set PORT=8082 when starting fcc-server via gosu
+  - Added FCC_PORT=8082 to .bashrc_env as safety net
+- Fixed stale closure bug in xterm-terminal.tsx: arrow key suggestion navigation was broken
+  - Added refs (showSuggestionsRef, suggestionsRef, selectedSuggestionRef) kept in sync with state
+  - Updated arrow key handlers to read from refs instead of captured closure state
+  - Added left/right arrow dismissal of suggestions
+- Audited all UI features for broken handlers - all core features are properly connected
+
+Stage Summary:
+- Panel height fix: 280px → 450px for all tabs (commit 31c2b71)
+- fcc-claude PORT wrapper fix (commit 31c2b71)
+- xterm stale closure fix (commit aba3851)
+- Pushed to both origin (GitHub) and hf (HuggingFace Spaces)
+- HF Space building and deploying
