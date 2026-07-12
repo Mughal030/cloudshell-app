@@ -11,6 +11,7 @@ import {
   ChevronDown, ChevronUp,
   Globe, ScanLine, Bug, KeyRound, Smartphone, Network,
   Search, FileSearch, List, Boxes, Rocket,
+  Settings, Eye, EyeOff, Trash2, CheckCircle2, AlertCircle,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
@@ -18,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Input } from '@/components/ui/input'
 import { useSocket } from '@/hooks/use-socket'
 import { FileManager } from '@/components/terminal/file-manager'
 import { ToolStatus } from '@/components/terminal/tool-status'
@@ -211,6 +213,7 @@ const MENU_ITEMS = [
   { value: 'tools',    label: 'Tools',    icon: Wrench },
   { value: 'files',    label: 'Files',    icon: FolderTree },
   { value: 'quick',    label: 'Toolkit',  icon: Zap },
+  { value: 'settings', label: 'Settings', icon: Settings },
 ] as const
 
 export default function Home() {
@@ -407,6 +410,9 @@ export default function Home() {
               {activeMenu === 'quick' && (
                 <QuickInstallPanel sendCommandToTerminal={sendCommandToTerminal} connected={connected} />
               )}
+              {activeMenu === 'settings' && (
+                <SettingsPanel />
+              )}
             </div>
           </div>
         </div>
@@ -577,6 +583,274 @@ function QuickInstallPanel({ sendCommandToTerminal, connected }: { sendCommandTo
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    </ScrollArea>
+  )
+}
+
+// ─── Settings Panel (API Keys, Provider Config) ───
+function SettingsPanel() {
+  const [nvidiaKey, setNvidiaKey] = useState('')
+  const [openrouterKey, setOpenrouterKey] = useState('')
+  const [nvidiaKeySet, setNvidiaKeySet] = useState(false)
+  const [openrouterKeySet, setOpenrouterKeySet] = useState(false)
+  const [preferredProvider, setPreferredProvider] = useState<'nvidia' | 'openrouter' | 'none'>('none')
+  const [showNvidiaKey, setShowNvidiaKey] = useState(false)
+  const [showOpenrouterKey, setShowOpenrouterKey] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [loaded, setLoaded] = useState(false)
+
+  // Load current key status on mount
+  useEffect(() => {
+    const token = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('jasbol-token=') || row.startsWith('__Host-jasbol-token='))
+      ?.split('=')[1]
+    if (!token) return
+
+    fetch('/api/auth/keys', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(data => {
+        setNvidiaKeySet(data.nvidiaKeySet || false)
+        setOpenrouterKeySet(data.openrouterKeySet || false)
+        setPreferredProvider(data.preferredProvider || 'none')
+        setLoaded(true)
+      })
+      .catch(() => setLoaded(true))
+  }, [])
+
+  const getToken = () => document.cookie
+    .split('; ')
+    .find(row => row.startsWith('jasbol-token=') || row.startsWith('__Host-jasbol-token='))
+    ?.split('=')[1]
+
+  const handleSaveKey = async (provider: 'nvidia' | 'openrouter', key: string) => {
+    const token = getToken()
+    if (!token) { setMessage({ type: 'error', text: 'Not authenticated' }); return }
+
+    setSaving(true)
+    setMessage(null)
+    try {
+      const res = await fetch('/api/auth/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ provider, apiKey: key })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setMessage({ type: 'success', text: `${provider === 'nvidia' ? 'NVIDIA NIM' : 'OpenRouter'} API key saved! Start a new terminal to use it.` })
+        if (provider === 'nvidia') { setNvidiaKeySet(true); setNvidiaKey('') }
+        else { setOpenrouterKeySet(true); setOpenrouterKey('') }
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to save key' })
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Network error' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteKey = async (provider: 'nvidia' | 'openrouter') => {
+    const token = getToken()
+    if (!token) return
+
+    setSaving(true)
+    try {
+      await fetch('/api/auth/keys', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ provider })
+      })
+      if (provider === 'nvidia') { setNvidiaKeySet(false); setNvidiaKey('') }
+      else { setOpenrouterKeySet(false); setOpenrouterKey('') }
+      setMessage({ type: 'success', text: `${provider === 'nvidia' ? 'NVIDIA' : 'OpenRouter'} key removed` })
+    } catch { setMessage({ type: 'error', text: 'Failed to remove key' }) }
+    finally { setSaving(false) }
+  }
+
+  const handleSetProvider = async (provider: 'nvidia' | 'openrouter' | 'none') => {
+    const token = getToken()
+    if (!token) return
+
+    try {
+      await fetch('/api/auth/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ preferredProvider: provider })
+      })
+      setPreferredProvider(provider)
+      setMessage({ type: 'success', text: `Preferred provider set to ${provider === 'none' ? 'None' : provider === 'nvidia' ? 'NVIDIA NIM' : 'OpenRouter'}` })
+    } catch { setMessage({ type: 'error', text: 'Failed to update provider' }) }
+  }
+
+  return (
+    <ScrollArea className="h-full min-h-0">
+      <div className="p-4 space-y-5 max-w-xl">
+        <div className="text-[10px] text-[var(--nx-text-dim)] mb-2">
+          <span className="text-[var(--nx-accent-teal)] font-semibold">Settings</span>
+          <span className="mx-1.5">·</span>
+          Configure your own API keys — other users cannot access your keys
+        </div>
+
+        {/* Message */}
+        {message && (
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs border ${
+            message.type === 'success'
+              ? 'bg-[var(--nx-success)]/10 border-[var(--nx-success)]/30 text-[var(--nx-success)]'
+              : 'bg-[var(--nx-error)]/10 border-[var(--nx-error)]/30 text-[var(--nx-error)]'
+          }`}>
+            {message.type === 'success' ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <AlertCircle className="h-3.5 w-3.5 shrink-0" />}
+            <span>{message.text}</span>
+            <button className="ml-auto opacity-60 hover:opacity-100" onClick={() => setMessage(null)}>
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        )}
+
+        {/* Preferred Provider */}
+        <div className="space-y-2">
+          <h3 className="text-xs font-semibold text-[var(--nx-text)]">Preferred Provider</h3>
+          <p className="text-[10px] text-[var(--nx-text-dim)]">Which AI provider should Claude Code use? Each user brings their own API key.</p>
+          <div className="flex gap-2">
+            {(['nvidia', 'openrouter', 'none'] as const).map(p => (
+              <button
+                key={p}
+                onClick={() => handleSetProvider(p)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${
+                  preferredProvider === p
+                    ? 'bg-[var(--nx-accent-teal)]/20 border-[var(--nx-accent-teal)]/40 text-[var(--nx-accent-teal)]'
+                    : 'bg-[var(--nx-bg-primary)] border-[var(--nx-border)] text-[var(--nx-text-muted)] hover:border-[var(--nx-accent-teal)]/30 hover:text-[var(--nx-text)]'
+                }`}
+              >
+                {p === 'nvidia' ? 'NVIDIA NIM' : p === 'openrouter' ? 'OpenRouter' : 'None'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* NVIDIA NIM API Key */}
+        <div className="space-y-2 p-3 rounded-md border border-[var(--nx-border)] bg-[var(--nx-bg-primary)]/40">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-[var(--nx-accent-teal)]" />
+              <span className="text-xs font-semibold text-[var(--nx-text)]">NVIDIA NIM API Key</span>
+            </div>
+            {nvidiaKeySet && (
+              <Badge variant="secondary" className="h-4 px-1.5 text-[8px] bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20">
+                SET
+              </Badge>
+            )}
+          </div>
+          <p className="text-[10px] text-[var(--nx-text-dim)]">
+            Get your key from <span className="text-[var(--nx-accent-teal)]">build.nvidia.com</span>. Required for Claude Code via the free-claude-code proxy. Your key is private — only your terminals can use it.
+          </p>
+          <div className="flex gap-1.5">
+            <div className="flex-1 relative">
+              <Input
+                type={showNvidiaKey ? 'text' : 'password'}
+                value={nvidiaKey}
+                onChange={(e) => setNvidiaKey(e.target.value)}
+                placeholder={nvidiaKeySet ? 'Key is set — enter new key to replace' : 'nvapi-...'}
+                className="h-7 text-xs pr-8 bg-[var(--nx-bg-primary)] border-[var(--nx-border)] text-[var(--nx-text)] focus:border-[var(--nx-accent-teal)] placeholder-[var(--nx-text-dim)]"
+              />
+              <button
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] hover:text-[var(--nx-text)]"
+                onClick={() => setShowNvidiaKey(!showNvidiaKey)}
+              >
+                {showNvidiaKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+              </button>
+            </div>
+            <Button
+              size="sm"
+              className="h-7 text-xs bg-[var(--nx-accent-teal)]/20 hover:bg-[var(--nx-accent-teal)]/30 text-[var(--nx-accent-teal)] border border-[var(--nx-accent-teal)]/30"
+              onClick={() => handleSaveKey('nvidia', nvidiaKey)}
+              disabled={saving || !nvidiaKey}
+            >
+              {saving ? '...' : 'Save'}
+            </Button>
+            {nvidiaKeySet && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs text-[var(--nx-error)] hover:bg-[var(--nx-error)]/10"
+                onClick={() => handleDeleteKey('nvidia')}
+                disabled={saving}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* OpenRouter API Key */}
+        <div className="space-y-2 p-3 rounded-md border border-[var(--nx-border)] bg-[var(--nx-bg-primary)]/40">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Globe className="h-4 w-4 text-[var(--nx-warning)]" />
+              <span className="text-xs font-semibold text-[var(--nx-text)]">OpenRouter API Key</span>
+            </div>
+            {openrouterKeySet && (
+              <Badge variant="secondary" className="h-4 px-1.5 text-[8px] bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20">
+                SET
+              </Badge>
+            )}
+          </div>
+          <p className="text-[10px] text-[var(--nx-text-dim)]">
+            Get your key from <span className="text-[var(--nx-accent-teal)]">openrouter.ai</span>. Alternative provider for Claude Code and other LLMs. Supports many models.
+          </p>
+          <div className="flex gap-1.5">
+            <div className="flex-1 relative">
+              <Input
+                type={showOpenrouterKey ? 'text' : 'password'}
+                value={openrouterKey}
+                onChange={(e) => setOpenrouterKey(e.target.value)}
+                placeholder={openrouterKeySet ? 'Key is set — enter new key to replace' : 'sk-or-...'}
+                className="h-7 text-xs pr-8 bg-[var(--nx-bg-primary)] border-[var(--nx-border)] text-[var(--nx-text)] focus:border-[var(--nx-accent-teal)] placeholder-[var(--nx-text-dim)]"
+              />
+              <button
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] hover:text-[var(--nx-text)]"
+                onClick={() => setShowOpenrouterKey(!showOpenrouterKey)}
+              >
+                {showOpenrouterKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+              </button>
+            </div>
+            <Button
+              size="sm"
+              className="h-7 text-xs bg-[var(--nx-accent-teal)]/20 hover:bg-[var(--nx-accent-teal)]/30 text-[var(--nx-accent-teal)] border border-[var(--nx-accent-teal)]/30"
+              onClick={() => handleSaveKey('openrouter', openrouterKey)}
+              disabled={saving || !openrouterKey}
+            >
+              {saving ? '...' : 'Save'}
+            </Button>
+            {openrouterKeySet && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs text-[var(--nx-error)] hover:bg-[var(--nx-error)]/10"
+                onClick={() => handleDeleteKey('openrouter')}
+                disabled={saving}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Info box */}
+        <div className="p-3 rounded-md border border-[var(--nx-accent-teal)]/20 bg-[var(--nx-accent-teal)]/5 text-[10px] text-[var(--nx-text-dim)] space-y-1">
+          <div className="font-semibold text-[var(--nx-accent-teal)]">How it works</div>
+          <ul className="list-disc pl-4 space-y-0.5">
+            <li>Your API keys are stored securely and only used in YOUR terminal sessions</li>
+            <li>Other users cannot see or use your keys</li>
+            <li>NVIDIA NIM key: Use &quot;fcc-claude&quot; in terminal to start Claude Code</li>
+            <li>OpenRouter key: Configure in terminal with &quot;export OPENROUTER_API_KEY=...&quot;</li>
+            <li>Changes take effect in NEW terminal sessions (existing terminals keep their env)</li>
+          </ul>
         </div>
       </div>
     </ScrollArea>

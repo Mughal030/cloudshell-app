@@ -49,6 +49,10 @@ export interface User {
   lockedUntil?: number  // epoch-ms; if set and > now, account is locked
   refreshTokenHash?: string
   lastPasswordChange?: string
+  // Per-user API keys (each user brings their own key)
+  nvidiaApiKey?: string    // NVIDIA NIM API key for Claude Code proxy
+  openrouterApiKey?: string // OpenRouter API key for alternative LLM access
+  preferredProvider?: 'nvidia' | 'openrouter' | 'none'  // Which provider to use
 }
 
 export interface AuthToken {
@@ -600,4 +604,40 @@ export function getClientIp(request: { headers: Headers }): string {
     headers.get('x-client-ip') ||
     'unknown'
   )
+}
+
+// ─── Per-User API Key Management ──────────────────────────────────
+// Each user configures their own API key for Claude Code.
+// The server no longer shares a global NVIDIA_NIM_API_KEY.
+
+export function setUserApiKey(userId: string, provider: 'nvidia' | 'openrouter', apiKey: string): { success: boolean; error?: string } {
+  const users = readUsers()
+  const user = users.find(u => u.id === userId)
+  if (!user) return { success: false, error: 'User not found' }
+  if (provider === 'nvidia') {
+    user.nvidiaApiKey = apiKey
+  } else {
+    user.openrouterApiKey = apiKey
+  }
+  writeUsers(users)
+  return { success: true }
+}
+
+export function setUserPreferredProvider(userId: string, provider: 'nvidia' | 'openrouter' | 'none'): { success: boolean; error?: string } {
+  const users = readUsers()
+  const user = users.find(u => u.id === userId)
+  if (!user) return { success: false, error: 'User not found' }
+  user.preferredProvider = provider
+  writeUsers(users)
+  return { success: true }
+}
+
+export function getUserApiKeys(userId: string): { nvidiaApiKey?: string; openrouterApiKey?: string; preferredProvider?: string } {
+  const user = readUsers().find(u => u.id === userId)
+  if (!user) return {}
+  return {
+    nvidiaApiKey: user.nvidiaApiKey,
+    openrouterApiKey: user.openrouterApiKey,
+    preferredProvider: user.preferredProvider || 'none',
+  }
 }

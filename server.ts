@@ -1,12 +1,14 @@
-import { createServer } from 'http'
+import { createServer, get as httpGet } from 'http'
 import next from 'next'
 import { Server as SocketIOServer } from 'socket.io'
 import { spawn } from 'node-pty'
 import { v4 as uuidv4 } from 'uuid'
-import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, lstatSync, watch } from 'fs'
-import { join, resolve, relative } from 'path'
-import { execSync } from 'child_process'
-import { verifyTokenBasic, getUserById, getUserWorkspaceDir, ensureToolSymlinks } from './src/lib/auth.ts'
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, lstatSync, watch, createReadStream, createWriteStream, unlinkSync, rmSync, renameSync } from 'fs'
+import { join, resolve, relative, basename, sep } from 'path'
+import { execSync, exec } from 'child_process'
+import * as archiver from 'archiver'
+import * as Busboy from 'busboy'
+import { verifyTokenBasic, getUserById, getUserWorkspaceDir, ensureToolSymlinks, getUserApiKeys } from './src/lib/auth.ts'
 
 // ─── Global Error Handlers ───────────────────────────────────────
 process.on('uncaughtException', (err) => {
@@ -80,7 +82,6 @@ function updateServiceStatus() {
   // Use async execFile via child_process to avoid blocking the event loop.
   // We just set running=false optimistically and let the callback update it.
   try {
-    const { exec } = require('child_process')
     exec('docker info 2>/dev/null', { timeout: 5000 }, (err: any) => {
       serviceInstallStatus.docker.running = !err
     })
@@ -263,8 +264,7 @@ function startKeepAlive() {
   console.log('[KeepAlive] Starting 24/7 self-ping...')
   const pingSelf = () => {
     try {
-      const http = require('http')
-      http.get(SELF_PING_URL, (res: any) => {
+      httpGet(SELF_PING_URL, (res: any) => {
         console.log(`[KeepAlive] OK (uptime: ${Math.floor(process.uptime())}s, status: ${res.statusCode})`)
       }).on('error', () => {})
     } catch {}
@@ -478,6 +478,8 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
       NPM_CONFIG_PREFIX: NPM_GLOBAL,
       WORKSPACE_DIR: userWorkspace,
       // Pass through Claude/Anthropic env vars if set in server env or .bashrc_env
+      // SECURITY: Per-user API keys take priority over global env vars.
+      // Each user configures their own key via Settings panel — no shared keys.
       ...(process.env.ANTHROPIC_BASE_URL ? { ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL } : {}),
       ...(process.env.ANTHROPIC_AUTH_TOKEN ? { ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN } : {}),
       ...(process.env.ANTHROPIC_MODEL ? { ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL } : {}),
@@ -485,7 +487,13 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
       ...(process.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY ? { CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY: process.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY } : {}),
       ...(process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW ? { CLAUDE_CODE_AUTO_COMPACT_WINDOW: process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW } : {}),
       ...(process.env.ANTHROPIC_API_KEY ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } : {}),
-      ...(process.env.NVIDIA_NIM_API_KEY ? { NVIDIA_NIM_API_KEY: process.env.NVIDIA_NIM_API_KEY } : {}),
+      // Per-user NVIDIA key overrides global env var (if user has set their own)
+      ...(userId ? (() => { 
+        const keys = getUserApiKeys(userId)
+        if (keys.nvidiaApiKey) return { NVIDIA_NIM_API_KEY: keys.nvidiaApiKey }
+        // Fall back to global env var only if user has no personal key
+        return process.env.NVIDIA_NIM_API_KEY ? { NVIDIA_NIM_API_KEY: process.env.NVIDIA_NIM_API_KEY } : {}
+      })() : (process.env.NVIDIA_NIM_API_KEY ? { NVIDIA_NIM_API_KEY: process.env.NVIDIA_NIM_API_KEY } : {})),
     },
   })
 
@@ -585,6 +593,176 @@ app.prepare().then(() => {
       // with execSync. The background interval keeps status fresh enough.
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(serviceInstallStatus))
+      return
+    }
+
+    // ─── File Download API ──────────────────────────────────────────
+    if (url.startsWith('/api/files/download')) {
+      try {
+        const parsedUrl = new URL(url, `http://${req.headers.host || 'localhost'}`)
+        const token = parsedUrl.searchParams.get('token')
+        const filePath = parsedUrl.searchParams.get('path') || ''
+
+        if (!token) {
+          res.writeHead(403, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Authentication required' }))
+          return
+        }
+
+        // Authenticate via JWT token
+        let authToken = token
+        if (token.includes('jasbol-token=')) {
+          const match = token.match(/jasbol-token=([^;]+)/)
+          if (match) authToken = match[1]
+        }
+        const decoded = verifyTokenBasic(authToken)
+        if (!decoded) {
+          res.writeHead(403, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Invalid or expired token' }))
+          return
+        }
+
+        // Resolve user's workspace
+        const user = getUserById(decoded.userId)
+        const workspaceDir = user ? getUserWorkspaceDir(user) : DEFAULT_WORKSPACE_DIR
+        const resolvedPath = resolveWorkspacePath(filePath, workspaceDir)
+        if (!resolvedPath) {
+          res.writeHead(403, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Path traversal not allowed' }))
+          return
+        }
+
+        if (!existsSync(resolvedPath)) {
+          res.writeHead(404, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Path not found' }))
+          return
+        }
+
+        const fileStat = statSync(resolvedPath)
+
+        if (fileStat.isDirectory()) {
+          // Stream as ZIP
+          const dirName = basename(resolvedPath)
+          res.writeHead(200, {
+            'Content-Type': 'application/zip',
+            'Content-Disposition': `attachment; filename="${dirName}.zip"`,
+          })
+          const archive = archiver('zip', { zlib: { level: 6 } })
+          archive.directory(resolvedPath, dirName)
+          archive.pipe(res)
+          archive.on('error', (err: any) => {
+            console.error('[Download] Archive error:', err)
+            res.end()
+          })
+          archive.finalize()
+        } else {
+          // Stream individual file
+          const fileName = basename(resolvedPath)
+          res.writeHead(200, {
+            'Content-Type': 'application/octet-stream',
+            'Content-Disposition': `attachment; filename="${fileName}"`,
+            'Content-Length': fileStat.size,
+          })
+          const stream = createReadStream(resolvedPath)
+          stream.pipe(res)
+          stream.on('error', (err: any) => {
+            console.error('[Download] Stream error:', err)
+            res.end()
+          })
+        }
+      } catch (err) {
+        console.error('[Download] Error:', err)
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Internal server error' }))
+      }
+      return
+    }
+
+    // ─── File Upload API ─────────────────────────────────────────────
+    if (url === '/api/files/upload' && req.method === 'POST') {
+      try {
+        // Authenticate via Authorization header
+        const authHeader = req.headers.authorization || ''
+        let authToken = authHeader.replace(/^Bearer\s+/i, '')
+        if (!authToken) {
+          // Try cookie
+          const cookie = req.headers.cookie || ''
+          const match = cookie.match(/(?:__Host-)?jasbol-token=([^;]+)/)
+          if (match) authToken = match[1]
+        }
+        if (!authToken) {
+          res.writeHead(403, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Authentication required' }))
+          return
+        }
+
+        const decoded = verifyTokenBasic(authToken)
+        if (!decoded) {
+          res.writeHead(403, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Invalid or expired token' }))
+          return
+        }
+
+        const user = getUserById(decoded.userId)
+        const workspaceDir = user ? getUserWorkspaceDir(user) : DEFAULT_WORKSPACE_DIR
+
+        // Parse target path from query
+        const parsedUrl = new URL(url, `http://${req.headers.host || 'localhost'}`)
+        const targetPath = parsedUrl.searchParams.get('path') || ''
+        const resolvedTarget = resolveWorkspacePath(targetPath, workspaceDir)
+        if (!resolvedTarget) {
+          res.writeHead(403, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Path traversal not allowed' }))
+          return
+        }
+
+        // Ensure target directory exists
+        const targetDir = existsSync(resolvedTarget) && statSync(resolvedTarget).isDirectory()
+          ? resolvedTarget
+          : resolve(resolvedTarget, '..')
+        if (!existsSync(targetDir)) {
+          mkdirSync(targetDir, { recursive: true })
+        }
+
+        const savedFiles: string[] = []
+        const busboy = Busboy({
+          headers: req.headers,
+          limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit per file
+        })
+
+        busboy.on('file', (fieldname: string, file: any, info: { filename: string; encoding: string; mimeType: string }) => {
+          const { filename } = info
+          if (!filename) { file.resume(); return }
+          // Sanitize filename - remove path separators
+          const safeName = filename.replace(/[/\\\\]/g, '_')
+          const savePath = join(targetDir, safeName)
+          const writeStream = createWriteStream(savePath)
+          file.pipe(writeStream)
+          writeStream.on('finish', () => {
+            savedFiles.push(safeName)
+          })
+          writeStream.on('error', (err: any) => {
+            console.error('[Upload] Write error for', safeName, err)
+          })
+        })
+
+        busboy.on('finish', () => {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: true, files: savedFiles, count: savedFiles.length }))
+        })
+
+        busboy.on('error', (err: any) => {
+          console.error('[Upload] Busboy error:', err)
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ error: 'Upload parse error' }))
+        })
+
+        req.pipe(busboy)
+      } catch (err) {
+        console.error('[Upload] Error:', err)
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Internal server error' }))
+      }
       return
     }
 
@@ -864,10 +1042,8 @@ app.prepare().then(() => {
         }
         const stat = statSync(resolvedPath)
         if (stat.isDirectory()) {
-          const { rmSync } = require('fs')
           rmSync(resolvedPath, { recursive: true, force: true })
         } else {
-          const { unlinkSync } = require('fs')
           unlinkSync(resolvedPath)
         }
         socket.emit('file:deleted', { path: data.path, error: null })
@@ -886,7 +1062,6 @@ app.prepare().then(() => {
         return
       }
       try {
-        const { renameSync } = require('fs')
         renameSync(resolvedOld, resolvedNew)
         socket.emit('file:renamed', { path: data.oldPath, error: null })
         socket.emit('files:changed', { path: data.newPath, workspace: userWorkspace })

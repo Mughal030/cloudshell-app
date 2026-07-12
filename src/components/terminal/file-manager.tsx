@@ -19,6 +19,9 @@ import {
   EyeOff,
   Terminal as TerminalIcon,
   AlertTriangle,
+  Download,
+  Upload,
+  FolderArchive,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -64,11 +67,43 @@ export function FileManager({
   const [creating, setCreating] = useState(false)
   const [renamingPath, setRenamingPath] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [uploading, setUploading] = useState(false)
   // Track the path the user is currently viewing, so auto-refresh uses the right one
   const currentPathRef = useRef('')
   const showHiddenRef = useRef(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { currentPathRef.current = currentPath }, [currentPath])
   useEffect(() => { showHiddenRef.current = showHidden }, [showHidden])
+
+  // ─── Helper: get auth token from cookie ──────────────────────────────
+  const getAuthToken = useCallback((): string | null => {
+    try {
+      const cookies = document.cookie
+      // Try prod cookie first, then dev
+      const prodMatch = cookies.match(/__Host-jasbol-token=([^;]+)/)
+      if (prodMatch) return prodMatch[1]
+      const devMatch = cookies.match(/jasbol-token=([^;]+)/)
+      if (devMatch) return devMatch[1]
+    } catch {}
+    return null
+  }, [])
+
+  // ─── Helper: trigger file download via browser ───────────────────────
+  const triggerDownload = useCallback((filePath: string) => {
+    const token = getAuthToken()
+    if (!token) {
+      toast({
+        title: 'Download failed',
+        description: 'Authentication token not found. Please refresh the page.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const encodedPath = encodeURIComponent(filePath)
+    const encodedToken = encodeURIComponent(token)
+    // Open download URL in a new tab — browser handles the download
+    window.open(`/api/files/download?path=${encodedPath}&token=${encodedToken}`, '_blank')
+  }, [getAuthToken, toast])
 
   // ─── Auto-refresh crash-prevention machinery ───────────────────────
   // Without these guards, npm install / git clone events flood the server
@@ -223,7 +258,6 @@ export function FileManager({
     if (connected) {
       loadFilesRef.current(currentPath, showHidden)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showHidden])
 
   const handleDirectoryClick = (dirName: string) => {
@@ -367,6 +401,61 @@ export function FileManager({
     await loadFiles(currentPath || undefined, showHidden)
   }
 
+  // ─── Upload handler ──────────────────────────────────────────────────
+  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files
+    if (!selectedFiles || selectedFiles.length === 0) return
+
+    const token = getAuthToken()
+    if (!token) {
+      toast({
+        title: 'Upload failed',
+        description: 'Authentication token not found. Please refresh the page.',
+        variant: 'destructive',
+      })
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      for (let i = 0; i < selectedFiles.length; i++) {
+        formData.append('files', selectedFiles[i])
+      }
+
+      const targetPath = currentPath || ''
+      const response = await fetch(`/api/files/upload?path=${encodeURIComponent(targetPath)}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: 'Upload failed' }))
+        throw new Error(data.error || `Upload failed (${response.status})`)
+      }
+
+      const data = await response.json()
+      toast({
+        title: 'Upload complete',
+        description: `${data.count} file${data.count !== 1 ? 's' : ''} uploaded`,
+      })
+      await loadFiles(currentPath || undefined, showHidden)
+    } catch (err: any) {
+      toast({
+        title: 'Upload failed',
+        description: err.message || 'Unknown error',
+        variant: 'destructive',
+      })
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }, [currentPath, showHidden, getAuthToken, toast])
+
   const formatSize = (bytes: number) => {
     if (bytes === 0) return '-'
     if (bytes < 1024) return `${bytes}B`
@@ -467,6 +556,25 @@ export function FileManager({
             <TerminalIcon className="h-3.5 w-3.5" />
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading || !connected}
+          title="Upload files"
+        >
+          <Upload className={`h-3.5 w-3.5 ${uploading ? 'animate-pulse' : ''}`} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] transition-colors"
+          onClick={() => triggerDownload(currentPath || '')}
+          title="Download current folder as ZIP"
+        >
+          <FolderArchive className="h-3.5 w-3.5" />
+        </Button>
         {currentPath && (
           <Button
             variant="ghost"
@@ -500,6 +608,15 @@ export function FileManager({
           </Button>
         </div>
       )}
+
+      {/* Hidden file input for uploads */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={handleUpload}
+      />
 
       {/* File list */}
       <ScrollArea className="flex-1 min-h-0">
@@ -600,6 +717,28 @@ export function FileManager({
                         {formatSize(file.size)}
                       </span>
                       <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {file.type !== 'directory' && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)]"
+                            onClick={(e) => { e.stopPropagation(); triggerDownload(filePath) }}
+                            title="Download"
+                          >
+                            <Download className="h-2.5 w-2.5" />
+                          </Button>
+                        )}
+                        {file.type === 'directory' && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)]"
+                            onClick={(e) => { e.stopPropagation(); triggerDownload(filePath) }}
+                            title="Download as ZIP"
+                          >
+                            <FolderArchive className="h-2.5 w-2.5" />
+                          </Button>
+                        )}
                         <Button
                           size="icon"
                           variant="ghost"
@@ -628,10 +767,20 @@ export function FileManager({
       </ScrollArea>
 
       {/* Footer hint */}
-      <div className="px-2 py-1 border-t border-[var(--nx-border)]/50 bg-[var(--nx-bg-primary)]/40">
+      <div className="px-2 py-1 border-t border-[var(--nx-border)]/50 bg-[var(--nx-bg-primary)]/40 flex items-center justify-between">
         <div className="text-[9px] text-[var(--nx-text-dim)] truncate">
           {files.length} item{files.length !== 1 ? 's' : ''}{showHidden ? ' • showing hidden' : ''} • live sync
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-5 text-[9px] gap-1 text-[var(--nx-text-dim)] hover:text-[var(--nx-accent-teal)] transition-colors"
+          onClick={() => triggerDownload(currentPath || '')}
+          title="Download current folder as ZIP"
+        >
+          <Download className="h-2.5 w-2.5" />
+          ZIP
+        </Button>
       </div>
     </div>
   )

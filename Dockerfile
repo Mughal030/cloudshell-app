@@ -85,12 +85,14 @@ RUN chmod +x /home/cloudshell/workspace/scripts/test-nvidia-api.py && \
 #   CLAUDE_CODE_USE_AUTH_TOKEN → tells Claude Code to use the token, not OAuth
 #   CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY → enables /model picker
 #   CLAUDE_CODE_AUTO_COMPACT_WINDOW → auto-compaction for long sessions
+# SECURITY: NVIDIA_NIM_API_KEY is NO LONGER set here. Each user configures
+# their own key via the Settings panel. The admin can set a default key
+# via the NVIDIA_NIM_API_KEY env var at deployment time if desired.
 ENV ANTHROPIC_BASE_URL="http://localhost:8082" \
     ANTHROPIC_AUTH_TOKEN="fcc-no-auth" \
     CLAUDE_CODE_USE_AUTH_TOKEN="true" \
     CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="1" \
-    CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000" \
-    NVIDIA_NIM_API_KEY="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"
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000"
 
 # ─── Environment Variables ───────────────────────────────────────
 # IMPORTANT: PORT=8082 is for fcc-server proxy. The Next.js web server
