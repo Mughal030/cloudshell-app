@@ -622,7 +622,9 @@ fcc-start() {
     # Start in background — explicitly set PORT=8082 to override HF Spaces' PORT=7860
     PORT=8082 nohup fcc-server > /tmp/fcc-server.log 2>&1 &
     local PID=$!
-    echo "  Started with PID $PID"
+    # Save PID to file so the Next.js API can kill/restart reliably
+    echo "$PID" > "${HOME}/.fcc/fcc-server.pid"
+    echo "  Started with PID $PID (saved to ~/.fcc/fcc-server.pid)"
 
     # Wait for it to become healthy (max 30 seconds)
     echo "  Waiting for proxy to start..."
@@ -645,13 +647,22 @@ fcc-start() {
 
 # ─── Stop the free-claude-code proxy ───────────────────────
 fcc-stop() {
-    local PID
-    PID=$(lsof -ti:8082 2>/dev/null || true)
+    local PID=""
+    # Try PID file first (most reliable)
+    if [ -f "${HOME}/.fcc/fcc-server.pid" ]; then
+        PID=$(cat "${HOME}/.fcc/fcc-server.pid" 2>/dev/null | tr -d '[:space:]')
+    fi
+    # Fall back to lsof
+    if [ -z "$PID" ] || ! kill -0 "$PID" 2>/dev/null; then
+        PID=$(lsof -ti:8082 2>/dev/null || true)
+    fi
     if [ -z "$PID" ]; then
         echo "Proxy (fcc-server) is not running"
+        rm -f "${HOME}/.fcc/fcc-server.pid" 2>/dev/null || true
         return 0
     fi
-    kill "$PID" 2>/dev/null || true
+    kill "$PID" 2>/dev/null || kill -9 "$PID" 2>/dev/null || true
+    rm -f "${HOME}/.fcc/fcc-server.pid" 2>/dev/null || true
     echo "Proxy (fcc-server) stopped (PID $PID killed)"
 }
 
@@ -660,9 +671,20 @@ fcc-status() {
     if curl -s http://localhost:8082/health >/dev/null 2>&1; then
         echo "✅ Proxy (fcc-server) is RUNNING on port 8082"
         echo "   Admin UI: http://localhost:8082/admin"
-        local PID
-        PID=$(lsof -ti:8082 2>/dev/null || echo "unknown")
+        local PID=""
+        if [ -f "${HOME}/.fcc/fcc-server.pid" ]; then
+            PID=$(cat "${HOME}/.fcc/fcc-server.pid" 2>/dev/null | tr -d '[:space:]')
+        fi
+        if [ -z "$PID" ] || ! kill -0 "$PID" 2>/dev/null; then
+            PID=$(lsof -ti:8082 2>/dev/null || echo "unknown")
+        fi
         echo "   PID: $PID"
+        # Show NVIDIA key status
+        if [ -n "$NVIDIA_NIM_API_KEY" ]; then
+            echo "   NVIDIA key: ****${NVIDIA_NIM_API_KEY: -4}"
+        else
+            echo "   NVIDIA key: NOT SET (set via: claude-set-nvidia-key <key>)"
+        fi
     else
         echo "❌ Proxy (fcc-server) is NOT running"
         echo "   Start it with: fcc-start"
@@ -1075,8 +1097,11 @@ echo "[Entrypoint]   PATH: ${PATH}"
 echo "[Entrypoint] Setting up free-claude-code proxy..."
 
 # Ensure .env file exists with NVIDIA key for fcc-server
+# IMPORTANT: Do NOT overwrite if the file already exists with a key set
+# by the user via the Settings panel. Only create a new file if missing.
 mkdir -p /home/cloudshell/.fcc 2>/dev/null
-cat > /home/cloudshell/.fcc/.env << FCCEOF
+if [ ! -f /home/cloudshell/.fcc/.env ]; then
+    cat > /home/cloudshell/.fcc/.env << FCCEOF
 NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}"
 MODEL="nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
 ANTHROPIC_AUTH_TOKEN="fcc-no-auth"
@@ -1085,6 +1110,26 @@ FCC_OPEN_BROWSER="false"
 MESSAGING_PLATFORM="none"
 ENABLE_MODEL_THINKING="true"
 FCCEOF
+    echo "[Entrypoint] Created new ~/.fcc/.env"
+else
+    # .env already exists — update individual keys without overwriting NVIDIA key
+    # This preserves keys set by the user via the Settings panel
+    echo "[Entrypoint] ~/.fcc/.env already exists — preserving user settings"
+    # Only set NVIDIA key from env var if the .env doesn't have one already
+    if ! grep -q 'NVIDIA_NIM_API_KEY=".\+"' /home/cloudshell/.fcc/.env 2>/dev/null; then
+        # No non-empty key in .env — set from env var if available
+        if [ -n "${NVIDIA_NIM_API_KEY:-}" ]; then
+            _fcc_update_env NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY}"
+        fi
+    fi
+    # Always ensure these are set correctly
+    _fcc_update_env PORT "8082"
+    _fcc_update_env MODEL "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
+    _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
+    _fcc_update_env FCC_OPEN_BROWSER "false"
+    _fcc_update_env MESSAGING_PLATFORM "none"
+    _fcc_update_env ENABLE_MODEL_THINKING "true"
+fi
 chown -R cloudshell:cloudshell /home/cloudshell/.fcc 2>/dev/null || true
 
 # Install fcc-server on first boot if not already installed
@@ -1133,9 +1178,17 @@ fi
 # in the runtime environment, and pydantic-settings reads env vars with
 # higher priority than ~/.fcc/.env. Without this, fcc-server would bind
 # to 7860 (clashing with Next.js) instead of 8082.
+#
+# We also save the PID to ~/.fcc/fcc-server.pid so the Next.js API
+# can reliably kill and restart the proxy when the user updates their
+# NVIDIA API key via the Settings panel.
 if command -v fcc-server &>/dev/null; then
-    gosu cloudshell bash -c 'PORT=8082 nohup fcc-server > /tmp/fcc-server.log 2>&1 &
-        echo "fcc-server PID: $!"' 2>/dev/null || true
+    gosu cloudshell bash -c '
+        PORT=8082 nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+        PID=$!
+        echo "$PID" > /home/cloudshell/.fcc/fcc-server.pid
+        echo "fcc-server PID: $PID"
+    ' 2>/dev/null || true
     # Give it a few seconds to start
     sleep 3
     if curl -s http://localhost:8082/health >/dev/null 2>&1; then
