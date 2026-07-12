@@ -368,6 +368,16 @@ export function XtermTerminal({
   const [selectedSuggestion, setSelectedSuggestion] = useState(0)
   const [showSuggestions, setShowSuggestions] = useState(false)
 
+  // Refs for suggestion state (to avoid stale closure in onData callback)
+  const suggestionsRef = useRef(suggestions)
+  const selectedSuggestionRef = useRef(selectedSuggestion)
+  const showSuggestionsRef = useRef(showSuggestions)
+
+  // Keep refs in sync with state
+  useEffect(() => { suggestionsRef.current = suggestions }, [suggestions])
+  useEffect(() => { selectedSuggestionRef.current = selectedSuggestion }, [selectedSuggestion])
+  useEffect(() => { showSuggestionsRef.current = showSuggestions }, [showSuggestions])
+
   // Keep refs updated
   useEffect(() => {
     sessionIdRef.current = sessionId
@@ -487,20 +497,25 @@ export function XtermTerminal({
         currentLineRef.current = ''
         inputActiveRef.current = false
         setShowSuggestions(false)
+        showSuggestionsRef.current = false
       } else if (data === '\x7f' || data === '\b') {
         // Backspace
         if (currentLineRef.current.length > 0) {
           currentLineRef.current = currentLineRef.current.slice(0, -1)
         }
         setShowSuggestions(false)
+        showSuggestionsRef.current = false
       } else if (data === '\x03') {
         // Ctrl+C
         currentLineRef.current = ''
         inputActiveRef.current = false
         setShowSuggestions(false)
+        showSuggestionsRef.current = false
       } else if (data === '\x15') {
         // Ctrl+U — clear line
         currentLineRef.current = ''
+        setShowSuggestions(false)
+        showSuggestionsRef.current = false
       } else if (data === '\x17') {
         // Ctrl+W — delete word
         currentLineRef.current = currentLineRef.current.replace(/\s*\S+\s*$/, '')
@@ -542,22 +557,40 @@ export function XtermTerminal({
             }
           })
           setSuggestions(matches.slice(0, 8))
+          suggestionsRef.current = matches.slice(0, 8)
           setSelectedSuggestion(0)
+          selectedSuggestionRef.current = 0
           setShowSuggestions(matches.length > 0)
+          showSuggestionsRef.current = matches.length > 0
         } else {
           setShowSuggestions(false)
+          showSuggestionsRef.current = false
         }
       } else if (data.startsWith('\x1b[')) {
         // Arrow keys — for suggestion navigation
-        if (data === '\x1b[A' && showSuggestions) {
+        // Uses refs to read latest state (avoids stale closure bug)
+        if (data === '\x1b[A' && showSuggestionsRef.current) {
           // Up arrow — previous suggestion
-          setSelectedSuggestion(prev => Math.max(0, prev - 1))
+          setSelectedSuggestion(prev => {
+            const next = Math.max(0, prev - 1)
+            selectedSuggestionRef.current = next
+            return next
+          })
           return // Don't forward to PTY
         }
-        if (data === '\x1b[B' && showSuggestions) {
+        if (data === '\x1b[B' && showSuggestionsRef.current) {
           // Down arrow — next suggestion
-          setSelectedSuggestion(prev => Math.min(suggestions.length - 1, prev + 1))
+          setSelectedSuggestion(prev => {
+            const next = Math.min(suggestionsRef.current.length - 1, prev + 1)
+            selectedSuggestionRef.current = next
+            return next
+          })
           return // Don't forward to PTY
+        }
+        if (data === '\x1b[C' || data === '\x1b[D') {
+          // Left/Right arrow — hide suggestions
+          setShowSuggestions(false)
+          showSuggestionsRef.current = false
         }
         // For other escape sequences, reset tracking
       }
@@ -623,6 +656,7 @@ export function XtermTerminal({
         currentLineRef.current = ''
         inputActiveRef.current = false
         setShowSuggestions(false)
+        showSuggestionsRef.current = false
       }
     })
     return unsubscribe
