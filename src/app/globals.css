@@ -597,6 +597,309 @@
   z-index: 0;
 }
 
+/* ──────────────────────────────────────────────
+   OBSIDIAN AURORA — IDE Page Enhancements
+   Premium dark cyberpunk refinements for the
+   main IDE workspace page.
+   ────────────────────────────────────────────── */
+
+/* Panel slide-down entrance (replaces horizontal slide) */
+.nx-panel-slide-down {
+  animation: nx-panel-slide-down 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes nx-panel-slide-down {
+  from { opacity: 0; transform: translateY(-8px); max-height: 0; }
+  to   { opacity: 1; transform: translateY(0); max-height: 450px; }
+}
+
+/* Elegant connection pulse — softer, multi-ring */
+.nx-pulse-elegant {
+  animation: nx-pulse-elegant 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes nx-pulse-elegant {
+  0%   { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5); transform: scale(1); }
+  50%  { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); transform: scale(1.1); }
+  100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); transform: scale(1); }
+}
+
+/* Active menu pill animated dot indicator */
+.nx-tab-dot {
+  position: relative;
+}
+.nx-tab-dot::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--nx-accent);
+  box-shadow: 0 0 6px var(--nx-accent-glow), 0 0 12px var(--nx-accent-glow);
+  animation: nx-dot-pulse 1.6s ease-in-out infinite;
+}
+@keyframes nx-dot-pulse {
+  0%, 100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+  50%      { opacity: 1; transform: translateX(-50%) scale(1.3); }
+}
+
+/* Terminal tab bottom accent gradient line */
+.nx-term-tab-active {
+  position: relative;
+}
+.nx-term-tab-active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #818CF8, #6366F1, transparent);
+  border-radius: 0 0 1px 1px;
+  box-shadow: 0 0 6px rgba(129, 140, 248, 0.4);
+}
+
+/* Gradient text animation for empty state */
+.nx-text-gradient-animated {
+  background: linear-gradient(135deg, #818CF8, #6366F1, #8B5CF6, #A78BFA, #818CF8);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: nx-gradient-text 4s ease infinite;
+}
+@keyframes nx-gradient-text {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Category header gradient underline for QuickInstall */
+.nx-category-header {
+  position: relative;
+  padding-bottom: 6px;
+}
+.nx-category-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, #818CF8, #6366F1, transparent);
+  opacity: 0.5;
+  border-radius: 1px;
+}
+
+/* Settings card refined style */
+.nx-settings-card {
+  background: rgba(12, 16, 34, 0.6);
+  border: 1px solid rgba(129, 140, 248, 0.1);
+  backdrop-filter: blur(8px);
+  border-radius: 10px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nx-settings-card:hover {
+  border-color: rgba(129, 140, 248, 0.2);
+  box-shadow: 0 4px 16px rgba(129, 140, 248, 0.08);
+}
+:root .nx-settings-card {
+  background: rgba(241, 242, 248, 0.7);
+  border: 1px solid rgba(99, 102, 241, 0.1);
+}
+
+/* Logo glow ring */
+.nx-logo-ring {
+  position: relative;
+  border-radius: 8px;
+}
+.nx-logo-ring::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #818CF8, #6366F1, #8B5CF6);
+  opacity: 0.3;
+  filter: blur(4px);
+  z-index: -1;
+  animation: nx-logo-glow 3s ease-in-out infinite;
+}
+@keyframes nx-logo-glow {
+  0%, 100% { opacity: 0.3; filter: blur(4px); }
+  50%      { opacity: 0.5; filter: blur(6px); }
+}
+
+/* Session ID pill in status bar */
+.nx-session-pill {
+  background: rgba(129, 140, 248, 0.08);
+  border: 1px solid rgba(129, 140, 248, 0.12);
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 9px;
+  font-family: var(--font-jetbrains), monospace;
+}
+
+/* Latency badge */
+.nx-latency {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* User badge gradient border */
+.nx-user-badge {
+  position: relative;
+  background: var(--nx-bg-primary);
+  border-radius: 6px;
+  padding: 2px 8px 2px 6px;
+}
+.nx-user-badge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  padding: 1px;
+  background: linear-gradient(135deg, #818CF8, #6366F1, transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Better scrollbar for panel scroll areas */
+.nx-scroll-aurora::-webkit-scrollbar { width: 5px; height: 5px; }
+.nx-scroll-aurora::-webkit-scrollbar-track { background: transparent; }
+.nx-scroll-aurora::-webkit-scrollbar-thumb {
+  background: rgba(129, 140, 248, 0.15);
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+.nx-scroll-aurora::-webkit-scrollbar-thumb:hover {
+  background: rgba(129, 140, 248, 0.3);
+}
+.nx-scroll-aurora::-webkit-scrollbar-corner { background: transparent; }
+
+/* Close button subtle style */
+.nx-close-subtle {
+  opacity: 0.3;
+  transition: all 0.15s ease;
+  border-radius: 4px;
+  padding: 2px;
+}
+.nx-close-subtle:hover {
+  opacity: 1;
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--nx-error);
+}
+
+/* Tab close button — smaller with hover glow */
+.nx-tab-close {
+  opacity: 0;
+  transition: all 0.15s ease;
+  border-radius: 3px;
+  padding: 1px;
+}
+.nx-tab-close:hover {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--nx-error);
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.2);
+}
+/* Show close on parent hover */
+.group:hover .nx-tab-close {
+  opacity: 0.6;
+}
+.group:hover .nx-tab-close:hover {
+  opacity: 1;
+}
+
+/* Gradient border glow bar — for header bottom & status bar top */
+.nx-border-glow {
+  position: relative;
+}
+.nx-border-glow-bottom::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 5%, rgba(129, 140, 248, 0.4) 30%, rgba(99, 102, 241, 0.6) 50%, rgba(129, 140, 248, 0.4) 70%, transparent 95%);
+  pointer-events: none;
+}
+.nx-border-glow-top::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 5%, rgba(129, 140, 248, 0.3) 30%, rgba(99, 102, 241, 0.5) 50%, rgba(129, 140, 248, 0.3) 70%, transparent 95%);
+  pointer-events: none;
+}
+
+/* Top accent bar — thin aurora strip at page top */
+.nx-top-accent {
+  position: relative;
+}
+.nx-top-accent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #818CF8, #6366F1, #8B5CF6, #6366F1, #818CF8);
+  background-size: 200% 100%;
+  animation: nx-aurora-flow 6s ease infinite;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Panel top border gradient glow */
+.nx-panel-border-glow::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(129, 140, 248, 0.5), rgba(99, 102, 241, 0.7), rgba(129, 140, 248, 0.5), transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Toolkit install button hover glow */
+.nx-toolkit-btn {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+.nx-toolkit-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(129, 140, 248, 0.08), transparent);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.nx-toolkit-btn:hover::before {
+  opacity: 1;
+}
+.nx-toolkit-btn:hover {
+  transform: translateX(2px);
+  border-left: 1px solid rgba(129, 140, 248, 0.2);
+}
+
+/* Env dot enhanced pulse */
+.nx-env-dot-pulse {
+  animation: nx-env-dot-pulse 2.5s ease-in-out infinite;
+}
+@keyframes nx-env-dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+  50%      { box-shadow: 0 0 4px 1px currentColor; opacity: 0.85; }
+}
+
 /* ================================================================
    CYBERPUNK TERMINAL — Modern Auth Theme
    ────────────────────────────────────────────────

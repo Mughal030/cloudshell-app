@@ -610,6 +610,10 @@ export function getClientIp(request: { headers: Headers }): string {
 // Each user configures their own API key for Claude Code.
 // The server no longer shares a global NVIDIA_NIM_API_KEY.
 
+// Aliases used by API key management functions
+const readUsers = loadUsers
+const writeUsers = saveUsers
+
 export function setUserApiKey(userId: string, provider: 'nvidia' | 'openrouter', apiKey: string): { success: boolean; error?: string } {
   const users = readUsers()
   const user = users.find(u => u.id === userId)

@@ -292,30 +292,36 @@ export default function Home() {
   const isDark = !mounted || theme === 'dark'
 
   return (
-    <div className="flex flex-col h-screen bg-[var(--nx-bg-primary)] text-[var(--nx-text)] overflow-hidden transition-colors duration-200">
+    <div className="flex flex-col h-screen bg-[var(--nx-bg-primary)] text-[var(--nx-text)] overflow-hidden transition-colors duration-200 nx-top-accent">
       {/* ═══ HEADER ═══ */}
-      <header className="flex items-center justify-between px-4 h-11 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/90 backdrop-blur-md shrink-0 nx-panel-glow">
+      <header className="relative flex items-center justify-between px-4 h-11 bg-[var(--nx-bg-secondary)]/90 backdrop-blur-md shrink-0 nx-panel-glow nx-border-glow nx-border-glow-bottom">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Image src="/jasbol-hack-logo.png" alt="Jasbol Hack" width={28} height={28} className="rounded-md" priority style={{ filter: 'drop-shadow(0 0 8px rgba(129, 140, 248, 0.4))' }} />
+          {/* Logo with glow ring */}
+          <div className="flex items-center gap-2.5">
+            <div className="nx-logo-ring">
+              <Image src="/jasbol-hack-logo.png" alt="Jasbol Hack" width={28} height={28} className="rounded-md" priority />
+            </div>
             <h1 className="text-sm font-bold tracking-wide">
               <span style={{ background: 'linear-gradient(135deg, #818CF8, #6366F1)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Jasbol</span>
               <span className="text-[var(--nx-text)] ml-0.5">Hack</span>
             </h1>
           </div>
+
           <Separator orientation="vertical" className="h-5 bg-[var(--nx-border)]" />
+
+          {/* Connection status — elegant pulse */}
           <div className="flex items-center gap-1.5">
             {mounted && connected ? (
               <div className="flex items-center gap-1.5">
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--nx-success)] opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--nx-success)]" />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--nx-success)] opacity-60" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--nx-success)] nx-pulse-elegant" />
                 </span>
-                <span className="text-[10px] text-[var(--nx-success)] font-medium">Live</span>
+                <span className="text-[10px] text-[var(--nx-success)] font-medium tracking-wide">Live</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5">
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--nx-error)]" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--nx-error)]" style={{ animation: 'nx-pulse-elegant 1.6s ease-in-out infinite' }} />
                 <span className="text-[10px] text-[var(--nx-error)] font-medium">{mounted ? 'Offline' : 'Connecting...'}</span>
               </div>
             )}
@@ -323,22 +329,29 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent-teal)] hover:bg-[var(--nx-bg-hover)] transition-colors" onClick={handleNewTerminal} disabled={creatingTerminal || !connected}>
+          {/* New Terminal button — better hover */}
+          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1.5 text-[var(--nx-text-secondary)] hover:text-[var(--nx-accent)] hover:bg-[var(--nx-accent-glow)] transition-all duration-200 rounded-md" onClick={handleNewTerminal} disabled={creatingTerminal || !connected}>
             <Plus className="h-3.5 w-3.5" />New Terminal
           </Button>
+
           <Separator orientation="vertical" className="h-5 bg-[var(--nx-border)]" />
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-secondary)] hover:text-[var(--nx-warning)] hover:bg-[var(--nx-bg-hover)] transition-colors" onClick={() => setTheme(isDark ? 'light' : 'dark')} disabled={!mounted}>
+
+          {/* Theme toggle */}
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-secondary)] hover:text-[var(--nx-warning)] hover:bg-[var(--nx-bg-hover)] transition-all duration-200 rounded-md" onClick={() => setTheme(isDark ? 'light' : 'dark')} disabled={!mounted}>
             {mounted ? (isDark ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />) : <Sun className="h-3.5 w-3.5 opacity-0" />}
           </Button>
+
           <Separator orientation="vertical" className="h-5 bg-[var(--nx-border)]" />
+
+          {/* User badge — gradient border */}
           {currentUser && (
             <div className="flex items-center gap-1.5">
-              <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-[var(--nx-bg-primary)] border border-[var(--nx-border)] nx-hover-lift">
+              <div className="nx-user-badge nx-hover-lift flex items-center gap-1">
                 {currentUser.role === 'admin' ? <Shield className="h-3 w-3 text-[var(--nx-accent)]" /> : <User className="h-3 w-3 text-[var(--nx-accent-teal)]" />}
                 <span className="text-[10px] font-medium">{currentUser.username}</span>
-                {currentUser.role === 'admin' && <span className="text-[8px] px-1 py-0.5 rounded font-bold tracking-wider" style={{ background: 'rgba(129, 140, 248, 0.18)', color: '#818CF8' }}>ADMIN</span>}
+                {currentUser.role === 'admin' && <span className="text-[8px] px-1.5 py-0.5 rounded-md font-bold tracking-wider" style={{ background: 'linear-gradient(135deg, rgba(129, 140, 248, 0.18), rgba(99, 102, 241, 0.12))', color: '#818CF8' }}>ADMIN</span>}
               </div>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-muted)] hover:text-[var(--nx-error)] hover:bg-[var(--nx-bg-hover)] transition-colors" onClick={handleLogout} title="Logout">
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-[var(--nx-text-muted)] hover:text-[var(--nx-error)] hover:bg-[var(--nx-error)]/10 transition-all duration-200 rounded-md" onClick={handleLogout} title="Logout">
                 <LogOut className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -346,45 +359,48 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ═══ HORIZONTAL MENU BAR (replaces vertical sidebar) ═══ */}
-      <nav className="flex items-center gap-0.5 px-2 h-9 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/60 backdrop-blur-md shrink-0 overflow-x-auto">
+      {/* ═══ HORIZONTAL MENU BAR — Pill Tabs ═══ */}
+      <nav className="flex items-center gap-1 px-3 h-10 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/50 backdrop-blur-md shrink-0 overflow-x-auto">
         {MENU_ITEMS.map(({ value, label, icon: Icon }) => {
           const isActive = activeMenu === value
           return (
             <button
               key={value}
               onClick={() => handleMenuClick(value)}
-              className={`flex items-center gap-1.5 px-3 h-7 rounded-md text-xs font-medium transition-all shrink-0 ${
+              className={`flex items-center gap-1.5 px-3.5 h-7 rounded-full text-xs font-medium transition-all duration-200 shrink-0 ${
                 isActive
-                  ? 'bg-[var(--nx-bg-active)] text-[var(--nx-accent-teal)] nx-tab-active shadow-sm'
-                  : 'text-[var(--nx-text-muted)] hover:text-[var(--nx-text)] hover:bg-[var(--nx-bg-hover)]'
+                  ? 'bg-gradient-to-r from-[var(--nx-accent)]/15 to-[var(--nx-accent-teal)]/10 text-[var(--nx-accent)] nx-tab-dot shadow-[0_0_12px_var(--nx-accent-glow)]'
+                  : 'text-[var(--nx-text-muted)] hover:text-[var(--nx-text)] hover:bg-[var(--nx-bg-hover)] hover:scale-[1.02]'
               }`}
               aria-pressed={isActive}
             >
-              <Icon className="h-3.5 w-3.5" />
+              <Icon className={`h-3.5 w-3.5 transition-all duration-200 ${isActive ? 'text-[var(--nx-accent)]' : ''}`} />
               <span>{label}</span>
-              {isActive ? <ChevronUp className="h-3 w-3 ml-0.5 opacity-70" /> : <ChevronDown className="h-3 w-3 ml-0.5 opacity-50" />}
+              {isActive ? <ChevronUp className="h-3 w-3 ml-0.5 opacity-60" /> : <ChevronDown className="h-3 w-3 ml-0.5 opacity-40" />}
             </button>
           )
         })}
         <div className="flex-1" />
-        <span className="text-[10px] text-[var(--nx-text-dim)] pr-2 hidden sm:inline">Click a tab to expand panel</span>
+        <span className="text-[10px] text-[var(--nx-text-dim)] pr-2 hidden sm:inline opacity-60">Click a tab to expand panel</span>
       </nav>
 
       {/* ═══ SLIDE-DOWN PANEL (horizontal, full-width) ═══ */}
       {activeMenu && (
         <div
-          className="border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/80 backdrop-blur-md shrink-0 nx-panel-enter"
+          className="relative border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/80 backdrop-blur-xl shrink-0 nx-panel-slide-down nx-panel-border-glow"
           style={{ height: 450 }}
         >
           <div className="h-full flex flex-col overflow-hidden min-h-0">
-            <div className="flex items-center justify-between px-3 h-7 border-b border-[var(--nx-border)] shrink-0">
-              <span className="text-[10px] font-semibold text-[var(--nx-text-muted)] uppercase tracking-wider">
+            <div className="flex items-center justify-between px-4 h-8 border-b border-[var(--nx-border)]/50 shrink-0">
+              <span className="text-[10px] font-semibold text-[var(--nx-text-muted)] uppercase tracking-widest">
                 {MENU_ITEMS.find(m => m.value === activeMenu)?.label}
               </span>
-              <Button variant="ghost" size="icon" className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-text)]" onClick={() => setActiveMenu(null)}>
+              <button
+                className="nx-close-subtle text-[var(--nx-text-muted)] inline-flex items-center justify-center"
+                onClick={() => setActiveMenu(null)}
+              >
                 <X className="h-3 w-3" />
-              </Button>
+              </button>
             </div>
             <div className="flex-1 overflow-hidden min-h-0">
               {activeMenu === 'packages' && (
@@ -424,32 +440,37 @@ export default function Home() {
           <ResizablePanelGroup direction="vertical" className="flex-1">
             <ResizablePanel defaultSize={65} minSize={30}>
               <div className="flex flex-col h-full">
-                {/* Terminal Tab Bar */}
-                <div className="flex items-center h-9 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/60 shrink-0 overflow-x-auto">
+                {/* Terminal Tab Bar — Obsidian Aurora */}
+                <div className="flex items-center h-9 border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/40 backdrop-blur-sm shrink-0 overflow-x-auto">
                   <ScrollArea className="flex-1">
                     <div className="flex items-center h-9">
-                      {sessions.map((session) => (
-                        <div key={session.sessionId}
-                          className={`flex items-center gap-1.5 px-3 h-full text-xs border-r border-[var(--nx-border)] transition-all duration-200 shrink-0 cursor-pointer ${
-                            activeSessionId === session.sessionId
-                              ? 'bg-[var(--nx-bg-primary)] text-[var(--nx-accent-teal)] nx-tab-active'
-                              : 'text-[var(--nx-text-muted)] hover:text-[var(--nx-text)] hover:bg-[var(--nx-bg-primary)]/50'
-                          }`}
-                          onClick={() => setActiveSessionId(session.sessionId)}>
-                          <SquareTerminal className="h-3 w-3 shrink-0" />
-                          <span className="truncate max-w-24">{session.label}</span>
-                          <span className="text-[8px] text-[var(--nx-text-dim)] shrink-0">{session.sessionId.substring(0, 4)}</span>
-                          <span role="button" tabIndex={0}
-                            className="ml-1 p-0.5 rounded hover:bg-[var(--nx-bg-hover)] text-[var(--nx-text-muted)] hover:text-[var(--nx-error)] transition-colors inline-flex items-center"
-                            onClick={(e) => { e.stopPropagation(); destroyTerminal(session.sessionId) }}
-                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); destroyTerminal(session.sessionId) } }}>
-                            <X className="h-2.5 w-2.5" />
-                          </span>
-                        </div>
-                      ))}
+                      {sessions.map((session, idx) => {
+                        const isActiveTab = activeSessionId === session.sessionId
+                        return (
+                          <div key={session.sessionId}
+                            className={`group flex items-center gap-1.5 px-3 h-full text-xs transition-all duration-200 shrink-0 cursor-pointer relative ${
+                              idx < sessions.length - 1 ? 'border-r border-[var(--nx-border)]/40' : ''
+                            } ${
+                              isActiveTab
+                                ? 'bg-[var(--nx-bg-primary)] text-[var(--nx-accent)] nx-term-tab-active'
+                                : 'text-[var(--nx-text-muted)] hover:text-[var(--nx-text)] hover:bg-[var(--nx-bg-primary)]/40'
+                            }`}
+                            onClick={() => setActiveSessionId(session.sessionId)}>
+                            <SquareTerminal className={`h-3 w-3 shrink-0 transition-colors duration-200 ${isActiveTab ? 'text-[var(--nx-accent)]' : ''}`} />
+                            <span className="truncate max-w-24">{session.label}</span>
+                            <span className="text-[8px] text-[var(--nx-text-dim)] shrink-0">{session.sessionId.substring(0, 4)}</span>
+                            <span role="button" tabIndex={0}
+                              className={`nx-tab-close ml-0.5 inline-flex items-center justify-center ${isActiveTab ? 'opacity-40' : ''}`}
+                              onClick={(e) => { e.stopPropagation(); destroyTerminal(session.sessionId) }}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); destroyTerminal(session.sessionId) } }}>
+                              <X className="h-2.5 w-2.5" />
+                            </span>
+                          </div>
+                        )
+                      })}
                     </div>
                   </ScrollArea>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 mx-1 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)] hover:bg-[var(--nx-bg-hover)] shrink-0 transition-colors" onClick={handleNewTerminal} disabled={creatingTerminal || !connected}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 mx-1 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent)] hover:bg-[var(--nx-accent-glow)] shrink-0 transition-all duration-200 rounded-md" onClick={handleNewTerminal} disabled={creatingTerminal || !connected}>
                     <Plus className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -459,11 +480,23 @@ export default function Home() {
                   {sessions.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center">
-                        <Terminal className="h-12 w-12 mx-auto text-[var(--nx-border)] mb-3" />
-                        <p className="text-sm text-[var(--nx-text-dim)] mb-3">{mounted && connected ? 'No terminal sessions' : 'Connecting...'}</p>
-                        <Button variant="outline" size="sm" className="text-[var(--nx-accent-teal)] border-[var(--nx-accent-teal)]/30 hover:bg-[var(--nx-accent-teal)]/10 transition-colors" onClick={handleNewTerminal} disabled={!connected}>
-                          <Plus className="h-3.5 w-3.5 mr-1.5" />Start Terminal
-                        </Button>
+                        <Terminal className="h-16 w-16 mx-auto mb-4 opacity-20" style={{ color: 'var(--nx-accent)' }} />
+                        <p className="text-base font-medium mb-1 nx-text-gradient-animated">
+                          {mounted && connected ? 'No Terminal Sessions' : 'Connecting...'}
+                        </p>
+                        <p className="text-xs text-[var(--nx-text-dim)] mb-4">
+                          {mounted && connected ? 'Start a new terminal to begin' : 'Establishing connection'}
+                        </p>
+                        {mounted && connected && (
+                          <Button
+                            size="sm"
+                            className="h-8 px-4 text-xs gap-1.5 bg-gradient-to-r from-[var(--nx-accent)]/20 to-[var(--nx-accent-teal)]/15 text-[var(--nx-accent)] border border-[var(--nx-accent)]/30 hover:from-[var(--nx-accent)]/30 hover:to-[var(--nx-accent-teal)]/25 hover:border-[var(--nx-accent)]/50 hover:shadow-[0_0_20px_var(--nx-accent-glow)] transition-all duration-200"
+                            onClick={handleNewTerminal}
+                            disabled={!connected}
+                          >
+                            <Plus className="h-3.5 w-3.5" />Start Terminal
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -475,7 +508,7 @@ export default function Home() {
               </div>
             </ResizablePanel>
 
-            <ResizableHandle withHandle className="bg-[var(--nx-border)] hover:bg-[var(--nx-accent)]/30 transition-colors" />
+            <ResizableHandle withHandle className="bg-[var(--nx-border)] hover:bg-[var(--nx-accent)]/30 transition-colors duration-200" />
             <ResizablePanel defaultSize={35} minSize={15}>
               <div className="h-full bg-[var(--nx-bg-primary)] border-t border-[var(--nx-border)]">
                 <CodeEditor filePath={editorFile} fileContent={editorContent} onSave={handleEditorSave} onRun={sendCommandToTerminal} onClose={handleEditorClose} readFile={readFile} />
@@ -485,37 +518,45 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ═══ STATUS BAR ═══ */}
-      <footer className="flex items-center justify-between px-3 h-6 border-t border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/90 text-[10px] text-[var(--nx-text-muted)] shrink-0">
+      {/* ═══ STATUS BAR — Obsidian Aurora ═══ */}
+      <footer className="relative flex items-center justify-between px-3 h-6 bg-[var(--nx-bg-secondary)]/90 text-[10px] text-[var(--nx-text-muted)] shrink-0 nx-border-glow nx-border-glow-top">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5">
-            <SquareTerminal className="h-2.5 w-2.5 text-[var(--nx-accent-teal)]" />
-            <span>bash</span>
+            <SquareTerminal className="h-2.5 w-2.5 text-[var(--nx-accent)]" />
+            <span className="font-medium">bash</span>
           </div>
           <Separator orientation="vertical" className="h-3 bg-[var(--nx-border)]" />
-          <span>/workspace</span>
+          <span className="text-[var(--nx-text-dim)]">/workspace</span>
           <Separator orientation="vertical" className="h-3 bg-[var(--nx-border)]" />
+
+          {/* Environment dots — pulsing */}
           <div className="flex items-center gap-1.5">
-            <span className="nx-env-dot node" />
+            <span className="nx-env-dot node nx-env-dot-pulse" style={{ color: '#34D399' }} />
             <span>Node</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="nx-env-dot python" />
+            <span className="nx-env-dot python nx-env-dot-pulse" style={{ color: '#A5B4FC' }} />
             <span>Py</span>
           </div>
+
+          {/* Session ID — pill */}
           {activeSessionId && (
             <>
               <Separator orientation="vertical" className="h-3 bg-[var(--nx-border)]" />
-              <span className="font-mono text-[var(--nx-text-dim)]">session:{activeSessionId.substring(0, 8)}</span>
+              <span className="nx-session-pill text-[var(--nx-text-dim)]">session:{activeSessionId.substring(0, 8)}</span>
             </>
           )}
           <Separator orientation="vertical" className="h-3 bg-[var(--nx-border)]" />
           <span>{sessions.length} tab{sessions.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="flex items-center gap-3">
+          {/* Latency — more visible */}
           {mounted && connected && latency > 0 && (
-            <span className={latency > 200 ? 'text-[var(--nx-warning)]' : 'text-[var(--nx-success)]'}>{latency}ms</span>
+            <span className={`nx-latency ${latency > 200 ? 'text-[var(--nx-warning)]' : 'text-[var(--nx-success)]'}`}>
+              {latency}ms
+            </span>
           )}
+          {/* Connection indicator */}
           <div className="flex items-center gap-1">
             {mounted && connected ? <Wifi className="h-2.5 w-2.5 text-[var(--nx-success)]" /> : <WifiOff className="h-2.5 w-2.5 text-[var(--nx-error)]" />}
           </div>
@@ -548,36 +589,37 @@ function QuickInstallPanel({ sendCommandToTerminal, connected }: { sendCommandTo
   }
 
   return (
-    <ScrollArea className="h-full min-h-0">
-      <div className="p-3">
-        {/* Toolbar header: explains the toolkit + shows count */}
-        <div className="flex items-center justify-between mb-3 pb-2 border-b border-[var(--nx-border)]">
-          <div className="text-[10px] text-[var(--nx-text-dim)]">
-            <span className="text-[var(--nx-accent-teal)] font-semibold">Toolkit</span>
-            <span className="mx-1.5">·</span>
-            All installs go to <code className="text-[var(--nx-text)] bg-[var(--nx-bg-primary)] px-1 rounded">~/.local/bin</code>
-            <span className="mx-1.5">·</span>
+    <ScrollArea className="h-full min-h-0 nx-scroll-aurora">
+      <div className="p-4">
+        {/* Toolbar header */}
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-[var(--nx-border)]/50">
+          <div className="text-[10px] text-[var(--nx-text-dim)] flex items-center gap-1.5">
+            <Zap className="h-3 w-3 text-[var(--nx-accent)]" />
+            <span className="text-[var(--nx-accent)] font-semibold">Toolkit</span>
+            <span className="mx-1 opacity-30">·</span>
+            All installs go to <code className="text-[var(--nx-text)] bg-[var(--nx-bg-primary)] px-1.5 py-0.5 rounded text-[9px]">~/.local/bin</code>
+            <span className="mx-1 opacity-30">·</span>
             <span className="text-[var(--nx-success)]">no sudo · no apt · no docker</span>
           </div>
-          <div className="text-[10px] text-[var(--nx-text-dim)]">
+          <div className="text-[10px] text-[var(--nx-text-dim)] font-mono">
             {Object.values(QUICK_INSTALL).reduce((acc, items) => acc + items.length, 0)} tools · {Object.keys(QUICK_INSTALL).length} categories
           </div>
         </div>
-        {/* Responsive grid: 4 cols on wide screens, 3 on medium, 2 on small */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+        {/* Responsive grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
           {Object.entries(QUICK_INSTALL).map(([category, items]) => (
             <div key={category} className="space-y-1.5">
-              <h3 className="text-[10px] font-semibold text-[var(--nx-text-muted)] uppercase tracking-wider px-1 pb-1 border-b border-[var(--nx-border)] sticky top-0 bg-[var(--nx-bg-secondary)]">
+              <h3 className="nx-category-header text-[10px] font-semibold text-[var(--nx-accent)]/80 uppercase tracking-widest px-1">
                 {category}
               </h3>
               <div className="space-y-0.5">
                 {items.map((item) => (
-                  <button key={item.name} className="w-full flex items-center justify-between px-2 py-1.5 rounded text-xs hover:bg-[var(--nx-bg-hover)] transition-colors disabled:opacity-50 nx-hover-lift" onClick={() => sendCommandToTerminal(item.cmd)} disabled={!connected} title={item.cmd}>
+                  <button key={item.name} className="nx-toolkit-btn w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs hover:bg-[var(--nx-bg-hover)] disabled:opacity-40" onClick={() => sendCommandToTerminal(item.cmd)} disabled={!connected} title={item.cmd}>
                     <span className="flex items-center gap-2 text-[var(--nx-text)] truncate">
-                      <span className="text-[var(--nx-accent-teal)] shrink-0">{iconMap[item.icon] || <Zap className="h-3 w-3" />}</span>
+                      <span className="text-[var(--nx-accent-teal)] shrink-0 opacity-70">{iconMap[item.icon] || <Zap className="h-3 w-3" />}</span>
                       <span className="truncate">{item.name}</span>
                     </span>
-                    <Zap className="h-3 w-3 text-[var(--nx-accent)] opacity-40 shrink-0" />
+                    <Zap className="h-3 w-3 text-[var(--nx-accent)] opacity-20 shrink-0" />
                   </button>
                 ))}
               </div>
@@ -683,42 +725,47 @@ function SettingsPanel() {
   }
 
   return (
-    <ScrollArea className="h-full min-h-0">
-      <div className="p-4 space-y-5 max-w-xl">
-        <div className="text-[10px] text-[var(--nx-text-dim)] mb-2">
-          <span className="text-[var(--nx-accent-teal)] font-semibold">Settings</span>
-          <span className="mx-1.5">·</span>
+    <ScrollArea className="h-full min-h-0 nx-scroll-aurora">
+      <div className="p-5 space-y-6 max-w-xl">
+        {/* Header */}
+        <div className="text-[10px] text-[var(--nx-text-dim)] flex items-center gap-1.5">
+          <Settings className="h-3 w-3 text-[var(--nx-accent)]" />
+          <span className="text-[var(--nx-accent)] font-semibold">Settings</span>
+          <span className="mx-1 opacity-30">·</span>
           Configure your own API keys — other users cannot access your keys
         </div>
 
         {/* Message */}
         {message && (
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-md text-xs border ${
+          <div className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs border backdrop-blur-sm transition-all duration-200 ${
             message.type === 'success'
-              ? 'bg-[var(--nx-success)]/10 border-[var(--nx-success)]/30 text-[var(--nx-success)]'
-              : 'bg-[var(--nx-error)]/10 border-[var(--nx-error)]/30 text-[var(--nx-error)]'
+              ? 'bg-[var(--nx-success)]/8 border-[var(--nx-success)]/20 text-[var(--nx-success)]'
+              : 'bg-[var(--nx-error)]/8 border-[var(--nx-error)]/20 text-[var(--nx-error)]'
           }`}>
             {message.type === 'success' ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <AlertCircle className="h-3.5 w-3.5 shrink-0" />}
             <span>{message.text}</span>
-            <button className="ml-auto opacity-60 hover:opacity-100" onClick={() => setMessage(null)}>
+            <button className="ml-auto opacity-50 hover:opacity-100 transition-opacity" onClick={() => setMessage(null)}>
               <X className="h-3 w-3" />
             </button>
           </div>
         )}
 
         {/* Preferred Provider */}
-        <div className="space-y-2">
-          <h3 className="text-xs font-semibold text-[var(--nx-text)]">Preferred Provider</h3>
-          <p className="text-[10px] text-[var(--nx-text-dim)]">Which AI provider should Claude Code use? Each user brings their own API key.</p>
-          <div className="flex gap-2">
+        <div className="space-y-2.5">
+          <h3 className="text-xs font-semibold text-[var(--nx-text)] flex items-center gap-2">
+            <span className="w-1 h-3 rounded-full bg-gradient-to-b from-[var(--nx-accent)] to-[var(--nx-accent-teal)]" />
+            Preferred Provider
+          </h3>
+          <p className="text-[10px] text-[var(--nx-text-dim)] pl-3">Which AI provider should Claude Code use? Each user brings their own API key.</p>
+          <div className="flex gap-2 pl-3">
             {(['nvidia', 'openrouter', 'none'] as const).map(p => (
               <button
                 key={p}
                 onClick={() => handleSetProvider(p)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all border ${
+                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border ${
                   preferredProvider === p
-                    ? 'bg-[var(--nx-accent-teal)]/20 border-[var(--nx-accent-teal)]/40 text-[var(--nx-accent-teal)]'
-                    : 'bg-[var(--nx-bg-primary)] border-[var(--nx-border)] text-[var(--nx-text-muted)] hover:border-[var(--nx-accent-teal)]/30 hover:text-[var(--nx-text)]'
+                    ? 'bg-gradient-to-r from-[var(--nx-accent)]/15 to-[var(--nx-accent-teal)]/10 border-[var(--nx-accent)]/30 text-[var(--nx-accent)] shadow-[0_0_10px_var(--nx-accent-glow)]'
+                    : 'bg-[var(--nx-bg-primary)]/60 border-[var(--nx-border)] text-[var(--nx-text-muted)] hover:border-[var(--nx-accent)]/20 hover:text-[var(--nx-text)] hover:bg-[var(--nx-bg-hover)]'
                 }`}
               >
                 {p === 'nvidia' ? 'NVIDIA NIM' : p === 'openrouter' ? 'OpenRouter' : 'None'}
@@ -728,32 +775,36 @@ function SettingsPanel() {
         </div>
 
         {/* NVIDIA NIM API Key */}
-        <div className="space-y-2 p-3 rounded-md border border-[var(--nx-border)] bg-[var(--nx-bg-primary)]/40">
+        <div className="nx-settings-card space-y-2.5 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Cpu className="h-4 w-4 text-[var(--nx-accent-teal)]" />
-              <span className="text-xs font-semibold text-[var(--nx-text)]">NVIDIA NIM API Key</span>
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-center w-7 h-7 rounded-md bg-[var(--nx-accent)]/10">
+                <Cpu className="h-4 w-4 text-[var(--nx-accent-teal)]" />
+              </div>
+              <div>
+                <span className="text-xs font-semibold text-[var(--nx-text)]">NVIDIA NIM API Key</span>
+                {nvidiaKeySet && (
+                  <Badge variant="secondary" className="ml-2 h-4 px-1.5 text-[8px] bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20">
+                    SET
+                  </Badge>
+                )}
+              </div>
             </div>
-            {nvidiaKeySet && (
-              <Badge variant="secondary" className="h-4 px-1.5 text-[8px] bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20">
-                SET
-              </Badge>
-            )}
           </div>
           <p className="text-[10px] text-[var(--nx-text-dim)]">
-            Get your key from <span className="text-[var(--nx-accent-teal)]">build.nvidia.com</span>. Required for Claude Code via the free-claude-code proxy. Your key is private — only your terminals can use it.
+            Get your key from <span className="text-[var(--nx-accent)]">build.nvidia.com</span>. Required for Claude Code via the free-claude-code proxy. Your key is private — only your terminals can use it.
           </p>
-          <div className="flex gap-1.5">
+          <div className="flex gap-2">
             <div className="flex-1 relative">
               <Input
                 type={showNvidiaKey ? 'text' : 'password'}
                 value={nvidiaKey}
                 onChange={(e) => setNvidiaKey(e.target.value)}
                 placeholder={nvidiaKeySet ? 'Key is set — enter new key to replace' : 'nvapi-...'}
-                className="h-7 text-xs pr-8 bg-[var(--nx-bg-primary)] border-[var(--nx-border)] text-[var(--nx-text)] focus:border-[var(--nx-accent-teal)] placeholder-[var(--nx-text-dim)]"
+                className="h-7 text-xs pr-8 bg-[var(--nx-bg-primary)] border-[var(--nx-border)] text-[var(--nx-text)] focus:border-[var(--nx-accent)] focus:shadow-[0_0_8px_var(--nx-accent-glow)] placeholder-[var(--nx-text-dim)] transition-all duration-200"
               />
               <button
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] hover:text-[var(--nx-text)]"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] hover:text-[var(--nx-text)] transition-colors"
                 onClick={() => setShowNvidiaKey(!showNvidiaKey)}
               >
                 {showNvidiaKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
@@ -761,7 +812,7 @@ function SettingsPanel() {
             </div>
             <Button
               size="sm"
-              className="h-7 text-xs bg-[var(--nx-accent-teal)]/20 hover:bg-[var(--nx-accent-teal)]/30 text-[var(--nx-accent-teal)] border border-[var(--nx-accent-teal)]/30"
+              className="h-7 text-xs bg-gradient-to-r from-[var(--nx-accent)]/15 to-[var(--nx-accent-teal)]/10 hover:from-[var(--nx-accent)]/25 hover:to-[var(--nx-accent-teal)]/20 text-[var(--nx-accent)] border border-[var(--nx-accent)]/25 transition-all duration-200"
               onClick={() => handleSaveKey('nvidia', nvidiaKey)}
               disabled={saving || !nvidiaKey}
             >
@@ -771,7 +822,7 @@ function SettingsPanel() {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 text-xs text-[var(--nx-error)] hover:bg-[var(--nx-error)]/10"
+                className="h-7 text-xs text-[var(--nx-error)] hover:bg-[var(--nx-error)]/8 transition-all duration-200"
                 onClick={() => handleDeleteKey('nvidia')}
                 disabled={saving}
               >
@@ -782,32 +833,36 @@ function SettingsPanel() {
         </div>
 
         {/* OpenRouter API Key */}
-        <div className="space-y-2 p-3 rounded-md border border-[var(--nx-border)] bg-[var(--nx-bg-primary)]/40">
+        <div className="nx-settings-card space-y-2.5 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Globe className="h-4 w-4 text-[var(--nx-warning)]" />
-              <span className="text-xs font-semibold text-[var(--nx-text)]">OpenRouter API Key</span>
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-center w-7 h-7 rounded-md bg-[var(--nx-warning)]/10">
+                <Globe className="h-4 w-4 text-[var(--nx-warning)]" />
+              </div>
+              <div>
+                <span className="text-xs font-semibold text-[var(--nx-text)]">OpenRouter API Key</span>
+                {openrouterKeySet && (
+                  <Badge variant="secondary" className="ml-2 h-4 px-1.5 text-[8px] bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20">
+                    SET
+                  </Badge>
+                )}
+              </div>
             </div>
-            {openrouterKeySet && (
-              <Badge variant="secondary" className="h-4 px-1.5 text-[8px] bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20">
-                SET
-              </Badge>
-            )}
           </div>
           <p className="text-[10px] text-[var(--nx-text-dim)]">
-            Get your key from <span className="text-[var(--nx-accent-teal)]">openrouter.ai</span>. Alternative provider for Claude Code and other LLMs. Supports many models.
+            Get your key from <span className="text-[var(--nx-accent)]">openrouter.ai</span>. Alternative provider for Claude Code and other LLMs. Supports many models.
           </p>
-          <div className="flex gap-1.5">
+          <div className="flex gap-2">
             <div className="flex-1 relative">
               <Input
                 type={showOpenrouterKey ? 'text' : 'password'}
                 value={openrouterKey}
                 onChange={(e) => setOpenrouterKey(e.target.value)}
                 placeholder={openrouterKeySet ? 'Key is set — enter new key to replace' : 'sk-or-...'}
-                className="h-7 text-xs pr-8 bg-[var(--nx-bg-primary)] border-[var(--nx-border)] text-[var(--nx-text)] focus:border-[var(--nx-accent-teal)] placeholder-[var(--nx-text-dim)]"
+                className="h-7 text-xs pr-8 bg-[var(--nx-bg-primary)] border-[var(--nx-border)] text-[var(--nx-text)] focus:border-[var(--nx-accent)] focus:shadow-[0_0_8px_var(--nx-accent-glow)] placeholder-[var(--nx-text-dim)] transition-all duration-200"
               />
               <button
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] hover:text-[var(--nx-text)]"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--nx-text-dim)] hover:text-[var(--nx-text)] transition-colors"
                 onClick={() => setShowOpenrouterKey(!showOpenrouterKey)}
               >
                 {showOpenrouterKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
@@ -815,7 +870,7 @@ function SettingsPanel() {
             </div>
             <Button
               size="sm"
-              className="h-7 text-xs bg-[var(--nx-accent-teal)]/20 hover:bg-[var(--nx-accent-teal)]/30 text-[var(--nx-accent-teal)] border border-[var(--nx-accent-teal)]/30"
+              className="h-7 text-xs bg-gradient-to-r from-[var(--nx-accent)]/15 to-[var(--nx-accent-teal)]/10 hover:from-[var(--nx-accent)]/25 hover:to-[var(--nx-accent-teal)]/20 text-[var(--nx-accent)] border border-[var(--nx-accent)]/25 transition-all duration-200"
               onClick={() => handleSaveKey('openrouter', openrouterKey)}
               disabled={saving || !openrouterKey}
             >
@@ -825,7 +880,7 @@ function SettingsPanel() {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 text-xs text-[var(--nx-error)] hover:bg-[var(--nx-error)]/10"
+                className="h-7 text-xs text-[var(--nx-error)] hover:bg-[var(--nx-error)]/8 transition-all duration-200"
                 onClick={() => handleDeleteKey('openrouter')}
                 disabled={saving}
               >
@@ -836,8 +891,11 @@ function SettingsPanel() {
         </div>
 
         {/* Info box */}
-        <div className="p-3 rounded-md border border-[var(--nx-accent-teal)]/20 bg-[var(--nx-accent-teal)]/5 text-[10px] text-[var(--nx-text-dim)] space-y-1">
-          <div className="font-semibold text-[var(--nx-accent-teal)]">How it works</div>
+        <div className="p-4 rounded-lg border border-[var(--nx-accent)]/15 bg-[var(--nx-accent)]/5 backdrop-blur-sm text-[10px] text-[var(--nx-text-dim)] space-y-2">
+          <div className="font-semibold text-[var(--nx-accent)] text-xs flex items-center gap-1.5">
+            <Shield className="h-3 w-3" />
+            How it works
+          </div>
           <ul className="list-disc pl-4 space-y-0.5">
             <li>Your API keys are stored securely and only used in YOUR terminal sessions</li>
             <li>Other users cannot see or use your keys</li>

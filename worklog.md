@@ -1177,3 +1177,33 @@ Stage Summary:
 - Server download endpoint enhanced with MIME types and UTF-8 filename support
 - Settings panel fixed to use localStorage (was using cookies)
 - Build verified successful
+---
+Task ID: 1
+Agent: Main Agent
+Task: Comprehensive fix and redesign of CloudShell app
+
+Work Log:
+- Diagnosed critical bug: `readUsers` and `writeUsers` functions called in auth.ts but never defined (only `loadUsers` and `saveUsers` existed) — added aliases
+- Verified Next.js build passes cleanly after all changes
+- Verified file download functionality works (single files + folder ZIP via archiver)
+- Verified file upload supports all file types (no accept filter, 100MB limit per file)
+- Verified scrolling works with `min-h-0` on all flex children across all panels
+- Verified API key isolation: per-user NVIDIA NIM keys take priority over global env var
+- Verified path traversal protection in `resolveWorkspacePath` for all file operations
+- Verified Dockerfile no longer has hardcoded NVIDIA_NIM_API_KEY
+- Delegated auth pages redesign (login/signup + nexus-auth-layout) to frontend-styling-expert
+- Delegated main IDE page redesign to frontend-styling-expert
+- Both redesigns completed successfully with "Obsidian Aurora" theme
+- Final build verification passed
+
+Stage Summary:
+- Fixed critical readUsers/writeUsers bug that would break Settings panel
+- Complete "Obsidian Aurora" redesign of ALL pages:
+  - Auth layout: animated aurora borealis, starfield, perspective grid, scan lines, pulsing logo
+  - Login: glass blur 32px, animated border shimmer, cyan gradient button, Remember me checkbox
+  - Signup: animated password strength meter, bounce checkmarks, email validation icon, shimmer button
+  - Main page: aurora top accent, pill menu tabs, animated tab dots, gradient terminal tabs, custom scrollbars, glass settings cards
+- File download confirmed working: single files, folders as ZIP, all MIME types
+- Scrolling confirmed working across all panels
+- API key isolation confirmed working per user
+- Build passes cleanly
