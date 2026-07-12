@@ -578,11 +578,20 @@ setup-fcc-proxy() {
         export PATH="$HOME/.local/bin:/root/.local/bin:$PATH"
         uv python install 3.14 2>&1 | tail -2
         uv tool install --force "free-claude-code @ git+https://github.com/Alishahryar1/free-claude-code.git" 2>&1 | tail -5
-        # Symlink to system path
+        # Symlink to system path (fcc-claude gets a PORT-unset wrapper)
         ln -sf /home/cloudshell/.local/bin/fcc-server /usr/local/bin/fcc-server 2>/dev/null || true
-        ln -sf /home/cloudshell/.local/bin/fcc-claude /usr/local/bin/fcc-claude 2>/dev/null || true
         ln -sf /home/cloudshell/.local/bin/free-claude-code /usr/local/bin/free-claude-code 2>/dev/null || true
-        echo "  fcc-server installed!"
+        # Install fcc-claude wrapper that unsets PORT (fixes HF Spaces PORT=7860 collision)
+        ln -sf /home/cloudshell/.local/bin/fcc-claude /usr/local/bin/fcc-claude-real 2>/dev/null || true
+        cat > /usr/local/bin/fcc-claude << 'WRAPPEREOF'
+#!/bin/bash
+# fcc-claude wrapper: unsets PORT so pydantic-settings reads 8082 from ~/.fcc/.env
+# instead of picking up PORT=7860 from the HF Spaces runtime environment.
+unset PORT
+exec /usr/local/bin/fcc-claude-real "$@"
+WRAPPEREOF
+        chmod +x /usr/local/bin/fcc-claude
+        echo "  fcc-server installed (with PORT-unset wrapper for fcc-claude)!"
     fi
     echo ""
     echo "  Creating .env with your NVIDIA key..."
@@ -610,8 +619,8 @@ fcc-start() {
     _fcc_update_env MODEL "nvidia_nim/${ANTHROPIC_MODEL:-nvidia/nemotron-3-super-120b-a12b}"
     _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
 
-    # Start in background (PORT=8082 is already the global default)
-    nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+    # Start in background — explicitly set PORT=8082 to override HF Spaces' PORT=7860
+    PORT=8082 nohup fcc-server > /tmp/fcc-server.log 2>&1 &
     local PID=$!
     echo "  Started with PID $PID"
 
@@ -1034,6 +1043,11 @@ export ANTHROPIC_AUTH_TOKEN="fcc-no-auth"
 export CLAUDE_CODE_USE_AUTH_TOKEN="true"
 export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="1"
 export CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000"
+# IMPORTANT: fcc-claude needs PORT=8082 to find the proxy.
+# HF Spaces sets PORT=7860 at runtime, which overrides ~/.fcc/.env.
+# We save the real proxy port in FCC_PORT and unset PORT so
+# pydantic-settings falls back to the .env file value (8082).
+export FCC_PORT="8082"
 BASHEOF
     chown cloudshell:cloudshell /home/cloudshell/.bashrc_env 2>/dev/null || true
 fi
@@ -1091,9 +1105,36 @@ if ! command -v fcc-server &>/dev/null; then
     echo "[Entrypoint] fcc-server installation complete."
 fi
 
+# ─── CRITICAL: Fix PORT collision for fcc-claude ──────────────────
+# Hugging Face Spaces runtime sets PORT=7860 at container start,
+# overriding our Dockerfile's PORT=8082. The free-claude-code
+# Settings class (pydantic-settings) reads PORT from the process
+# environment with HIGHER priority than ~/.fcc/.env, so fcc-claude
+# tries to connect to port 7860 (Next.js) instead of 8082 (proxy).
+#
+# Fix: Create a wrapper script that unsets PORT before calling the
+# real fcc-claude, forcing pydantic-settings to read PORT=8082
+# from ~/.fcc/.env instead.
+if [ -f /usr/local/bin/fcc-claude ] && [ ! -f /usr/local/bin/fcc-claude-real ]; then
+    mv /usr/local/bin/fcc-claude /usr/local/bin/fcc-claude-real 2>/dev/null || true
+    cat > /usr/local/bin/fcc-claude << 'WRAPPEREOF'
+#!/bin/bash
+# fcc-claude wrapper: unsets PORT so pydantic-settings reads 8082 from ~/.fcc/.env
+# instead of picking up PORT=7860 from the HF Spaces runtime environment.
+unset PORT
+exec /usr/local/bin/fcc-claude-real "$@"
+WRAPPEREOF
+    chmod +x /usr/local/bin/fcc-claude
+    echo "[Entrypoint] fcc-claude wrapper installed (unsets PORT to fix 7860→8082)"
+fi
+
 # Start fcc-server in background as cloudshell user
+# IMPORTANT: Explicitly set PORT=8082 because HF Spaces sets PORT=7860
+# in the runtime environment, and pydantic-settings reads env vars with
+# higher priority than ~/.fcc/.env. Without this, fcc-server would bind
+# to 7860 (clashing with Next.js) instead of 8082.
 if command -v fcc-server &>/dev/null; then
-    gosu cloudshell bash -c 'nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+    gosu cloudshell bash -c 'PORT=8082 nohup fcc-server > /tmp/fcc-server.log 2>&1 &
         echo "fcc-server PID: $!"' 2>/dev/null || true
     # Give it a few seconds to start
     sleep 3

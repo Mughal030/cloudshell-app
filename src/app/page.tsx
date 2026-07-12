@@ -372,7 +372,7 @@ export default function Home() {
       {activeMenu && (
         <div
           className="border-b border-[var(--nx-border)] bg-[var(--nx-bg-secondary)]/80 backdrop-blur-md shrink-0 nx-panel-enter"
-          style={{ height: activeMenu === 'quick' ? 420 : 280 }}
+          style={{ height: 450 }}
         >
           <div className="h-full flex flex-col overflow-hidden">
             <div className="flex items-center justify-between px-3 h-7 border-b border-[var(--nx-border)] shrink-0">
