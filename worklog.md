@@ -1231,3 +1231,21 @@ Stage Summary:
 - 7 files changed, 1561 insertions, 504 deletions
 - All changes pushed to both remotes
 - App compiles and builds successfully
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix terminal not starting after login + file manager action buttons always visible
+
+Work Log:
+- Diagnosed terminal not starting: auto-create used stale closures over `connected` and `sessions.length`
+- Implemented robust auto-terminal creation with refs pattern and exponential backoff retry (5 attempts)
+- Updated empty terminal splash to show "Starting Terminal..." with creating state
+- Fixed file manager: removed opacity-0/group-hover pattern from action buttons
+- Made Download (file/folder), Edit/Rename, Delete buttons ALWAYS visible for every item
+- Folders get FolderArchive icon for ZIP download, files get Download icon
+- Pushed changes to both GitHub and Hugging Face
+
+Stage Summary:
+- Terminal auto-start now works with retry logic (1s, 2s, 4s, 8s, 16s backoff)
+- File manager action buttons are consistently visible for all files and folders
+- Changes pushed to: GitHub (origin/main) and HuggingFace (hf/main)
