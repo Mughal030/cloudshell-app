@@ -34,7 +34,7 @@ const cinzelDecorative = Cinzel_Decorative({
 });
 
 export const metadata: Metadata = {
-  title: "Jasbol Hack — Forged Terminal IDE",
+  title: "Jasbol Hack — Cyberpunk Terminal IDE",
   description:
     "Professional web-based terminal IDE with intelligent command highlighting, file management, Docker support, and tool installation by Jasbol Hack.",
   keywords: [
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     "terminal",
     "IDE",
     "web terminal",
-    "Warland",
+    "Cyberpunk",
     "Docker",
     "development",
   ],
@@ -71,8 +71,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#07040A" },
-    { media: "(prefers-color-scheme: light)", color: "#07040A" },
+    { media: "(prefers-color-scheme: dark)", color: "#0A0E17" },
+    { media: "(prefers-color-scheme: light)", color: "#0A0E17" },
   ],
   colorScheme: "dark light",
 };

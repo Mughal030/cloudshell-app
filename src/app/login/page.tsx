@@ -4,7 +4,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Eye, EyeOff, Lock, User, ArrowRight, Fingerprint, ShieldAlert,
-  Flame, Activity,
+  Terminal, Activity,
 } from 'lucide-react'
 import { WarlandAuthLayout } from '@/components/auth/warland-auth-layout'
 
@@ -56,25 +56,25 @@ export default function LoginPage() {
     <WarlandAuthLayout>
       {/* ── Form Card ── */}
       <div className="wl-card rounded-2xl overflow-hidden">
-        {/* Ornate corner brackets */}
+        {/* Corner brackets */}
         <span className="wl-corner wl-corner-tl" />
         <span className="wl-corner wl-corner-tr" />
         <span className="wl-corner wl-corner-bl" />
         <span className="wl-corner wl-corner-br" />
 
-        {/* Top gold-foil bar with flame icon */}
+        {/* Top accent bar with terminal icon */}
         <div
-          className="h-1.5 relative"
+          className="h-1 relative"
           style={{
             background:
-              'linear-gradient(90deg, #B8841C 0%, #F5B342 20%, #FFD27A 50%, #F5B342 80%, #B8841C 100%)',
-            boxShadow: '0 0 16px rgba(245, 179, 66, 0.4)',
+              'linear-gradient(90deg, #0891B2 0%, #06B6D4 20%, #22D3EE 50%, #06B6D4 80%, #0891B2 100%)',
+            boxShadow: '0 0 16px rgba(6, 182, 212, 0.3)',
           }}
         >
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <Flame
-              className="h-3.5 w-3.5"
-              style={{ color: '#FF6B1A', filter: 'drop-shadow(0 0 4px rgba(255,107,26,0.8))' }}
+            <Terminal
+              className="h-3 w-3"
+              style={{ color: '#22D3EE', filter: 'drop-shadow(0 0 4px rgba(6, 182, 212, 0.8))' }}
             />
           </div>
         </div>
@@ -83,29 +83,29 @@ export default function LoginPage() {
         <div className="px-8 pt-7 pb-4 text-center relative">
           <h2
             className="wl-font-display text-2xl font-bold mb-1.5"
-            style={{ color: '#F5E6D3' }}
+            style={{ color: '#E2E8F0' }}
           >
-            <span className="wl-text-gold">Enter</span>{' '}
-            the Stronghold
+            <span className="wl-text-gold">Access</span>{' '}
+            Terminal
           </h2>
-          <p className="text-sm" style={{ color: '#8A7860' }}>
-            Sign in to your forged terminal
+          <p className="text-sm" style={{ color: '#64748B' }}>
+            Sign in to your secure workspace
           </p>
 
-          {/* Sealed-connection badge */}
+          {/* Encrypted connection badge */}
           <div
             className="inline-flex items-center gap-1.5 mt-3 px-3 py-1 rounded-full"
             style={{
-              background: 'rgba(245, 179, 66, 0.08)',
-              border: '1px solid rgba(245, 179, 66, 0.3)',
+              background: 'rgba(6, 182, 212, 0.08)',
+              border: '1px solid rgba(6, 182, 212, 0.2)',
             }}
           >
-            <Lock className="w-3 h-3" style={{ color: '#F5B342' }} />
+            <Lock className="w-3 h-3" style={{ color: '#06B6D4' }} />
             <span
-              className="text-[10px] font-semibold tracking-[0.18em] uppercase wl-font-serif"
-              style={{ color: '#F5B342' }}
+              className="text-[10px] font-semibold tracking-[0.15em] uppercase wl-font-serif"
+              style={{ color: '#06B6D4' }}
             >
-              Sealed Connection
+              Encrypted Connection
             </span>
           </div>
         </div>
@@ -116,12 +116,12 @@ export default function LoginPage() {
             <div
               className="mb-4 p-3 rounded-lg text-sm flex items-start gap-2"
               style={{
-                background: 'rgba(220, 38, 38, 0.10)',
-                border: '1px solid rgba(220, 38, 38, 0.35)',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
                 color: '#FCA5A5',
               }}
             >
-              <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#DC2626' }} />
+              <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#EF4444' }} />
               <div className="flex-1">
                 <div>{error}</div>
                 {attemptsRemaining !== null && attemptsRemaining > 0 && (
@@ -142,15 +142,15 @@ export default function LoginPage() {
           {/* Username field */}
           <div className="mb-4">
             <label
-              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.2em] wl-font-serif"
-              style={{ color: '#C9B89A' }}
+              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.15em] wl-font-serif"
+              style={{ color: '#94A3B8' }}
             >
-              Hero Name
+              Username
             </label>
             <div className="relative group">
               <div
                 className="absolute left-3 top-1/2 -translate-y-1/2 transition-colors"
-                style={{ color: '#5C4E3D' }}
+                style={{ color: '#475569' }}
               >
                 <User className="w-4 h-4" />
               </div>
@@ -172,15 +172,15 @@ export default function LoginPage() {
           {/* Password field */}
           <div className="mb-6">
             <label
-              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.2em] wl-font-serif"
-              style={{ color: '#C9B89A' }}
+              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.15em] wl-font-serif"
+              style={{ color: '#94A3B8' }}
             >
-              Secret Sigil
+              Password
             </label>
             <div className="relative group">
               <div
                 className="absolute left-3 top-1/2 -translate-y-1/2 transition-colors"
-                style={{ color: '#5C4E3D' }}
+                style={{ color: '#475569' }}
               >
                 <Lock className="w-4 h-4" />
               </div>
@@ -198,9 +198,9 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
-                style={{ color: '#5C4E3D' }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#F5B342')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = '#5C4E3D')}
+                style={{ color: '#475569' }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = '#06B6D4')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = '#475569')}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -208,7 +208,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Login button — gold foil */}
+          {/* Login button */}
           <button
             ref={submitRef}
             type="submit"
@@ -220,38 +220,38 @@ export default function LoginPage() {
                 <>
                   <div
                     className="w-4 h-4 border-2 rounded-full animate-spin"
-                    style={{ borderColor: 'rgba(26,15,8,0.3)', borderTopColor: '#1A0F08' }}
+                    style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#FFFFFF' }}
                   />
-                  Forging session…
+                  Authenticating…
                 </>
               ) : (
                 <>
                   <Fingerprint className="w-4 h-4" />
-                  Enter the Forge
+                  Access Terminal
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </>
               )}
             </span>
           </button>
 
-          {/* Ornate divider */}
+          {/* Divider */}
           <div className="wl-divider my-6">
             <span className="wl-divider-gem" />
           </div>
 
           {/* Signup link */}
           <div className="text-center">
-            <span className="text-sm" style={{ color: '#8A7860' }}>
-              No stronghold yet?{' '}
+            <span className="text-sm" style={{ color: '#64748B' }}>
+              No account yet?{' '}
             </span>
             <button
               type="button"
               onClick={() => router.push('/signup')}
               className="text-sm font-semibold hover:underline inline-flex items-center gap-1.5 wl-font-serif tracking-wide"
-              style={{ color: '#F5B342' }}
+              style={{ color: '#06B6D4' }}
             >
               <Activity className="w-3 h-3" />
-              Forge an Account
+              Create Account
             </button>
           </div>
         </form>
@@ -259,10 +259,10 @@ export default function LoginPage() {
 
       {/* Footer note */}
       <p
-        className="text-center text-[10px] mt-4 wl-font-serif italic"
-        style={{ color: '#5C4E3D' }}
+        className="text-center text-[10px] mt-4 wl-font-serif"
+        style={{ color: '#475569' }}
       >
-        &ldquo;A guarded key opens an unbroken gate.&rdquo;
+        A secure key unlocks an unbreakable terminal.
       </p>
     </WarlandAuthLayout>
   )

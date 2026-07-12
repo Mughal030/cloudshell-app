@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils'
 /* ──────────────────────────────────────────────────────────────────
    Warland Terminal — Animated demo component (Jasbol Hack branded)
    ──────────────────────────────────────────────────────────────────
-   A fantasy MMORPG-styled terminal window: deep obsidian body, gold
-   traffic-light dots, ember-glow shadow, Cinzel-accented title bar.
+   A cyberpunk-styled terminal window: deep dark body, cyan
+   traffic-light dots, electric-glow shadow, clean sans-serif title.
    Renders a fake terminal window with a typing cursor and AnimatedSpan
    lines that progressively fade in. Used on the login / signup pages.
    ────────────────────────────────────────────────────────────────── */
@@ -26,50 +26,50 @@ export function WarlandTerminal({
         className
       )}
       style={{
-        background: 'linear-gradient(180deg, #1A1112 0%, #0E0809 100%)',
-        border: '1px solid #3A2624',
+        background: 'linear-gradient(180deg, #141C2E 0%, #0C1220 100%)',
+        border: '1px solid rgba(6, 182, 212, 0.15)',
         boxShadow:
-          '0 0 0 1px rgba(245, 179, 66, 0.10), 0 0 40px rgba(255, 107, 26, 0.10), 0 0 80px rgba(220, 38, 38, 0.06), 0 25px 60px rgba(0, 0, 0, 0.7)',
+          '0 0 0 1px rgba(6, 182, 212, 0.08), 0 0 40px rgba(6, 182, 212, 0.06), 0 0 80px rgba(59, 130, 246, 0.04), 0 25px 60px rgba(0, 0, 0, 0.6)',
       }}
     >
-      {/* Title bar — obsidian with gold accents */}
+      {/* Title bar — dark with cyan accents */}
       <div
         className="flex items-center gap-2 px-4 py-2.5 border-b"
         style={{
-          background: 'linear-gradient(180deg, #25181A 0%, #1A1112 100%)',
-          borderColor: '#3A2624',
+          background: 'linear-gradient(180deg, #1A2540 0%, #141C2E 100%)',
+          borderColor: 'rgba(6, 182, 212, 0.12)',
         }}
       >
         <div className="flex gap-1.5">
           <span
             className="h-3 w-3 rounded-full"
-            style={{ background: '#DC2626', boxShadow: '0 0 6px rgba(220, 38, 38, 0.7)' }}
+            style={{ background: '#EF4444', boxShadow: '0 0 6px rgba(239, 68, 68, 0.6)' }}
           />
           <span
             className="h-3 w-3 rounded-full"
-            style={{ background: '#F5B342', boxShadow: '0 0 6px rgba(245, 179, 66, 0.7)' }}
+            style={{ background: '#06B6D4', boxShadow: '0 0 6px rgba(6, 182, 212, 0.6)' }}
           />
           <span
             className="h-3 w-3 rounded-full"
-            style={{ background: '#84CC16', boxShadow: '0 0 6px rgba(132, 204, 22, 0.6)' }}
+            style={{ background: '#10B981', boxShadow: '0 0 6px rgba(16, 185, 129, 0.5)' }}
           />
         </div>
         <div
           className="ml-2 flex items-center gap-1.5 text-[10px] font-mono"
-          style={{ color: '#C9B89A' }}
+          style={{ color: '#94A3B8' }}
         >
           <span
             className="inline-block h-1.5 w-1.5 rounded-full animate-pulse"
-            style={{ background: '#F5B342', boxShadow: '0 0 6px rgba(245, 179, 66, 0.7)' }}
+            style={{ background: '#06B6D4', boxShadow: '0 0 6px rgba(6, 182, 212, 0.7)' }}
           />
           jasbol@hack — zsh
         </div>
         <div
-          className="ml-auto flex items-center gap-1.5 text-[9px] uppercase tracking-[0.2em] font-semibold"
-          style={{ color: '#8A7860', fontFamily: 'var(--font-cinzel), serif' }}
+          className="ml-auto flex items-center gap-1.5 text-[9px] uppercase tracking-[0.15em] font-semibold"
+          style={{ color: '#64748B', fontFamily: 'var(--font-inter), system-ui, sans-serif' }}
         >
-          <span style={{ color: '#F5B342' }}>◆</span>
-          <span>Warland Forge</span>
+          <span style={{ color: '#06B6D4' }}>▸</span>
+          <span>Cyberpunk Terminal</span>
         </div>
       </div>
 
@@ -78,7 +78,7 @@ export function WarlandTerminal({
         className="p-5 font-mono text-[13px] leading-relaxed overflow-x-auto wl-scroll"
         style={{
           fontFamily: 'var(--font-jetbrains), ui-monospace, monospace',
-          color: '#C9B89A',
+          color: '#94A3B8',
         }}
       >
         {children}
@@ -139,7 +139,7 @@ export function TypingAnimation({
       {displayed.length < String(children).length && (
         <span
           className="ml-0.5 inline-block h-3.5 w-1.5 -mb-0.5 animate-pulse"
-          style={{ background: '#F5B342' }}
+          style={{ background: '#06B6D4' }}
         />
       )}
     </span>

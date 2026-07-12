@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Eye, EyeOff, Lock, Shield, User, ArrowRight, Mail, Sparkles,
-  Check, X, ShieldCheck, Flame,
+  Check, X, ShieldCheck, Terminal,
 } from 'lucide-react'
 import { WarlandAuthLayout } from '@/components/auth/warland-auth-layout'
 
@@ -38,8 +38,8 @@ export default function SignupPage() {
     [password]
   )
   const strength = ruleStates.filter(Boolean).length
-  const strengthColors = ['#DC2626', '#FF6B1A', '#F5B342', '#FFD27A', '#84CC16', '#FFD27A']
-  const strengthLabels = ['Too Short', 'Very Weak', 'Weak', 'Fair', 'Strong', 'Legendary']
+  const strengthColors = ['#EF4444', '#F97316', '#EAB308', '#06B6D4', '#10B981', '#10B981']
+  const strengthLabels = ['Too Short', 'Very Weak', 'Weak', 'Fair', 'Strong', 'Excellent']
   const strengthIndex = password.length === 0 ? 0 : Math.max(1, strength)
   const isPasswordValid = strength === PASSWORD_RULES.length
 
@@ -68,7 +68,7 @@ export default function SignupPage() {
       const data = await res.json()
 
       if (data.success) {
-        setSuccess('Stronghold forged! Redirecting to login…')
+        setSuccess('Account created! Redirecting to login…')
         setTimeout(() => router.push('/login'), 1800)
       } else {
         setError(data.error || 'Signup failed')
@@ -84,25 +84,25 @@ export default function SignupPage() {
     <WarlandAuthLayout>
       {/* ── Form Card ── */}
       <div className="wl-card rounded-2xl overflow-hidden">
-        {/* Ornate corner brackets */}
+        {/* Corner brackets */}
         <span className="wl-corner wl-corner-tl" />
         <span className="wl-corner wl-corner-tr" />
         <span className="wl-corner wl-corner-bl" />
         <span className="wl-corner wl-corner-br" />
 
-        {/* Top gold-foil bar */}
+        {/* Top accent bar */}
         <div
-          className="h-1.5 relative"
+          className="h-1 relative"
           style={{
             background:
-              'linear-gradient(90deg, #B8841C 0%, #F5B342 20%, #FFD27A 50%, #F5B342 80%, #B8841C 100%)',
-            boxShadow: '0 0 16px rgba(245, 179, 66, 0.4)',
+              'linear-gradient(90deg, #0891B2 0%, #06B6D4 20%, #22D3EE 50%, #06B6D4 80%, #0891B2 100%)',
+            boxShadow: '0 0 16px rgba(6, 182, 212, 0.3)',
           }}
         >
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <Flame
-              className="h-3.5 w-3.5"
-              style={{ color: '#FF6B1A', filter: 'drop-shadow(0 0 4px rgba(255,107,26,0.8))' }}
+            <Terminal
+              className="h-3 w-3"
+              style={{ color: '#22D3EE', filter: 'drop-shadow(0 0 4px rgba(6, 182, 212, 0.8))' }}
             />
           </div>
         </div>
@@ -111,27 +111,27 @@ export default function SignupPage() {
         <div className="px-7 pt-6 pb-4 text-center">
           <h2
             className="wl-font-display text-2xl font-bold mb-1.5"
-            style={{ color: '#F5E6D3' }}
+            style={{ color: '#E2E8F0' }}
           >
-            <span className="wl-text-gold">Forge</span>{' '}
-            a New Stronghold
+            <span className="wl-text-gold">Create</span>{' '}
+            Account
           </h2>
-          <p className="text-sm" style={{ color: '#8A7860' }}>
-            Begin your coded conquest
+          <p className="text-sm" style={{ color: '#64748B' }}>
+            Initialize your secure workspace
           </p>
 
           {/* Features line */}
           <div
             className="flex items-center justify-center gap-4 mt-3 text-[10px]"
-            style={{ color: '#8A7860' }}
+            style={{ color: '#64748B' }}
           >
             <span className="flex items-center gap-1">
-              <Check className="w-3 h-3" style={{ color: '#F5B342' }} />
+              <Check className="w-3 h-3" style={{ color: '#06B6D4' }} />
               Isolated Workspace
             </span>
             <span className="flex items-center gap-1">
-              <Check className="w-3 h-3" style={{ color: '#FF6B1A' }} />
-              End-to-End Sealed
+              <Check className="w-3 h-3" style={{ color: '#3B82F6' }} />
+              End-to-End Encrypted
             </span>
           </div>
         </div>
@@ -142,14 +142,14 @@ export default function SignupPage() {
             <div
               className="mb-4 p-3 rounded-lg text-sm flex items-center gap-2"
               style={{
-                background: 'rgba(220, 38, 38, 0.10)',
-                border: '1px solid rgba(220, 38, 38, 0.35)',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
                 color: '#FCA5A5',
               }}
             >
               <div
                 className="w-1.5 h-1.5 rounded-full animate-ping"
-                style={{ background: '#DC2626' }}
+                style={{ background: '#EF4444' }}
               />
               {error}
             </div>
@@ -159,12 +159,12 @@ export default function SignupPage() {
             <div
               className="mb-4 p-3 rounded-lg text-sm flex items-center gap-2"
               style={{
-                background: 'rgba(245, 179, 66, 0.10)',
-                border: '1px solid rgba(245, 179, 66, 0.35)',
-                color: '#FFD27A',
+                background: 'rgba(6, 182, 212, 0.08)',
+                border: '1px solid rgba(6, 182, 212, 0.25)',
+                color: '#22D3EE',
               }}
             >
-              <Sparkles className="w-4 h-4" style={{ color: '#F5B342' }} />
+              <Sparkles className="w-4 h-4" style={{ color: '#06B6D4' }} />
               {success}
             </div>
           )}
@@ -172,15 +172,15 @@ export default function SignupPage() {
           {/* Username field */}
           <div className="mb-3">
             <label
-              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.2em] wl-font-serif"
-              style={{ color: '#C9B89A' }}
+              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.15em] wl-font-serif"
+              style={{ color: '#94A3B8' }}
             >
-              Hero Name
+              Username
             </label>
             <div className="relative group">
               <div
                 className="absolute left-3 top-1/2 -translate-y-1/2"
-                style={{ color: '#5C4E3D' }}
+                style={{ color: '#475569' }}
               >
                 <User className="w-4 h-4" />
               </div>
@@ -204,15 +204,15 @@ export default function SignupPage() {
           {/* Email field */}
           <div className="mb-3">
             <label
-              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.2em] wl-font-serif"
-              style={{ color: '#C9B89A' }}
+              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.15em] wl-font-serif"
+              style={{ color: '#94A3B8' }}
             >
-              Raven Address
+              Email
             </label>
             <div className="relative group">
               <div
                 className="absolute left-3 top-1/2 -translate-y-1/2"
-                style={{ color: '#5C4E3D' }}
+                style={{ color: '#475569' }}
               >
                 <Mail className="w-4 h-4" />
               </div>
@@ -232,15 +232,15 @@ export default function SignupPage() {
           {/* Password field */}
           <div className="mb-2">
             <label
-              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.2em] wl-font-serif"
-              style={{ color: '#C9B89A' }}
+              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.15em] wl-font-serif"
+              style={{ color: '#94A3B8' }}
             >
-              Secret Sigil
+              Password
             </label>
             <div className="relative group">
               <div
                 className="absolute left-3 top-1/2 -translate-y-1/2"
-                style={{ color: '#5C4E3D' }}
+                style={{ color: '#475569' }}
               >
                 <Lock className="w-4 h-4" />
               </div>
@@ -249,7 +249,7 @@ export default function SignupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="wl-input w-full pl-10 pr-12 py-3 rounded-xl text-sm font-mono"
-                placeholder="Forge a strong password"
+                placeholder="Create a strong password"
                 required
                 maxLength={200}
                 autoComplete="new-password"
@@ -258,9 +258,9 @@ export default function SignupPage() {
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
-                style={{ color: '#5C4E3D' }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#F5B342')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = '#5C4E3D')}
+                style={{ color: '#475569' }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = '#06B6D4')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = '#475569')}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -272,8 +272,8 @@ export default function SignupPage() {
               <div
                 className="mt-2 p-2.5 rounded-lg"
                 style={{
-                  background: 'rgba(14, 8, 9, 0.6)',
-                  border: '1px solid #3A2624',
+                  background: 'rgba(12, 18, 32, 0.6)',
+                  border: '1px solid rgba(6, 182, 212, 0.1)',
                 }}
               >
                 {/* Strength bars */}
@@ -284,7 +284,7 @@ export default function SignupPage() {
                       className="h-1 flex-1 rounded-full transition-all duration-300"
                       style={{
                         backgroundColor:
-                          i < strength ? strengthColors[strengthIndex] : '#3A2624',
+                          i < strength ? strengthColors[strengthIndex] : 'rgba(30, 48, 72, 0.5)',
                         boxShadow:
                           i < strength
                             ? `0 0 6px ${strengthColors[strengthIndex]}66`
@@ -301,8 +301,8 @@ export default function SignupPage() {
                   >
                     {strengthLabels[strengthIndex]}
                   </span>
-                  <span className="text-[10px]" style={{ color: '#5C4E3D' }}>
-                    {strength}/{PASSWORD_RULES.length} runes inscribed
+                  <span className="text-[10px]" style={{ color: '#475569' }}>
+                    {strength}/{PASSWORD_RULES.length} checks passed
                   </span>
                 </div>
                 {/* Rules checklist */}
@@ -310,12 +310,12 @@ export default function SignupPage() {
                   {PASSWORD_RULES.map((rule, i) => (
                     <li key={i} className="flex items-center gap-1.5 text-[10px]">
                       {ruleStates[i] ? (
-                        <Check className="w-3 h-3" style={{ color: '#84CC16' }} />
+                        <Check className="w-3 h-3" style={{ color: '#10B981' }} />
                       ) : (
-                        <X className="w-3 h-3" style={{ color: '#5C4E3D' }} />
+                        <X className="w-3 h-3" style={{ color: '#475569' }} />
                       )}
                       <span
-                        style={{ color: ruleStates[i] ? '#F5E6D3' : '#8A7860' }}
+                        style={{ color: ruleStates[i] ? '#E2E8F0' : '#64748B' }}
                       >
                         {rule.label}
                       </span>
@@ -329,15 +329,15 @@ export default function SignupPage() {
           {/* Confirm password */}
           <div className="mb-5">
             <label
-              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.2em] wl-font-serif"
-              style={{ color: '#C9B89A' }}
+              className="block text-[10px] font-semibold mb-1.5 uppercase tracking-[0.15em] wl-font-serif"
+              style={{ color: '#94A3B8' }}
             >
-              Confirm Sigil
+              Confirm Password
             </label>
             <div className="relative group">
               <div
                 className="absolute left-3 top-1/2 -translate-y-1/2"
-                style={{ color: '#5C4E3D' }}
+                style={{ color: '#475569' }}
               >
                 <Shield className="w-4 h-4" />
               </div>
@@ -354,16 +354,16 @@ export default function SignupPage() {
               {confirmPassword && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
                   {password === confirmPassword ? (
-                    <Check className="w-4 h-4" style={{ color: '#84CC16' }} />
+                    <Check className="w-4 h-4" style={{ color: '#10B981' }} />
                   ) : (
-                    <X className="w-4 h-4" style={{ color: '#DC2626' }} />
+                    <X className="w-4 h-4" style={{ color: '#EF4444' }} />
                   )}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Submit button — gold foil */}
+          {/* Submit button */}
           <button
             type="submit"
             disabled={loading || (password.length > 0 && !isPasswordValid)}
@@ -374,38 +374,38 @@ export default function SignupPage() {
                 <>
                   <div
                     className="w-4 h-4 border-2 rounded-full animate-spin"
-                    style={{ borderColor: 'rgba(26,15,8,0.3)', borderTopColor: '#1A0F08' }}
+                    style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#FFFFFF' }}
                   />
-                  Forging stronghold…
+                  Creating account…
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  Forge Account
+                  Create Account
                   <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </>
               )}
             </span>
           </button>
 
-          {/* Ornate divider */}
+          {/* Divider */}
           <div className="wl-divider my-5">
             <span className="wl-divider-gem" />
           </div>
 
           {/* Login link */}
           <div className="text-center">
-            <span className="text-sm" style={{ color: '#8A7860' }}>
-              Already a hero?{' '}
+            <span className="text-sm" style={{ color: '#64748B' }}>
+              Already have an account?{' '}
             </span>
             <button
               type="button"
               onClick={() => router.push('/login')}
               className="text-sm font-semibold hover:underline inline-flex items-center gap-1.5 wl-font-serif tracking-wide"
-              style={{ color: '#F5B342' }}
+              style={{ color: '#06B6D4' }}
             >
               <ArrowRight className="w-3 h-3 rotate-180" />
-              Enter the Stronghold
+              Access Terminal
             </button>
           </div>
         </form>
@@ -413,11 +413,11 @@ export default function SignupPage() {
 
       {/* Security note */}
       <p
-        className="text-center text-[10px] mt-4 flex items-center justify-center gap-1.5 wl-font-serif italic"
-        style={{ color: '#5C4E3D' }}
+        className="text-center text-[10px] mt-4 flex items-center justify-center gap-1.5 wl-font-serif"
+        style={{ color: '#475569' }}
       >
-        <ShieldCheck className="w-3 h-3" style={{ color: '#F5B342' }} />
-        Passwords are forged with bcrypt(12). Plaintext is forbidden.
+        <ShieldCheck className="w-3 h-3" style={{ color: '#06B6D4' }} />
+        Passwords are encrypted with bcrypt(12). Plaintext is never stored.
       </p>
     </WarlandAuthLayout>
   )
