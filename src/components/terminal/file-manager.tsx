@@ -737,7 +737,7 @@ export function FileManager({
               return (
                 <div
                   key={file.name}
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs relative transition-all duration-200 group"
+                  className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs relative transition-all duration-200 group"
                   style={{borderLeft: '2px solid transparent'}}
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLDivElement).style.background = 'linear-gradient(90deg, rgba(99,102,241,0.08) 0%, var(--nx-bg-hover) 40%)'
@@ -774,8 +774,9 @@ export function FileManager({
                     </>
                   ) : (
                     <>
+                      {/* File/folder name — clickable to open/navigate */}
                       <button
-                        className={`truncate flex-1 text-left ${isHidden ? 'text-[var(--nx-text-dim)]' : 'text-[var(--nx-text)]'}`}
+                        className={`truncate flex-1 text-left min-w-0 ${isHidden ? 'text-[var(--nx-text-dim)]' : 'text-[var(--nx-text)]'}`}
                         onClick={() => {
                           if (file.type === 'directory') {
                             handleDirectoryClick(file.name)
@@ -786,49 +787,38 @@ export function FileManager({
                       >
                         {file.name}
                       </button>
-                      <span className="text-[var(--nx-text-dim)] text-[10px] shrink-0 font-mono opacity-0 group-hover:opacity-100 transition-all duration-300">
-                        {formatSize(file.size)}
-                      </span>
-                      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-out">
-                        {file.type !== 'directory' && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)] hover:drop-shadow-[0_0_4px_rgba(99,102,241,0.3)] transition-all duration-200"
-                            onClick={(e) => { e.stopPropagation(); triggerDownload(filePath) }}
-                            title="Download file"
-                          >
-                            <Download className="h-3 w-3" />
-                          </Button>
-                        )}
-                        {file.type === 'directory' && (
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)] hover:drop-shadow-[0_0_4px_rgba(99,102,241,0.3)] transition-all duration-200"
-                            onClick={(e) => { e.stopPropagation(); triggerDownload(filePath) }}
-                            title="Download folder as ZIP"
-                          >
-                            <FolderArchive className="h-3 w-3" />
-                          </Button>
-                        )}
+
+                      {/* Action buttons — ALWAYS visible for every file and folder */}
+                      <div className="flex items-center gap-0 shrink-0">
+                        {/* Download button — for files and folders */}
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-warning)] hover:drop-shadow-[0_0_4px_rgba(251,191,36,0.3)] transition-all duration-200"
-                          onClick={(e) => { e.stopPropagation(); handleRenameStart(file.name) }}
-                          title="Rename item"
+                          className="h-6 w-6 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent-teal)] hover:bg-[var(--nx-accent-teal)]/10 hover:drop-shadow-[0_0_4px_rgba(99,102,241,0.3)] transition-all duration-200"
+                          onClick={(e) => { e.stopPropagation(); triggerDownload(filePath) }}
+                          title={file.type === 'directory' ? 'Download folder as ZIP' : 'Download file'}
                         >
-                          <Pencil className="h-3 w-3" />
+                          {file.type === 'directory' ? <FolderArchive className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
                         </Button>
+                        {/* Edit/Rename button */}
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-5 w-5 text-[var(--nx-text-muted)] hover:text-[var(--nx-error)] hover:drop-shadow-[0_0_4px_rgba(248,113,113,0.3)] transition-all duration-200"
-                          onClick={(e) => { e.stopPropagation(); handleDelete(file.name, file.type === 'directory') }}
-                          title="Delete item"
+                          className="h-6 w-6 text-[var(--nx-text-muted)] hover:text-[var(--nx-warning)] hover:bg-[var(--nx-warning)]/10 hover:drop-shadow-[0_0_4px_rgba(251,191,36,0.3)] transition-all duration-200"
+                          onClick={(e) => { e.stopPropagation(); handleRenameStart(file.name) }}
+                          title="Rename"
                         >
-                          <Trash2 className="h-3 w-3" />
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        {/* Delete button */}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-[var(--nx-text-muted)] hover:text-[var(--nx-error)] hover:bg-[var(--nx-error)]/10 hover:drop-shadow-[0_0_4px_rgba(248,113,113,0.3)] transition-all duration-200"
+                          onClick={(e) => { e.stopPropagation(); handleDelete(file.name, file.type === 'directory') }}
+                          title="Delete"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </>

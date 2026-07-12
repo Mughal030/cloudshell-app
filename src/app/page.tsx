@@ -260,14 +260,59 @@ export default function Home() {
     window.location.href = '/login'
   }
 
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => { setMounted(true) }, []) 
+
+  // Auto-create terminal when connected — with robust retry logic
+  // Uses refs to avoid stale closures over `connected` and `sessions.length`
+  const connectedRef = useRef(false)
+  const sessionsLenRef = useRef(0)
+  const terminalCreateAttemptRef = useRef(0)
+  const terminalCreatingRef = useRef(false)
+
+  useEffect(() => { connectedRef.current = connected }, [connected])
+  useEffect(() => { sessionsLenRef.current = sessions.length }, [sessions.length])
+
+  // Attempt to create a terminal — with auto-retry on failure
+  const attemptCreateTerminal = useCallback(async () => {
+    if (terminalCreatingRef.current) return
+    terminalCreatingRef.current = true
+    setCreatingTerminal(true)
+    try {
+      const sid = await createTerminal()
+      terminalCreateAttemptRef.current = 0 // reset on success
+      console.log('[Terminal] Auto-created session:', sid)
+    } catch (err) {
+      console.error('[Terminal] Auto-create failed:', err)
+      terminalCreateAttemptRef.current++
+      // Retry up to 5 times with exponential backoff (1s, 2s, 4s, 8s, 16s)
+      if (terminalCreateAttemptRef.current < 5) {
+        const delay = 1000 * Math.pow(2, terminalCreateAttemptRef.current - 1)
+        console.log(`[Terminal] Retrying in ${delay}ms (attempt ${terminalCreateAttemptRef.current + 1}/5)`)
+        setTimeout(() => {
+          terminalCreatingRef.current = false
+          if (connectedRef.current && sessionsLenRef.current === 0) {
+            attemptCreateTerminal()
+          }
+        }, delay)
+        return // don't reset creatingTerminal yet
+      }
+    } finally {
+      terminalCreatingRef.current = false
+      setCreatingTerminal(false)
+    }
+  }, [createTerminal])
 
   useEffect(() => {
     if (mounted && connected && sessions.length === 0) {
-      const timer = setTimeout(() => { if (connected && sessions.length === 0) createTerminal().catch(console.error) }, 1500)
+      // Start terminal creation after a short delay to allow socket to stabilize
+      const timer = setTimeout(() => {
+        if (connectedRef.current && sessionsLenRef.current === 0) {
+          attemptCreateTerminal()
+        }
+      }, 800)
       return () => clearTimeout(timer)
     }
-  }, [mounted, connected, sessions.length, createTerminal])
+  }, [mounted, connected, sessions.length, attemptCreateTerminal])
 
   const handleNewTerminal = async () => {
     setCreatingTerminal(true)
@@ -476,18 +521,22 @@ export default function Home() {
                         </div>
                         <Terminal className="h-12 w-12 mb-4 opacity-25" style={{ color: 'var(--nx-accent)' }} />
                         <p className="text-xl font-bold mb-2 nx-gradient-text-premium">
-                          {mounted && connected ? 'No Terminal Sessions' : 'Connecting...'}
+                          {mounted && connected ? 'Starting Terminal...' : 'Connecting...'}
                         </p>
                         <p className="text-xs text-[var(--nx-text-dim)] mb-6 max-w-xs text-center">
-                          {mounted && connected ? 'Launch your first terminal to start hacking' : 'Establishing WebSocket connection'}
+                          {mounted && connected
+                            ? creatingTerminal
+                              ? 'Spawning terminal session...'
+                              : 'Click below to start manually'
+                            : 'Establishing WebSocket connection'}
                         </p>
                         {mounted && connected && (
                           <button
                             className="nx-start-btn"
                             onClick={handleNewTerminal}
-                            disabled={!connected}
+                            disabled={creatingTerminal || !connected}
                           >
-                            <Plus className="h-4 w-4" />Start Terminal
+                            <Plus className="h-4 w-4" />{creatingTerminal ? 'Starting...' : 'Start Terminal'}
                           </button>
                         )}
                       </div>
