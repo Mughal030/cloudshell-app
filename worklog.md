@@ -1327,3 +1327,33 @@ Stage Summary:
 - NVIDIA NIM models now appear in Claude Code's /model picker
 - Architecture: Claude Code → 8082 (model-discovery) → 8083 (fcc-server) → NVIDIA NIM
 - Default model set to nvidia/nemotron-3-super-120b-a12b
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix NVIDIA models, implement API key isolation, add file preview, redesign UI
+
+Work Log:
+- Changed default model from nvidia/nemotron-3-super-120b-a12b to z-ai/glm-5.2
+- Rewrote fcc-model-discovery-proxy.js as a full Anthropic→NVIDIA API translator with per-user key extraction
+- Implemented API key isolation: each user's NVIDIA key set as ANTHROPIC_AUTH_TOKEN in terminal env
+- Added file preview support (?preview=true) for PDFs, images, video, audio, text
+- Extended MIME type map with 50+ file types
+- Added preview button (Eye icon) for viewable files in file manager
+- Redesigned page.tsx: glass-morphism settings, animated proxy status, key isolation shield badge
+- Redesigned login/signup: improved glass effects, animated focus states, NVIDIA NIM badge
+- Updated nexus-auth-layout: API Key Isolation feature card, v4 branding
+- Simplified keys/route.ts: no more fcc-server restart (per-request key extraction)
+- Updated docker-entrypoint.sh: proxy-first architecture, per-user key isolation docs
+- Fixed next.config.ts: added turbopack.root for build resolution
+- Build test passed successfully
+- Pushed to GitHub and HuggingFace Spaces
+
+Stage Summary:
+- Default model: z-ai/glm-5.2
+- Per-user key isolation: ENABLED (ANTHROPIC_AUTH_TOKEN set to user's NVIDIA key)
+- Proxy: direct NVIDIA NIM API calls (no fcc-server needed)
+- File preview: PDF, images, video, audio, text in browser
+- UI: v4 redesign with glass-morphism, animations, key isolation indicators
+- Build: successful
+- Deploy: pushed to both GitHub and HF Spaces
