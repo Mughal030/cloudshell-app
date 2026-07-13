@@ -99,7 +99,7 @@ RUN chmod +x /home/cloudshell/scripts/fcc-model-discovery-proxy.js && \
 # via the NVIDIA_NIM_API_KEY env var at deployment time if desired.
 ENV ANTHROPIC_BASE_URL="http://localhost:8082" \
     ANTHROPIC_AUTH_TOKEN="fcc-no-auth" \
-    ANTHROPIC_MODEL="nvidia/nemotron-3-super-120b-a12b" \
+    ANTHROPIC_MODEL="z-ai/glm-5.2" \
     CLAUDE_CODE_USE_AUTH_TOKEN="true" \
     CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="1" \
     CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000"

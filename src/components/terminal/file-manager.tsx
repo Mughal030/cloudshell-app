@@ -158,6 +158,35 @@ export function FileManager({
     setTimeout(() => { document.body.removeChild(a) }, 100)
   }, [getAuthToken, toast])
 
+  // ─── Helper: preview file in browser (PDF, images, text) ──────────
+  const previewFile = useCallback((filePath: string) => {
+    const token = getAuthToken()
+    if (!token) {
+      toast({
+        title: 'Preview failed',
+        description: 'Authentication token not found. Please refresh the page.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const encodedPath = encodeURIComponent(filePath)
+    const encodedToken = encodeURIComponent(token)
+    const previewUrl = `/api/files/download?path=${encodedPath}&token=${encodedToken}&preview=true`
+    window.open(previewUrl, '_blank')
+  }, [getAuthToken, toast])
+
+  // ─── Helper: check if file is previewable ──────────────────────────
+  const isPreviewable = useCallback((fileName: string) => {
+    const ext = fileName.split('.').pop()?.toLowerCase() || ''
+    const viewableExts = new Set([
+      'pdf', 'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'avif',
+      'mp4', 'webm', 'mp3', 'wav', 'ogg', 'flac',
+      'txt', 'md', 'csv', 'log', 'json', 'xml', 'yaml', 'yml', 'html', 'css',
+      'js', 'ts', 'py', 'sh', 'bash', 'env', 'conf', 'ini', 'toml',
+    ])
+    return viewableExts.has(ext)
+  }, [])
+
   // ─── Auto-refresh crash-prevention machinery ───────────────────────
   // Without these guards, npm install / git clone events flood the server
   // with hundreds of concurrent listFiles() requests, which causes the
@@ -790,6 +819,18 @@ export function FileManager({
 
                       {/* Action buttons — ALWAYS visible for every file and folder */}
                       <div className="flex items-center gap-0 shrink-0">
+                        {/* Preview button — for viewable files only */}
+                        {file.type !== 'directory' && isPreviewable(file.name) && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6 text-[var(--nx-text-muted)] hover:text-[var(--nx-accent)] hover:bg-[var(--nx-accent)]/10 hover:drop-shadow-[0_0_4px_rgba(129,140,248,0.3)] transition-all duration-200"
+                            onClick={(e) => { e.stopPropagation(); previewFile(filePath) }}
+                            title="Preview in browser"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         {/* Download button — for files and folders */}
                         <Button
                           size="icon"

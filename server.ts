@@ -481,19 +481,38 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
       // SECURITY: Per-user API keys take priority over global env vars.
       // Each user configures their own key via Settings panel — no shared keys.
       ...(process.env.ANTHROPIC_BASE_URL ? { ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL } : {}),
-      ...(process.env.ANTHROPIC_AUTH_TOKEN ? { ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN } : {}),
       ...(process.env.ANTHROPIC_MODEL ? { ANTHROPIC_MODEL: process.env.ANTHROPIC_MODEL } : {}),
       ...(process.env.CLAUDE_CODE_USE_AUTH_TOKEN ? { CLAUDE_CODE_USE_AUTH_TOKEN: process.env.CLAUDE_CODE_USE_AUTH_TOKEN } : {}),
       ...(process.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY ? { CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY: process.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY } : {}),
       ...(process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW ? { CLAUDE_CODE_AUTO_COMPACT_WINDOW: process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW } : {}),
       ...(process.env.ANTHROPIC_API_KEY ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } : {}),
-      // Per-user NVIDIA key overrides global env var (if user has set their own)
+      // Per-user NVIDIA key isolation:
+      // - Each user's NVIDIA key is injected as NVIDIA_NIM_API_KEY in their terminal
+      // - ANTHROPIC_AUTH_TOKEN is set to the user's NVIDIA key so the proxy can use it
+      //   (Claude Code sends ANTHROPIC_AUTH_TOKEN as x-api-key header)
+      // - If user has no personal key, fall back to global env var
+      // - This ensures NO key leakage between user profiles
       ...(userId ? (() => { 
         const keys = getUserApiKeys(userId)
-        if (keys.nvidiaApiKey) return { NVIDIA_NIM_API_KEY: keys.nvidiaApiKey }
-        // Fall back to global env var only if user has no personal key
-        return process.env.NVIDIA_NIM_API_KEY ? { NVIDIA_NIM_API_KEY: process.env.NVIDIA_NIM_API_KEY } : {}
-      })() : (process.env.NVIDIA_NIM_API_KEY ? { NVIDIA_NIM_API_KEY: process.env.NVIDIA_NIM_API_KEY } : {})),
+        if (keys.nvidiaApiKey) {
+          return {
+            NVIDIA_NIM_API_KEY: keys.nvidiaApiKey,
+            // Set ANTHROPIC_AUTH_TOKEN to user's NVIDIA key so the proxy
+            // can extract it from the x-api-key header for per-user isolation
+            ANTHROPIC_AUTH_TOKEN: keys.nvidiaApiKey,
+          }
+        }
+        // No personal key — fall back to global key if available
+        const fallback = process.env.NVIDIA_NIM_API_KEY
+        return fallback
+          ? { NVIDIA_NIM_API_KEY: fallback, ANTHROPIC_AUTH_TOKEN: fallback }
+          : { ANTHROPIC_AUTH_TOKEN: 'fcc-no-auth' }
+      })() : (() => {
+        const fallback = process.env.NVIDIA_NIM_API_KEY
+        return fallback
+          ? { NVIDIA_NIM_API_KEY: fallback, ANTHROPIC_AUTH_TOKEN: fallback }
+          : { ANTHROPIC_AUTH_TOKEN: process.env.ANTHROPIC_AUTH_TOKEN || 'fcc-no-auth' }
+      })()),
     },
   })
 
@@ -527,7 +546,7 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     '\x1b[2m  ⚠ Do NOT use raw "claude" — use "fcc-claude" to skip login prompt\x1b[0m',
     '\x1b[2m  Change your NVIDIA API key:\x1b[0m',
     '\x1b[2m    claude-set-nvidia-key "nvapi-your-key"   (change NVIDIA key)\x1b[0m',
-    '\x1b[2m    claude-set-model "nvidia/nemotron-..."   (change model)\x1b[0m',
+    '\x1b[2m    claude-set-model "z-ai/glm-5.2"          (change model)\x1b[0m',
     '\x1b[2m    claude-show                              (show current config)\x1b[0m',
     '\x1b[2m    claude-test                              (test proxy + NVIDIA API)\x1b[0m',
     '\x1b[2m    fcc-start / fcc-stop / fcc-status        (manage proxy)\x1b[0m',
@@ -662,27 +681,51 @@ app.prepare().then(() => {
           const mimeMap: Record<string, string> = {
             // Documents
             'pdf': 'application/pdf', 'doc': 'application/msword', 'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls': 'application/vnd.ms-excel', 'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'ppt': 'application/vnd.ms-powerpoint', 'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'odt': 'application/vnd.oasis.opendocument.text', 'ods': 'application/vnd.oasis.opendocument.spreadsheet',
+            'rtf': 'application/rtf', 'epub': 'application/epub+zip',
             // Images
-            'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'gif': 'image/gif', 'svg': 'image/svg+xml', 'webp': 'image/webp', 'ico': 'image/x-icon',
+            'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'gif': 'image/gif',
+            'svg': 'image/svg+xml', 'webp': 'image/webp', 'ico': 'image/x-icon', 'bmp': 'image/bmp',
+            'tiff': 'image/tiff', 'tif': 'image/tiff', 'avif': 'image/avif',
             // Audio
-            'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg',
+            'mp3': 'audio/mpeg', 'wav': 'audio/wav', 'ogg': 'audio/ogg', 'flac': 'audio/flac', 'aac': 'audio/aac',
             // Video
-            'mp4': 'video/mp4', 'webm': 'video/webm', 'avi': 'video/x-msvideo',
+            'mp4': 'video/mp4', 'webm': 'video/webm', 'avi': 'video/x-msvideo', 'mkv': 'video/x-matroska',
+            'mov': 'video/quicktime', 'wmv': 'video/x-ms-wmv',
             // Archives
-            'zip': 'application/zip', 'tar': 'application/x-tar', 'gz': 'application/gzip', '7z': 'application/x-7z-compressed',
+            'zip': 'application/zip', 'tar': 'application/x-tar', 'gz': 'application/gzip',
+            '7z': 'application/x-7z-compressed', 'rar': 'application/vnd.rar', 'bz2': 'application/x-bzip2',
             // Code
-            'js': 'text/javascript', 'ts': 'text/typescript', 'py': 'text/x-python', 'html': 'text/html', 'css': 'text/css',
+            'js': 'text/javascript', 'ts': 'text/typescript', 'tsx': 'text/typescript', 'jsx': 'text/javascript',
+            'py': 'text/x-python', 'rb': 'text/x-ruby', 'go': 'text/x-go', 'rs': 'text/x-rust',
+            'java': 'text/x-java', 'c': 'text/x-c', 'cpp': 'text/x-c++', 'h': 'text/x-c',
+            'html': 'text/html', 'css': 'text/css', 'scss': 'text/x-scss', 'less': 'text/x-less',
             'json': 'application/json', 'xml': 'application/xml', 'yaml': 'text/yaml', 'yml': 'text/yaml',
+            'toml': 'text/x-toml', 'ini': 'text/x-ini', 'conf': 'text/plain', 'sh': 'text/x-shellscript',
+            'bash': 'text/x-shellscript', 'zsh': 'text/x-shellscript', 'fish': 'text/x-shellscript',
+            'sql': 'text/x-sql', 'graphql': 'text/x-graphql',
             // Text
             'md': 'text/markdown', 'txt': 'text/plain', 'csv': 'text/csv', 'log': 'text/plain',
+            'env': 'text/plain', 'gitignore': 'text/plain', 'dockerignore': 'text/plain',
+            // Fonts
+            'woff': 'font/woff', 'woff2': 'font/woff2', 'ttf': 'font/ttf', 'otf': 'font/otf', 'eot': 'application/vnd.ms-fontobject',
           }
           const contentType = mimeMap[ext] || 'application/octet-stream'
-          // Force download for binary types, allow inline viewing for text types
-          const isInlineViewable = contentType.startsWith('text/') || contentType === 'application/json' || contentType === 'image/svg+xml'
+          // Allow inline viewing for viewable types (PDF, images, text, video, audio)
+          const isInlineViewable = contentType.startsWith('text/') || contentType === 'application/json' ||
+            contentType === 'image/svg+xml' || contentType === 'application/pdf' ||
+            contentType.startsWith('image/') || contentType.startsWith('video/') || contentType.startsWith('audio/')
+          // Check if preview mode is requested
+          const isPreview = parsedUrl.searchParams.get('preview') === 'true'
+          const disposition = (isPreview && isInlineViewable) ? 'inline' : 'attachment'
           res.writeHead(200, {
             'Content-Type': contentType,
-            'Content-Disposition': `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+            'Content-Disposition': `${disposition}; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
             'Content-Length': fileStat.size,
+            // Allow CORS for preview mode
+            ...(isPreview ? { 'Access-Control-Allow-Origin': '*' } : {}),
           })
           const stream = createReadStream(resolvedPath)
           stream.pipe(res)

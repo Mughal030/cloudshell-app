@@ -476,7 +476,7 @@ claude-set-model() {
         echo "  Current: ${ANTHROPIC_MODEL}"
         echo ""
         echo "  When using the NVIDIA proxy, these model names get mapped:"
-        echo "    nvidia/nemotron-3-super-120b-a12b  (Default - most capable free model)"
+        echo "    z-ai/glm-5.2  (Default - most capable free model)"
         echo "    nvidia/llama-3.3-nemotron-super-49b-v1"
         echo "    nvidia/mistral-large-2"
         echo ""
@@ -600,7 +600,7 @@ WRAPPEREOF
     echo "  Creating .env with your NVIDIA key..."
     _fcc_update_env PORT "8083"
     _fcc_update_env NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY:-nvapi-YOUR-KEY-HERE}"
-    _fcc_update_env MODEL "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
+    _fcc_update_env MODEL "nvidia_nim/z-ai/glm-5.2"
     _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
     echo ""
     echo "  Starting proxy..."
@@ -619,7 +619,7 @@ fcc-start() {
     # Ensure .env exists with NVIDIA key
     _fcc_update_env PORT "8083"  # fcc-server runs on 8083 internally
     _fcc_update_env NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY:-}"
-    _fcc_update_env MODEL "nvidia_nim/${ANTHROPIC_MODEL:-nvidia/nemotron-3-super-120b-a12b}"
+    _fcc_update_env MODEL "nvidia_nim/${ANTHROPIC_MODEL:-z-ai/glm-5.2}"
     _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
 
     # Read key from .env file if not in environment
@@ -837,7 +837,7 @@ claude-test() {
         -H "x-api-key: fcc-no-auth" \
         -H "anthropic-version: 2023-06-01" \
         -d "{
-            \"model\": \"${ANTHROPIC_MODEL:-nvidia/nemotron-3-super-120b-a12b}\",
+            \"model\": \"${ANTHROPIC_MODEL:-z-ai/glm-5.2}\",
             \"messages\": [{\"role\": \"user\", \"content\": \"Say hello in one word\"}],
             \"max_tokens\": 32,
             \"stream\": false
@@ -1163,21 +1163,21 @@ if [ ! -f "/home/cloudshell/.bashrc_env" ]; then
 # Claude Code proxy environment (auto-generated)
 export ANTHROPIC_BASE_URL="http://localhost:8082"
 export ANTHROPIC_AUTH_TOKEN="fcc-no-auth"
-export ANTHROPIC_MODEL="nvidia/nemotron-3-super-120b-a12b"
+export ANTHROPIC_MODEL="z-ai/glm-5.2"
 export CLAUDE_CODE_USE_AUTH_TOKEN="true"
 export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="1"
 export CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000"
-# IMPORTANT: fcc-claude needs PORT=8082 to find the proxy.
-# HF Spaces sets PORT=7860 at runtime, which overrides ~/.fcc/.env.
-# We save the real proxy port in FCC_PORT and unset PORT so
-# pydantic-settings falls back to the .env file value (8082).
+# NOTE: ANTHROPIC_AUTH_TOKEN is overridden per-user by the server when creating
+# terminal sessions. Each user gets their own NVIDIA key as the auth token,
+# ensuring per-user key isolation. The "fcc-no-auth" value here is only
+# a fallback for users without a personal key.
 export FCC_PORT="8082"
 BASHEOF
     chown cloudshell:cloudshell /home/cloudshell/.bashrc_env 2>/dev/null || true
 else
     # .bashrc_env already exists — ensure ANTHROPIC_MODEL is set
     if ! grep -q '^export ANTHROPIC_MODEL=' /home/cloudshell/.bashrc_env 2>/dev/null; then
-        echo 'export ANTHROPIC_MODEL="nvidia/nemotron-3-super-120b-a12b"' >> /home/cloudshell/.bashrc_env
+        echo 'export ANTHROPIC_MODEL="z-ai/glm-5.2"' >> /home/cloudshell/.bashrc_env
         echo "[Entrypoint] Added ANTHROPIC_MODEL to existing ~/.bashrc_env"
     fi
 fi
@@ -1211,7 +1211,7 @@ mkdir -p /home/cloudshell/.fcc 2>/dev/null
 if [ ! -f /home/cloudshell/.fcc/.env ]; then
     cat > /home/cloudshell/.fcc/.env << FCCEOF
 NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}"
-MODEL="nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
+MODEL="nvidia_nim/z-ai/glm-5.2"
 ANTHROPIC_AUTH_TOKEN="fcc-no-auth"
 PORT="8083"
 FCC_OPEN_BROWSER="false"
@@ -1232,7 +1232,7 @@ else
     fi
     # Always ensure these are set correctly
     _fcc_update_env PORT "8083"
-    _fcc_update_env MODEL "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
+    _fcc_update_env MODEL "nvidia_nim/z-ai/glm-5.2"
     _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
     _fcc_update_env FCC_OPEN_BROWSER "false"
     _fcc_update_env MESSAGING_PLATFORM "none"
@@ -1292,56 +1292,43 @@ fi
 # We also save the PID to ~/.fcc/fcc-server.pid so the Next.js API
 # can reliably kill and restart the proxy when the user updates their
 # NVIDIA API key via the Settings panel.
-if command -v fcc-server &>/dev/null; then
-    # Update .fcc/.env to use port 8083 (internal fcc-server port)
-    _fcc_update_env PORT "8083"
+#
+# ARCHITECTURE (v2 — Per-User Key Isolation):
+#   Claude Code → localhost:8082 (full proxy) → NVIDIA NIM API (direct)
+#
+# The proxy on port 8082 is now a FULL Anthropic→NVIDIA API translator.
+# It extracts per-user NVIDIA keys from request headers, ensuring
+# complete key isolation between user profiles. No fcc-server needed.
+if [ -f /home/cloudshell/scripts/fcc-model-discovery-proxy.js ]; then
+    # Start the full proxy on port 8082
+    # Pass NVIDIA_NIM_API_KEY as fallback key for users without personal keys
     gosu cloudshell bash -c '
         source /home/cloudshell/.bashrc_env 2>/dev/null || true
-        PORT=8083 NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}" nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+        NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}" FCC_PROXY_PORT=8082 nohup node /home/cloudshell/scripts/fcc-model-discovery-proxy.js > /tmp/fcc-model-proxy.log 2>&1 &
+        echo "Full proxy PID: $!"
+    ' 2>/dev/null || true
+    sleep 2
+    if curl -s http://localhost:8082/v1/models >/dev/null 2>&1; then
+        echo "[Entrypoint] ✅ Full NVIDIA NIM proxy running on http://localhost:8082"
+        echo "[Entrypoint]    Per-user key isolation: ENABLED"
+        echo "[Entrypoint]    Models: z-ai/glm-5.2, nemotron, llama, deepseek-r1, phi-4, etc."
+    else
+        echo "[Entrypoint] ⚠ Proxy still starting..."
+    fi
+elif command -v fcc-server &>/dev/null; then
+    # Fallback: start fcc-server on 8082 if the full proxy script is missing
+    echo "[Entrypoint] ⚠ Full proxy script not found — using fcc-server fallback"
+    _fcc_update_env PORT "8082"
+    gosu cloudshell bash -c '
+        source /home/cloudshell/.bashrc_env 2>/dev/null || true
+        PORT=8082 NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}" nohup fcc-server > /tmp/fcc-server.log 2>&1 &
         PID=$!
         echo "$PID" > /home/cloudshell/.fcc/fcc-server.pid
-        echo "fcc-server PID: $PID (internal port 8083, NVIDIA key: ****${NVIDIA_NIM_API_KEY: -4})"
     ' 2>/dev/null || true
-    # Give it a few seconds to start
     sleep 3
-    if curl -s http://localhost:8083/health >/dev/null 2>&1; then
-        echo "[Entrypoint] ✅ free-claude-code server running on http://localhost:8083 (internal)"
-    else
-        echo "[Entrypoint] ⚠ free-claude-code server still starting (may take a few more seconds)"
-    fi
-
-    # ─── Start Model Discovery Proxy on port 8082 ────────────
-    # This lightweight Node.js proxy adds a /v1/models endpoint
-    # that returns NVIDIA NIM models in Anthropic-compatible format.
-    # Claude Code's /model picker uses GET /v1/models to discover models.
-    # All other requests (POST /v1/messages, etc.) are proxied to fcc-server on 8083.
-    if [ -f /home/cloudshell/scripts/fcc-model-discovery-proxy.js ]; then
-        gosu cloudshell bash -c '
-            source /home/cloudshell/.bashrc_env 2>/dev/null || true
-            FCC_INTERNAL_PORT=8083 FCC_PROXY_PORT=8082 nohup node /home/cloudshell/scripts/fcc-model-discovery-proxy.js > /tmp/fcc-model-proxy.log 2>&1 &
-            echo "Model discovery proxy PID: $!"
-        ' 2>/dev/null || true
-        sleep 1
-        if curl -s http://localhost:8082/v1/models >/dev/null 2>&1; then
-            echo "[Entrypoint] ✅ Model discovery proxy running on http://localhost:8082"
-            echo "[Entrypoint]    NVIDIA models available in Claude Code /model picker"
-        else
-            echo "[Entrypoint] ⚠ Model discovery proxy still starting"
-        fi
-    else
-        echo "[Entrypoint] ⚠ fcc-model-discovery-proxy.js not found — /model picker may show Anthropic models only"
-        # Fallback: start fcc-server directly on 8082 (no model discovery)
-        gosu cloudshell bash -c '
-            fuser -k 8083/tcp 2>/dev/null || true
-            PORT=8082 NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}" nohup fcc-server > /tmp/fcc-server.log 2>&1 &
-            PID=$!
-            echo "$PID" > /home/cloudshell/.fcc/fcc-server.pid
-        ' 2>/dev/null || true
-        sleep 2
-        echo "[Entrypoint] ✅ free-claude-code proxy running on http://localhost:8082 (no model discovery)"
-    fi
+    echo "[Entrypoint] ✅ fcc-server fallback running on http://localhost:8082"
 else
-    echo "[Entrypoint] ⚠ fcc-server install failed. Run manually: setup-fcc-proxy"
+    echo "[Entrypoint] ⚠ No proxy available. Run manually: setup-fcc-proxy"
 fi
 
 # ─── NOW DROP TO CLOUDSHELL USER AND START THE SERVER ──────────

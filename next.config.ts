@@ -52,6 +52,14 @@ const nextConfig: NextConfig = {
     webVitalsAttribution: ['CLS', 'LCP'],
   },
 
+  // Turbopack root directory — must be set because the project
+  // structure has src/app which Turbopack can misinterpret as the root.
+  // Points to the directory containing package.json and node_modules.
+  // In Docker this will be /app, locally it's wherever the project is.
+  turbopack: {
+    root: process.cwd(),
+  },
+
   // Cache static assets aggressively in the browser
   async headers() {
     return [

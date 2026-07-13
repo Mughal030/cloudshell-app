@@ -199,9 +199,34 @@ export function NexusAuthLayout({
             </p>
           </div>
 
-          {/* Terminal demo — enhanced container */}
+          {/* NVIDIA NIM Powered badge */}
+          <div className="mb-6">
+            <div
+              className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-[11px] font-bold tracking-[0.12em] uppercase relative overflow-hidden"
+              style={{
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(6, 182, 212, 0.06))',
+                border: '1px solid rgba(16, 185, 129, 0.2)',
+                color: '#34D399',
+                boxShadow: '0 0 24px rgba(16, 185, 129, 0.06), inset 0 0 20px rgba(16, 185, 129, 0.03)',
+              }}
+            >
+              <Cpu className="h-4 w-4" style={{ filter: 'drop-shadow(0 0 4px rgba(16, 185, 129, 0.4))' }} />
+              <span style={{ color: '#34D399' }}>NVIDIA NIM</span>
+              <span style={{ color: '#64748B' }}>Powered</span>
+              {/* Subtle shimmer */}
+              <div
+                className="absolute inset-0 pointer-events-none animate-[badgeShimmer_4s_ease-in-out_infinite]"
+                style={{
+                  background: 'linear-gradient(90deg, transparent 0%, rgba(16,185,129,0.06) 50%, transparent 100%)',
+                  backgroundSize: '200% 100%',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Terminal demo — enhanced container (slightly larger) */}
           <div
-            className="rounded-xl overflow-hidden relative"
+            className="rounded-xl overflow-hidden relative min-h-[220px]"
             style={{
               border: '1px solid rgba(6, 182, 212, 0.1)',
               boxShadow: '0 0 40px rgba(6, 182, 212, 0.04), 0 0 80px rgba(99, 102, 241, 0.03)',
@@ -233,8 +258,8 @@ export function NexusAuthLayout({
             />
             <FeatureCard
               icon={<Fingerprint className="h-4 w-4" />}
-              title="Per-User Isolation"
-              desc="Separate workspaces & API keys"
+              title="API Key Isolation"
+              desc="Per-user isolated keys & workspaces"
               color="#8B5CF6"
             />
             <FeatureCard
@@ -314,7 +339,7 @@ export function NexusAuthLayout({
           className="h-3 w-3 animate-[glowPulse_2.5s_ease-in-out_infinite]"
           style={{ color: '#06B6D4' }}
         />
-        <span>Powered by Jasbol Hack · v3</span>
+        <span>Powered by Jasbol Hack · v4</span>
         <div
           className="w-1.5 h-1.5 rounded-full animate-[glowPulse_2s_ease-in-out_infinite]"
           style={{ background: '#06B6D4' }}
@@ -357,6 +382,10 @@ export function NexusAuthLayout({
         @keyframes slideInRight {
           from { opacity: 0; transform: translateX(30px); }
           to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes badgeShimmer {
+          0% { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
         }
       `}</style>
     </div>

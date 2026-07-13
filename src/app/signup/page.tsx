@@ -112,11 +112,11 @@ export default function SignupPage() {
       <div
         className={`rounded-2xl overflow-hidden relative ${shakeError ? 'animate-[errorShake_0.5s_ease-in-out]' : ''}`}
         style={{
-          background: 'rgba(8, 12, 25, 0.75)',
+          background: 'rgba(8, 12, 25, 0.65)',
           border: '1px solid rgba(139, 92, 246, 0.08)',
-          backdropFilter: 'blur(48px) saturate(1.4)',
-          WebkitBackdropFilter: 'blur(48px) saturate(1.4)',
-          boxShadow: '0 0 100px rgba(139, 92, 246, 0.06), 0 0 160px rgba(99, 102, 241, 0.04), 0 32px 80px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.03)',
+          backdropFilter: 'blur(64px) saturate(1.6)',
+          WebkitBackdropFilter: 'blur(64px) saturate(1.6)',
+          boxShadow: '0 0 120px rgba(139, 92, 246, 0.07), 0 0 200px rgba(129, 140, 248, 0.04), 0 40px 100px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04), inset 0 0 80px rgba(139, 92, 246, 0.02)',
         }}
       >
         {/* Rotating shimmer border — conic gradient animation */}
@@ -127,7 +127,7 @@ export default function SignupPage() {
           <div
             className="absolute inset-[-100%] animate-[rotateBorder_6s_linear_infinite]"
             style={{
-              background: 'conic-gradient(from 0deg, transparent 0%, rgba(139,92,246,0.4) 10%, transparent 20%, transparent 35%, rgba(6,182,212,0.4) 45%, transparent 55%, transparent 70%, rgba(99,102,241,0.3) 80%, transparent 90%, transparent 100%)',
+              background: 'conic-gradient(from 0deg, transparent 0%, rgba(139,92,246,0.35) 10%, transparent 20%, transparent 35%, rgba(129,140,248,0.35) 45%, transparent 55%, transparent 70%, rgba(6,182,212,0.25) 80%, transparent 90%, transparent 100%)',
             }}
           />
           <div
@@ -143,7 +143,7 @@ export default function SignupPage() {
         <div
           className="absolute inset-0 rounded-2xl pointer-events-none"
           style={{
-            background: 'radial-gradient(ellipse 60% 40% at 50% 0%, rgba(139,92,246,0.06), transparent 70%)',
+            background: 'radial-gradient(ellipse 60% 40% at 50% 0%, rgba(139,92,246,0.08), transparent 70%)',
           }}
         />
 
@@ -152,7 +152,7 @@ export default function SignupPage() {
           <div
             className="absolute inset-0 animate-[auroraFlow_8s_ease-in-out_infinite]"
             style={{
-              background: 'linear-gradient(90deg, transparent 0%, #8B5CF6 15%, #6366F1 30%, #06B6D4 55%, #8B5CF6 75%, transparent 100%)',
+              background: 'linear-gradient(90deg, transparent 0%, #8B5CF6 15%, #818CF8 30%, #06B6D4 55%, #8B5CF6 75%, transparent 100%)',
               backgroundSize: '200% 100%',
             }}
           />
@@ -167,7 +167,7 @@ export default function SignupPage() {
           <div
             className="absolute inset-x-0 top-0 h-[20px] pointer-events-none"
             style={{
-              background: 'linear-gradient(180deg, rgba(139,92,246,0.15), transparent)',
+              background: 'linear-gradient(180deg, rgba(139,92,246,0.18), transparent)',
             }}
           />
         </div>
@@ -179,7 +179,7 @@ export default function SignupPage() {
             <div
               className="w-[68px] h-[68px] rounded-2xl flex items-center justify-center relative animate-[iconPulse_3s_ease-in-out_infinite]"
               style={{
-                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(6, 182, 212, 0.1))',
+                background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(129, 140, 248, 0.1))',
                 border: '1.5px solid rgba(139, 92, 246, 0.25)',
                 boxShadow: '0 0 30px rgba(139, 92, 246, 0.12), 0 0 60px rgba(139, 92, 246, 0.06), inset 0 0 20px rgba(139, 92, 246, 0.05)',
               }}
@@ -205,7 +205,7 @@ export default function SignupPage() {
           <h2
             className="text-[30px] font-extrabold tracking-tight"
             style={{
-              background: 'linear-gradient(135deg, #F1F5F9 0%, #A78BFA 50%, #06B6D4 100%)',
+              background: 'linear-gradient(135deg, #F1F5F9 0%, #A78BFA 40%, #818CF8 70%, #06B6D4 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
             }}
@@ -240,16 +240,16 @@ export default function SignupPage() {
             <span
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold tracking-wider uppercase transition-all duration-300 cursor-default"
               style={{
-                background: 'rgba(6, 182, 212, 0.06)',
-                border: '1px solid rgba(6, 182, 212, 0.12)',
-                color: '#06B6D4',
+                background: 'rgba(129, 140, 248, 0.06)',
+                border: '1px solid rgba(129, 140, 248, 0.12)',
+                color: '#818CF8',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.3)'
-                e.currentTarget.style.boxShadow = '0 0 16px rgba(6, 182, 212, 0.1)'
+                e.currentTarget.style.borderColor = 'rgba(129, 140, 248, 0.3)'
+                e.currentTarget.style.boxShadow = '0 0 16px rgba(129, 140, 248, 0.1)'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'rgba(6, 182, 212, 0.12)'
+                e.currentTarget.style.borderColor = 'rgba(129, 140, 248, 0.12)'
                 e.currentTarget.style.boxShadow = 'none'
               }}
             >
@@ -261,10 +261,10 @@ export default function SignupPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-9 pb-9 relative z-10">
-          {/* Error message — slide down with shake */}
+          {/* Error message — slide down with enhanced shake */}
           {error && (
             <div
-              className="mb-5 p-4 rounded-xl text-sm flex items-center gap-3 animate-[errorSlideIn_0.4s_ease-out_both]"
+              className={`mb-5 p-4 rounded-xl text-sm flex items-center gap-3 animate-[errorSlideIn_0.4s_ease-out_both] ${shakeError ? 'animate-[errorShakeDetailed_0.6s_ease-in-out]' : ''}`}
               style={{
                 background: 'rgba(239, 68, 68, 0.06)',
                 border: '1px solid rgba(239, 68, 68, 0.2)',
@@ -326,7 +326,7 @@ export default function SignupPage() {
                 className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl transition-all duration-500 z-10"
                 style={{
                   background: usernameFocused
-                    ? 'linear-gradient(180deg, #8B5CF6, #6366F1)'
+                    ? 'linear-gradient(180deg, #8B5CF6, #818CF8)'
                     : 'rgba(100, 116, 139, 0.15)',
                   boxShadow: usernameFocused
                     ? '0 0 12px rgba(139, 92, 246, 0.3), 0 0 4px rgba(139, 92, 246, 0.5)'
@@ -336,8 +336,8 @@ export default function SignupPage() {
               <div
                 className="absolute left-4 top-1/2 -translate-y-1/2 transition-all duration-300 z-10"
                 style={{
-                  color: usernameFocused ? '#8B5CF6' : '#475569',
-                  filter: usernameFocused ? 'drop-shadow(0 0 4px rgba(139, 92, 246, 0.3))' : 'none',
+                  color: usernameFocused ? '#A78BFA' : '#475569',
+                  filter: usernameFocused ? 'drop-shadow(0 0 6px rgba(139, 92, 246, 0.4))' : 'none',
                 }}
               >
                 <User className="w-[18px] h-[18px]" />
@@ -348,11 +348,11 @@ export default function SignupPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full pl-12 pr-11 py-4 rounded-xl text-[14px] font-mono transition-all duration-500 outline-none"
                 style={{
-                  background: usernameFocused ? 'rgba(6, 10, 22, 0.9)' : 'rgba(6, 10, 22, 0.6)',
-                  border: usernameFocused ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(100, 116, 139, 0.12)',
+                  background: usernameFocused ? 'rgba(6, 10, 22, 0.95)' : 'rgba(6, 10, 22, 0.6)',
+                  border: usernameFocused ? '1px solid rgba(139, 92, 246, 0.35)' : '1px solid rgba(100, 116, 139, 0.12)',
                   color: '#E2E8F0',
                   boxShadow: usernameFocused
-                    ? '0 0 0 3px rgba(139, 92, 246, 0.08), 0 0 30px rgba(139, 92, 246, 0.06), inset 0 0 20px rgba(139, 92, 246, 0.02)'
+                    ? '0 0 0 3px rgba(139, 92, 246, 0.1), 0 0 40px rgba(139, 92, 246, 0.08), inset 0 0 20px rgba(139, 92, 246, 0.03)'
                     : 'none',
                 }}
                 onFocus={() => setUsernameFocused(true)}
@@ -373,7 +373,7 @@ export default function SignupPage() {
                   top: usernameFocused || username ? '6px' : '50%',
                   transform: usernameFocused || username ? 'translateY(0)' : 'translateY(-50%)',
                   fontSize: usernameFocused || username ? '9px' : '14px',
-                  color: usernameFocused ? '#8B5CF6' : '#475569',
+                  color: usernameFocused ? '#A78BFA' : '#475569',
                   fontWeight: usernameFocused || username ? 700 : 400,
                   letterSpacing: usernameFocused || username ? '0.12em' : '0',
                   textTransform: usernameFocused || username ? 'uppercase' : 'none',
@@ -411,7 +411,7 @@ export default function SignupPage() {
                 className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl transition-all duration-500 z-10"
                 style={{
                   background: emailFocused
-                    ? 'linear-gradient(180deg, #8B5CF6, #6366F1)'
+                    ? 'linear-gradient(180deg, #8B5CF6, #818CF8)'
                     : 'rgba(100, 116, 139, 0.15)',
                   boxShadow: emailFocused
                     ? '0 0 12px rgba(139, 92, 246, 0.3), 0 0 4px rgba(139, 92, 246, 0.5)'
@@ -421,8 +421,8 @@ export default function SignupPage() {
               <div
                 className="absolute left-4 top-1/2 -translate-y-1/2 transition-all duration-300 z-10"
                 style={{
-                  color: emailFocused ? '#8B5CF6' : '#475569',
-                  filter: emailFocused ? 'drop-shadow(0 0 4px rgba(139, 92, 246, 0.3))' : 'none',
+                  color: emailFocused ? '#A78BFA' : '#475569',
+                  filter: emailFocused ? 'drop-shadow(0 0 6px rgba(139, 92, 246, 0.4))' : 'none',
                 }}
               >
                 <Mail className="w-[18px] h-[18px]" />
@@ -433,11 +433,11 @@ export default function SignupPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full pl-12 pr-11 py-4 rounded-xl text-[14px] font-mono transition-all duration-500 outline-none"
                 style={{
-                  background: emailFocused ? 'rgba(6, 10, 22, 0.9)' : 'rgba(6, 10, 22, 0.6)',
-                  border: emailFocused ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(100, 116, 139, 0.12)',
+                  background: emailFocused ? 'rgba(6, 10, 22, 0.95)' : 'rgba(6, 10, 22, 0.6)',
+                  border: emailFocused ? '1px solid rgba(139, 92, 246, 0.35)' : '1px solid rgba(100, 116, 139, 0.12)',
                   color: '#E2E8F0',
                   boxShadow: emailFocused
-                    ? '0 0 0 3px rgba(139, 92, 246, 0.08), 0 0 30px rgba(139, 92, 246, 0.06), inset 0 0 20px rgba(139, 92, 246, 0.02)'
+                    ? '0 0 0 3px rgba(139, 92, 246, 0.1), 0 0 40px rgba(139, 92, 246, 0.08), inset 0 0 20px rgba(139, 92, 246, 0.03)'
                     : 'none',
                 }}
                 onFocus={() => setEmailFocused(true)}
@@ -454,7 +454,7 @@ export default function SignupPage() {
                   top: emailFocused || email ? '6px' : '50%',
                   transform: emailFocused || email ? 'translateY(0)' : 'translateY(-50%)',
                   fontSize: emailFocused || email ? '9px' : '14px',
-                  color: emailFocused ? '#8B5CF6' : '#475569',
+                  color: emailFocused ? '#A78BFA' : '#475569',
                   fontWeight: emailFocused || email ? 700 : 400,
                   letterSpacing: emailFocused || email ? '0.12em' : '0',
                   textTransform: emailFocused || email ? 'uppercase' : 'none',
@@ -492,7 +492,7 @@ export default function SignupPage() {
                 className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl transition-all duration-500 z-10"
                 style={{
                   background: passwordFocused
-                    ? 'linear-gradient(180deg, #8B5CF6, #6366F1)'
+                    ? 'linear-gradient(180deg, #8B5CF6, #818CF8)'
                     : 'rgba(100, 116, 139, 0.15)',
                   boxShadow: passwordFocused
                     ? '0 0 12px rgba(139, 92, 246, 0.3), 0 0 4px rgba(139, 92, 246, 0.5)'
@@ -502,8 +502,8 @@ export default function SignupPage() {
               <div
                 className="absolute left-4 top-1/2 -translate-y-1/2 transition-all duration-300 z-10"
                 style={{
-                  color: passwordFocused ? '#8B5CF6' : '#475569',
-                  filter: passwordFocused ? 'drop-shadow(0 0 4px rgba(139, 92, 246, 0.3))' : 'none',
+                  color: passwordFocused ? '#A78BFA' : '#475569',
+                  filter: passwordFocused ? 'drop-shadow(0 0 6px rgba(139, 92, 246, 0.4))' : 'none',
                 }}
               >
                 <Lock className="w-[18px] h-[18px]" />
@@ -514,11 +514,11 @@ export default function SignupPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full pl-12 pr-13 py-4 rounded-xl text-[14px] font-mono transition-all duration-500 outline-none"
                 style={{
-                  background: passwordFocused ? 'rgba(6, 10, 22, 0.9)' : 'rgba(6, 10, 22, 0.6)',
-                  border: passwordFocused ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(100, 116, 139, 0.12)',
+                  background: passwordFocused ? 'rgba(6, 10, 22, 0.95)' : 'rgba(6, 10, 22, 0.6)',
+                  border: passwordFocused ? '1px solid rgba(139, 92, 246, 0.35)' : '1px solid rgba(100, 116, 139, 0.12)',
                   color: '#E2E8F0',
                   boxShadow: passwordFocused
-                    ? '0 0 0 3px rgba(139, 92, 246, 0.08), 0 0 30px rgba(139, 92, 246, 0.06), inset 0 0 20px rgba(139, 92, 246, 0.02)'
+                    ? '0 0 0 3px rgba(139, 92, 246, 0.1), 0 0 40px rgba(139, 92, 246, 0.08), inset 0 0 20px rgba(139, 92, 246, 0.03)'
                     : 'none',
                 }}
                 onFocus={() => setPasswordFocused(true)}
@@ -535,7 +535,7 @@ export default function SignupPage() {
                   top: passwordFocused || password ? '6px' : '50%',
                   transform: passwordFocused || password ? 'translateY(0)' : 'translateY(-50%)',
                   fontSize: passwordFocused || password ? '9px' : '14px',
-                  color: passwordFocused ? '#8B5CF6' : '#475569',
+                  color: passwordFocused ? '#A78BFA' : '#475569',
                   fontWeight: passwordFocused || password ? 700 : 400,
                   letterSpacing: passwordFocused || password ? '0.12em' : '0',
                   textTransform: passwordFocused || password ? 'uppercase' : 'none',
@@ -551,7 +551,7 @@ export default function SignupPage() {
                 className="absolute right-4 top-1/2 -translate-y-1/2 transition-all duration-300 z-10"
                 style={{ color: '#475569' }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = '#8B5CF6'
+                  e.currentTarget.style.color = '#A78BFA'
                   e.currentTarget.style.filter = 'drop-shadow(0 0 4px rgba(139, 92, 246, 0.3))'
                 }}
                 onMouseLeave={(e) => {
@@ -564,7 +564,7 @@ export default function SignupPage() {
               </button>
             </div>
 
-            {/* Strength meter + live checklist — enhanced full-width gradient bar */}
+            {/* Strength meter — enhanced visual bar with segments */}
             {password.length > 0 && (
               <div
                 className="mt-3 p-4 rounded-xl animate-[fadeSlideIn_0.3s_ease-out_both] relative overflow-hidden"
@@ -574,29 +574,40 @@ export default function SignupPage() {
                   boxShadow: 'inset 0 0 20px rgba(0, 0, 0, 0.2)',
                 }}
               >
-                {/* Full-width gradient strength bar */}
+                {/* Segmented strength bar — visual segments with glow */}
                 <div className="mb-3 relative">
-                  <div
-                    className="w-full h-[6px] rounded-full overflow-hidden"
-                    style={{ background: 'rgba(30, 41, 59, 0.5)' }}
-                  >
-                    <div
-                      className="h-full rounded-full transition-all duration-700 ease-out relative"
-                      style={{
-                        width: `${(strength / PASSWORD_RULES.length) * 100}%`,
-                        background: `linear-gradient(90deg, ${strengthColors[0]}, ${strengthColors[strengthIndex]})`,
-                        boxShadow: `0 0 12px ${strengthColors[strengthIndex]}44, 0 0 4px ${strengthColors[strengthIndex]}66`,
-                      }}
-                    >
-                      {/* Shimmer on the strength bar */}
+                  <div className="flex gap-1.5 w-full">
+                    {PASSWORD_RULES.map((_, i) => (
                       <div
-                        className="absolute inset-0 animate-[strengthShimmer_2s_ease-in-out_infinite]"
-                        style={{
-                          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
-                          backgroundSize: '200% 100%',
-                        }}
-                      />
-                    </div>
+                        key={i}
+                        className="flex-1 h-[7px] rounded-full overflow-hidden transition-all duration-500"
+                        style={{ background: 'rgba(30, 41, 59, 0.5)' }}
+                      >
+                        <div
+                          className="h-full rounded-full transition-all duration-700 ease-out relative"
+                          style={{
+                            width: i < strength ? '100%' : '0%',
+                            background: i < strength
+                              ? `linear-gradient(90deg, ${strengthColors[Math.min(i, strengthColors.length - 1)]}, ${strengthColors[strengthIndex]})`
+                              : 'transparent',
+                            boxShadow: i < strength
+                              ? `0 0 10px ${strengthColors[strengthIndex]}44, 0 0 3px ${strengthColors[strengthIndex]}66`
+                              : 'none',
+                          }}
+                        >
+                          {/* Shimmer on each segment */}
+                          {i < strength && (
+                            <div
+                              className="absolute inset-0 animate-[strengthShimmer_2s_ease-in-out_infinite]"
+                              style={{
+                                background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)',
+                                backgroundSize: '200% 100%',
+                              }}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                   {/* Glow underneath the bar */}
                   <div
@@ -693,7 +704,7 @@ export default function SignupPage() {
                 className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl transition-all duration-500 z-10"
                 style={{
                   background: confirmFocused
-                    ? 'linear-gradient(180deg, #8B5CF6, #6366F1)'
+                    ? 'linear-gradient(180deg, #8B5CF6, #818CF8)'
                     : 'rgba(100, 116, 139, 0.15)',
                   boxShadow: confirmFocused
                     ? '0 0 12px rgba(139, 92, 246, 0.3), 0 0 4px rgba(139, 92, 246, 0.5)'
@@ -703,8 +714,8 @@ export default function SignupPage() {
               <div
                 className="absolute left-4 top-1/2 -translate-y-1/2 transition-all duration-300 z-10"
                 style={{
-                  color: confirmFocused ? '#8B5CF6' : '#475569',
-                  filter: confirmFocused ? 'drop-shadow(0 0 4px rgba(139, 92, 246, 0.3))' : 'none',
+                  color: confirmFocused ? '#A78BFA' : '#475569',
+                  filter: confirmFocused ? 'drop-shadow(0 0 6px rgba(139, 92, 246, 0.4))' : 'none',
                 }}
               >
                 <Shield className="w-[18px] h-[18px]" />
@@ -715,11 +726,11 @@ export default function SignupPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="w-full pl-12 pr-11 py-4 rounded-xl text-[14px] font-mono transition-all duration-500 outline-none"
                 style={{
-                  background: confirmFocused ? 'rgba(6, 10, 22, 0.9)' : 'rgba(6, 10, 22, 0.6)',
-                  border: confirmFocused ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(100, 116, 139, 0.12)',
+                  background: confirmFocused ? 'rgba(6, 10, 22, 0.95)' : 'rgba(6, 10, 22, 0.6)',
+                  border: confirmFocused ? '1px solid rgba(139, 92, 246, 0.35)' : '1px solid rgba(100, 116, 139, 0.12)',
                   color: '#E2E8F0',
                   boxShadow: confirmFocused
-                    ? '0 0 0 3px rgba(139, 92, 246, 0.08), 0 0 30px rgba(139, 92, 246, 0.06), inset 0 0 20px rgba(139, 92, 246, 0.02)'
+                    ? '0 0 0 3px rgba(139, 92, 246, 0.1), 0 0 40px rgba(139, 92, 246, 0.08), inset 0 0 20px rgba(139, 92, 246, 0.03)'
                     : 'none',
                 }}
                 onFocus={() => setConfirmFocused(true)}
@@ -736,7 +747,7 @@ export default function SignupPage() {
                   top: confirmFocused || confirmPassword ? '6px' : '50%',
                   transform: confirmFocused || confirmPassword ? 'translateY(0)' : 'translateY(-50%)',
                   fontSize: confirmFocused || confirmPassword ? '9px' : '14px',
-                  color: confirmFocused ? '#8B5CF6' : '#475569',
+                  color: confirmFocused ? '#A78BFA' : '#475569',
                   fontWeight: confirmFocused || confirmPassword ? 700 : 400,
                   letterSpacing: confirmFocused || confirmPassword ? '0.12em' : '0',
                   textTransform: confirmFocused || confirmPassword ? 'uppercase' : 'none',
@@ -772,21 +783,21 @@ export default function SignupPage() {
             disabled={loading || (password.length > 0 && !isPasswordValid)}
             className="w-full py-[18px] rounded-xl font-bold text-[15px] relative flex items-center justify-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 overflow-hidden group"
             style={{
-              background: 'linear-gradient(135deg, #8B5CF6, #6366F1, #06B6D4, #8B5CF6)',
+              background: 'linear-gradient(135deg, #8B5CF6, #818CF8, #06B6D4, #8B5CF6)',
               backgroundSize: '300% 300%',
               animation: loading || (password.length > 0 && !isPasswordValid) ? 'none' : 'gradientFlow_4s_ease_infinite',
               color: '#FFFFFF',
-              boxShadow: '0 6px 30px rgba(139, 92, 246, 0.3), 0 4px 15px rgba(99, 102, 241, 0.25), 0 2px 6px rgba(0, 0, 0, 0.2)',
+              boxShadow: '0 6px 30px rgba(139, 92, 246, 0.3), 0 4px 15px rgba(129, 140, 248, 0.25), 0 2px 6px rgba(0, 0, 0, 0.2)',
               letterSpacing: '0.02em',
             }}
             onMouseEnter={(e) => {
               if (!loading && !(password.length > 0 && !isPasswordValid)) {
-                e.currentTarget.style.boxShadow = '0 10px 40px rgba(139, 92, 246, 0.4), 0 6px 20px rgba(6, 182, 212, 0.25), 0 0 60px rgba(139, 92, 246, 0.15)'
+                e.currentTarget.style.boxShadow = '0 10px 40px rgba(139, 92, 246, 0.4), 0 6px 20px rgba(6, 182, 212, 0.25), 0 0 80px rgba(139, 92, 246, 0.15)'
                 e.currentTarget.style.transform = 'translateY(-3px) scale(1.01)'
               }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow = '0 6px 30px rgba(139, 92, 246, 0.3), 0 4px 15px rgba(99, 102, 241, 0.25), 0 2px 6px rgba(0, 0, 0, 0.2)'
+              e.currentTarget.style.boxShadow = '0 6px 30px rgba(139, 92, 246, 0.3), 0 4px 15px rgba(129, 140, 248, 0.25), 0 2px 6px rgba(0, 0, 0, 0.2)'
               e.currentTarget.style.transform = 'translateY(0) scale(1)'
             }}
             onMouseDown={(e) => {
@@ -798,7 +809,7 @@ export default function SignupPage() {
             onMouseUp={(e) => {
               if (!loading && !(password.length > 0 && !isPasswordValid)) {
                 e.currentTarget.style.transform = 'translateY(-3px) scale(1.01)'
-                e.currentTarget.style.boxShadow = '0 10px 40px rgba(139, 92, 246, 0.4), 0 6px 20px rgba(6, 182, 212, 0.25), 0 0 60px rgba(139, 92, 246, 0.15)'
+                e.currentTarget.style.boxShadow = '0 10px 40px rgba(139, 92, 246, 0.4), 0 6px 20px rgba(6, 182, 212, 0.25), 0 0 80px rgba(139, 92, 246, 0.15)'
               }
             }}
           >
@@ -851,7 +862,7 @@ export default function SignupPage() {
             />
           </div>
 
-          {/* Login link — secondary button style */}
+          {/* Login link — Already have an account? Sign In */}
           <div className="text-center">
             <span className="text-[13px]" style={{ color: '#64748B' }}>
               Already have an account?{' '}
@@ -861,19 +872,19 @@ export default function SignupPage() {
               onClick={() => router.push('/login')}
               className="inline-flex items-center gap-2 text-[13px] font-semibold tracking-wide transition-all duration-300 px-5 py-2.5 rounded-lg relative overflow-hidden"
               style={{
-                color: '#8B5CF6',
+                color: '#A78BFA',
                 background: 'transparent',
                 border: '1px solid rgba(139, 92, 246, 0.15)',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.color = '#A78BFA'
+                e.currentTarget.style.color = '#C4B5FD'
                 e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.4)'
                 e.currentTarget.style.boxShadow = '0 0 20px rgba(139, 92, 246, 0.1), 0 0 40px rgba(139, 92, 246, 0.05)'
                 e.currentTarget.style.background = 'rgba(139, 92, 246, 0.05)'
                 e.currentTarget.style.textShadow = '0 0 12px rgba(139, 92, 246, 0.3)'
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.color = '#8B5CF6'
+                e.currentTarget.style.color = '#A78BFA'
                 e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.15)'
                 e.currentTarget.style.boxShadow = 'none'
                 e.currentTarget.style.background = 'transparent'
@@ -892,7 +903,7 @@ export default function SignupPage() {
         className="text-center text-[10px] mt-6 flex items-center justify-center gap-1.5"
         style={{ color: '#1E293B' }}
       >
-        <ShieldCheck className="w-3 h-3" style={{ color: '#06B6D4' }} />
+        <ShieldCheck className="w-3 h-3" style={{ color: '#818CF8' }} />
         Passwords are encrypted with bcrypt(12). Plaintext is never stored.
       </p>
 
@@ -971,6 +982,16 @@ export default function SignupPage() {
           40% { transform: translateX(3px); }
           50% { transform: translateX(-2px); }
           60% { transform: translateX(1px); }
+        }
+        @keyframes errorShakeDetailed {
+          0%, 100% { transform: translateX(0); }
+          8% { transform: translateX(-8px); }
+          16% { transform: translateX(7px); }
+          24% { transform: translateX(-5px); }
+          32% { transform: translateX(4px); }
+          40% { transform: translateX(-3px); }
+          48% { transform: translateX(2px); }
+          56% { transform: translateX(-1px); }
         }
       `}</style>
     </NexusAuthLayout>

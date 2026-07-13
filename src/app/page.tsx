@@ -340,7 +340,7 @@ export default function Home() {
   return (
     <div className="flex flex-col h-screen bg-[var(--nx-bg-primary)] text-[var(--nx-text)] overflow-hidden transition-colors duration-200 nx-top-accent">
       {/* ═══ HEADER ═══ */}
-      <header className="relative flex items-center justify-between px-4 h-12 bg-[var(--nx-bg-secondary)]/90 backdrop-blur-xl shrink-0 nx-header-accent nx-panel-glow">
+      <header className="relative flex items-center justify-between px-4 h-12 bg-[var(--nx-bg-secondary)]/90 backdrop-blur-xl shrink-0 nx-header-accent nx-header-sleek-underline nx-panel-glow">
         <div className="flex items-center gap-3">
           {/* Logo with premium glow ring */}
           <div className="flex items-center gap-2.5">
@@ -452,6 +452,7 @@ export default function Home() {
                 <ToolStatus tools={tools} checkTools={checkTools} onInstall={installTool} sendCommandToTerminal={sendCommandToTerminal} loading={!mounted || !connected} />
               )}
               {activeMenu === 'files' && (
+                <div className="nx-file-panel h-full">
                 <FileManager
                   listFiles={listFiles}
                   onFileOpen={handleFileOpen}
@@ -464,6 +465,7 @@ export default function Home() {
                   requestWorkspaceInfo={requestWorkspaceInfo}
                   sendCommandToTerminal={sendCommandToTerminal}
                 />
+                </div>
               )}
               {activeMenu === 'quick' && (
                 <QuickInstallPanel sendCommandToTerminal={sendCommandToTerminal} connected={connected} />
@@ -773,13 +775,23 @@ function SettingsPanel() {
 
   return (
     <ScrollArea className="h-full min-h-0 nx-scroll-aurora">
-      <div className="p-5 space-y-6 max-w-xl">
+      <div className="p-5 space-y-6 max-w-xl nx-stagger-children">
         {/* Header */}
-        <div className="text-[10px] text-[var(--nx-text-dim)] flex items-center gap-1.5">
+        <div className="nx-fade-in text-[10px] text-[var(--nx-text-dim)] flex items-center gap-1.5">
           <Settings className="h-3 w-3 text-[var(--nx-accent)]" />
           <span className="text-[var(--nx-accent)] font-semibold">Settings</span>
           <span className="mx-1 opacity-30">·</span>
           Configure your own API keys — other users cannot access your keys
+        </div>
+
+        {/* Key Isolation Indicator */}
+        <div className="nx-key-isolation">
+          <span className="nx-isolation-icon">
+            <Shield className="h-3.5 w-3.5" />
+          </span>
+          <span>Per-user key isolation active</span>
+          <span className="mx-0.5 opacity-30">·</span>
+          <span className="text-[var(--nx-accent-teal)]/60">Your keys are private & encrypted</span>
         </div>
 
         {/* Message */}
@@ -799,19 +811,19 @@ function SettingsPanel() {
 
         {/* Preferred Provider */}
         <div className="space-y-2.5">
-          <h3 className="text-xs font-semibold text-[var(--nx-text)] flex items-center gap-2">
-            <span className="w-1 h-3 rounded-full bg-gradient-to-b from-[var(--nx-accent)] to-[var(--nx-accent-teal)]" />
-            Preferred Provider
-          </h3>
+          <div className="nx-section-label">
+            <span className="nx-section-label-bar" />
+            <h3 className="text-xs font-semibold text-[var(--nx-text)]">Preferred Provider</h3>
+          </div>
           <p className="text-[10px] text-[var(--nx-text-dim)] pl-3">Which AI provider should Claude Code use? Each user brings their own API key.</p>
           <div className="flex gap-2 pl-3">
             {(['nvidia', 'openrouter', 'none'] as const).map(p => (
               <button
                 key={p}
                 onClick={() => handleSetProvider(p)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border ${
+                className={`nx-provider-btn px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border ${
                   preferredProvider === p
-                    ? 'bg-gradient-to-r from-[var(--nx-accent)]/15 to-[var(--nx-accent-teal)]/10 border-[var(--nx-accent)]/30 text-[var(--nx-accent)] shadow-[0_0_10px_var(--nx-accent-glow)]'
+                    ? 'active'
                     : 'bg-[var(--nx-bg-primary)]/60 border-[var(--nx-border)] text-[var(--nx-text-muted)] hover:border-[var(--nx-accent)]/20 hover:text-[var(--nx-text)] hover:bg-[var(--nx-bg-hover)]'
                 }`}
               >
@@ -828,12 +840,18 @@ function SettingsPanel() {
               <div className="flex items-center justify-center w-7 h-7 rounded-md bg-[var(--nx-accent)]/10">
                 <Cpu className="h-4 w-4 text-[var(--nx-accent-teal)]" />
               </div>
-              <div>
+              <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-[var(--nx-text)]">NVIDIA NIM API Key</span>
                 {nvidiaKeySet && (
-                  <Badge variant="secondary" className="ml-2 h-4 px-1.5 text-[8px] bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20">
-                    SET
-                  </Badge>
+                  <>
+                    <Badge variant="secondary" className="h-4 px-1.5 text-[8px] bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20">
+                      SET
+                    </Badge>
+                    <span className="nx-key-isolation py-0.5 px-2 text-[9px]">
+                      <span className="nx-isolation-icon"><Shield className="h-2.5 w-2.5" /></span>
+                      Isolated
+                    </span>
+                  </>
                 )}
               </div>
             </div>
@@ -886,9 +904,11 @@ function SettingsPanel() {
               <div className="flex items-center justify-center w-7 h-7 rounded-md bg-[var(--nx-accent)]/10">
                 <Server className="h-4 w-4 text-[var(--nx-accent)]" />
               </div>
-              <div>
+              <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-[var(--nx-text)]">Claude Code Proxy</span>
-                <Badge variant="secondary" className={`ml-2 h-4 px-1.5 text-[8px] ${
+                {/* Animated status dot */}
+                <span className={`nx-proxy-status-dot ${proxyRunning && proxyHasKey ? 'running' : proxyRunning ? 'no-key' : 'stopped'}`} />
+                <Badge variant="secondary" className={`h-4 px-1.5 text-[8px] ${
                   proxyRunning && proxyHasKey
                     ? 'bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20'
                     : proxyRunning
@@ -982,12 +1002,18 @@ function SettingsPanel() {
               <div className="flex items-center justify-center w-7 h-7 rounded-md bg-[var(--nx-warning)]/10">
                 <Globe className="h-4 w-4 text-[var(--nx-warning)]" />
               </div>
-              <div>
+              <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-[var(--nx-text)]">OpenRouter API Key</span>
                 {openrouterKeySet && (
-                  <Badge variant="secondary" className="ml-2 h-4 px-1.5 text-[8px] bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20">
-                    SET
-                  </Badge>
+                  <>
+                    <Badge variant="secondary" className="h-4 px-1.5 text-[8px] bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20">
+                      SET
+                    </Badge>
+                    <span className="nx-key-isolation py-0.5 px-2 text-[9px]">
+                      <span className="nx-isolation-icon"><Shield className="h-2.5 w-2.5" /></span>
+                      Isolated
+                    </span>
+                  </>
                 )}
               </div>
             </div>
@@ -1034,7 +1060,7 @@ function SettingsPanel() {
         </div>
 
         {/* Info box */}
-        <div className="p-4 rounded-lg border border-[var(--nx-accent)]/15 bg-[var(--nx-accent)]/5 backdrop-blur-sm text-[10px] text-[var(--nx-text-dim)] space-y-2">
+        <div className="nx-settings-card p-4 text-[10px] text-[var(--nx-text-dim)] space-y-2">
           <div className="font-semibold text-[var(--nx-accent)] text-xs flex items-center gap-1.5">
             <Shield className="h-3 w-3" />
             How it works
