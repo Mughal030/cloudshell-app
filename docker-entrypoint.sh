@@ -376,8 +376,9 @@ whereis-tool() {
 #
 # Commands:
 #   fcc-claude             - Launch Claude Code via proxy (RECOMMENDED)
+#   claude-models          - List all available NVIDIA models
+#   claude-set-model       - Change the default model (supports short names!)
 #   claude-set-nvidia-key  - Change your NVIDIA API key
-#   claude-set-model       - Change the model mapping
 #   claude-show            - Show current config
 #   claude-test            - Test the proxy + NVIDIA API
 #   fcc-start / fcc-stop   - Start/stop the proxy
@@ -470,28 +471,105 @@ claude-set-url() {
 
 # ─── Change Claude Code Model ──────────────────────────────
 # The proxy maps model names to actual NVIDIA models.
+claude-models() {
+    echo "╔══════════════════════════════════════════════════════════════════╗"
+    echo "║           Available NVIDIA NIM Models (via fcc proxy)           ║"
+    echo "╠══════════════════════════════════════════════════════════════════╣"
+    echo "║  #  │ Claude Code ID           │ Real NVIDIA Model              ║"
+    echo "╠═════╪══════════════════════════╪═══════════════════════════════╣"
+    echo "║  1  │ claude-opus-4-5          │ z-ai/glm-5.2                  ║"
+    echo "║  2  │ claude-sonnet-4-5        │ nvidia/llama-3.3-nemotron-49b ║"
+    echo "║  3  │ claude-sonnet-4-5-mini   │ nvidia/phi-4                  ║"
+    echo "║  4  │ claude-opus-4            │ nvidia/nemotron-3-super-120b  ║"
+    echo "║  5  │ claude-sonnet-4          │ nvidia/llama-3.1-nemotron-70b ║"
+    echo "║  6  │ claude-deepseek-r1       │ deepseek-ai/deepseek-r1      ║"
+    echo "║  7  │ anthropic-mistral-large  │ nvidia/mistral-large-2411    ║"
+    echo "╚═════╧══════════════════════════╧═══════════════════════════════╝"
+    echo ""
+    echo "  Current default: ${ANTHROPIC_MODEL:-claude-opus-4-5}"
+    echo ""
+    echo "  To switch model (temporary, this session only):"
+    echo "    Type /model inside Claude Code and pick from the list"
+    echo ""
+    echo "  To change the DEFAULT model (permanent):"
+    echo "    claude-set-model <claude_code_id>"
+    echo ""
+    echo "  Examples:"
+    echo "    claude-set-model claude-opus-4-5        # GLM 5.2 (default, best)"
+    echo "    claude-set-model claude-deepseek-r1     # DeepSeek R1 (reasoning)"
+    echo "    claude-set-model claude-sonnet-4-5      # Llama Nemotron (balanced)"
+    echo "    claude-set-model claude-sonnet-4-5-mini # Phi-4 (fastest)"
+}
+
 claude-set-model() {
     if [ -z "$1" ]; then
-        echo "Usage: claude-set-model <model_name>"
-        echo "  Current: ${ANTHROPIC_MODEL}"
-        echo ""
-        echo "  When using the NVIDIA proxy, these model names get mapped:"
-        echo "    z-ai/glm-5.2  (Default - most capable free model)"
-        echo "    nvidia/llama-3.3-nemotron-super-49b-v1"
-        echo "    nvidia/mistral-large-2"
-        echo ""
-        echo "  If using Anthropic API directly (no proxy):"
-        echo "    claude-opus-4-7           (Most capable)"
-        echo "    claude-sonnet-4-20250514  (Balanced)"
-        echo "    claude-haiku-3-5-20241022 (Fast & cheap)"
+        claude-models
         return 1
     fi
-    export ANTHROPIC_MODEL="$1"
-    _claude_update_env ANTHROPIC_MODEL "$1"
-    # Also update fcc-server MODEL mapping
-    _fcc_update_env MODEL "nvidia_nim/$1"
-    echo "ANTHROPIC_MODEL updated to: $1"
-    echo "  (Saved to ~/.bashrc_env AND fcc-server .env)"
+
+    # Map the input to a valid Claude Code model ID
+    local MODEL_ID="$1"
+    local NVIDIA_MODEL=""
+
+    case "$MODEL_ID" in
+        1|glm|glm5|glm-5|glm-5.2|z-ai/glm-5.2)
+            MODEL_ID="claude-opus-4-5"
+            NVIDIA_MODEL="z-ai/glm-5.2"
+            ;;
+        2|llama|llama49b|nemotron-49b|nvidia/llama-3.3-nemotron-super-49b-v1)
+            MODEL_ID="claude-sonnet-4-5"
+            NVIDIA_MODEL="nvidia/llama-3.3-nemotron-super-49b-v1"
+            ;;
+        3|phi|phi4|nvidia/phi-4)
+            MODEL_ID="claude-sonnet-4-5-mini"
+            NVIDIA_MODEL="nvidia/phi-4"
+            ;;
+        4|nemotron-120b|nvidia/nemotron-3-super-120b-a12b)
+            MODEL_ID="claude-opus-4"
+            NVIDIA_MODEL="nvidia/nemotron-3-super-120b-a12b"
+            ;;
+        5|nemotron-70b|nvidia/llama-3.1-nemotron-70b-instruct)
+            MODEL_ID="claude-sonnet-4"
+            NVIDIA_MODEL="nvidia/llama-3.1-nemotron-70b-instruct"
+            ;;
+        6|deepseek|deepseek-r1|deepseek-ai/deepseek-r1)
+            MODEL_ID="claude-deepseek-r1"
+            NVIDIA_MODEL="deepseek-ai/deepseek-r1"
+            ;;
+        7|mistral|mistral-large|nvidia/mistral-large-2411)
+            MODEL_ID="anthropic-mistral-large"
+            NVIDIA_MODEL="nvidia/mistral-large-2411"
+            ;;
+        claude-opus-4-5|claude-sonnet-4-5|claude-sonnet-4-5-mini|claude-opus-4|claude-sonnet-4|claude-deepseek-r1|anthropic-mistral-large)
+            # Already a valid Claude Code ID — resolve it
+            ;;
+        *)
+            echo "ERROR: Unknown model '$MODEL_ID'"
+            echo ""
+            claude-models
+            return 1
+            ;;
+    esac
+
+    # Resolve NVIDIA model name from the Claude ID
+    case "$MODEL_ID" in
+        claude-opus-4-5)         NVIDIA_MODEL="z-ai/glm-5.2" ;;
+        claude-sonnet-4-5)       NVIDIA_MODEL="nvidia/llama-3.3-nemotron-super-49b-v1" ;;
+        claude-sonnet-4-5-mini)  NVIDIA_MODEL="nvidia/phi-4" ;;
+        claude-opus-4)           NVIDIA_MODEL="nvidia/nemotron-3-super-120b-a12b" ;;
+        claude-sonnet-4)         NVIDIA_MODEL="nvidia/llama-3.1-nemotron-70b-instruct" ;;
+        claude-deepseek-r1)      NVIDIA_MODEL="deepseek-ai/deepseek-r1" ;;
+        anthropic-mistral-large) NVIDIA_MODEL="nvidia/mistral-large-2411" ;;
+    esac
+
+    export ANTHROPIC_MODEL="$MODEL_ID"
+    _claude_update_env ANTHROPIC_MODEL "$MODEL_ID"
+    echo "✅ Model changed successfully!"
+    echo ""
+    echo "  Claude Code shows: $MODEL_ID"
+    echo "  Actually uses:     $NVIDIA_MODEL (on NVIDIA NIM)"
+    echo ""
+    echo "  Saved to ~/.bashrc_env (permanent across sessions)"
     echo ""
     echo "  Restart the proxy for changes to take effect:"
     echo "    fcc-stop && fcc-start"
