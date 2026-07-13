@@ -276,10 +276,12 @@ function callNvidiaApi(nvidiaBody, apiKey, stream, callback) {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Length': Buffer.byteLength(bodyStr),
     },
-    timeout: 120000,
+    timeout: 300000, // 5 minutes — NVIDIA NIM can take 60+ seconds for first response
   }
 
   const nvidiaReq = https.request(options, (nvidiaRes) => {
+    // Set a long idle timeout on the response socket
+    nvidiaRes.setTimeout(300000)
     if (stream) {
       callback(null, nvidiaRes)
     } else {
@@ -301,12 +303,14 @@ function callNvidiaApi(nvidiaBody, apiKey, stream, callback) {
   })
 
   nvidiaReq.on('error', (err) => {
+    console.error(`[FCC-Proxy] NVIDIA request error: ${err.code || err.message}`)
     callback({ error: err.message }, null, 502)
   })
 
   nvidiaReq.on('timeout', () => {
+    console.error(`[FCC-Proxy] NVIDIA request timeout after ${options.timeout}ms`)
     nvidiaReq.destroy()
-    callback({ error: 'NVIDIA API timeout' }, null, 504)
+    callback({ error: `NVIDIA API timeout (${options.timeout}ms)` }, null, 504)
   })
 
   nvidiaReq.write(bodyStr)
@@ -608,6 +612,14 @@ async function handleRequest(req, res) {
 }
 
 // ─── Start the proxy server ─────────────────────────────────
+// Prevent crashes from unhandled errors
+process.on('uncaughtException', (err) => {
+  console.error('[FCC-Proxy] Uncaught exception (non-fatal):', err.message)
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('[FCC-Proxy] Unhandled rejection (non-fatal):', reason)
+})
+
 const server = http.createServer((req, res) => {
   handleRequest(req, res).catch(err => {
     console.error('[FCC-Proxy] Unhandled error:', err)
