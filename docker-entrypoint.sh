@@ -1285,21 +1285,56 @@ fi
 # The proxy on port 8082 is now a FULL Anthropic→NVIDIA API translator.
 # It extracts per-user NVIDIA keys from request headers, ensuring
 # complete key isolation between user profiles. No fcc-server needed.
+# ─── Resolve NVIDIA API key from multiple sources ──────────────
+# Priority: 1) Docker env var  2) ~/.fcc/.env file  3) empty
+# This key is passed to the proxy as a fallback for users without personal keys.
+RESOLVED_NVIDIA_KEY="${NVIDIA_NIM_API_KEY:-}"
+if [ -z "$RESOLVED_NVIDIA_KEY" ] && [ -f /home/cloudshell/.fcc/.env ]; then
+    RESOLVED_NVIDIA_KEY=$(grep '^NVIDIA_NIM_API_KEY=' /home/cloudshell/.fcc/.env 2>/dev/null | head -1 | sed 's/^NVIDIA_NIM_API_KEY="//;s/"$//')
+fi
+echo "[Entrypoint] NVIDIA key resolved: $([ -n "$RESOLVED_NVIDIA_KEY" ] && echo '****'${RESOLVED_NVIDIA_KEY: -4} || echo 'NOT SET')"
+
+# ─── Ensure .bashrc_env has NVIDIA_NIM_API_KEY ─────────────────
+if ! grep -q '^export NVIDIA_NIM_API_KEY=' /home/cloudshell/.bashrc_env 2>/dev/null; then
+    echo "export NVIDIA_NIM_API_KEY=\"${RESOLVED_NVIDIA_KEY}\"" >> /home/cloudshell/.bashrc_env
+    echo "[Entrypoint] Added NVIDIA_NIM_API_KEY to ~/.bashrc_env"
+else
+    # Update existing value with resolved key
+    sed -i "s|^export NVIDIA_NIM_API_KEY=.*|export NVIDIA_NIM_API_KEY=\"${RESOLVED_NVIDIA_KEY}\"|" /home/cloudshell/.bashrc_env 2>/dev/null || true
+fi
+
+# Ensure ANTHROPIC_DEFAULT model env vars are in .bashrc_env
+for VAR in ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL CLAUDE_CODE_SUBAGENT_MODEL CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING; do
+    if ! grep -q "^export ${VAR}=" /home/cloudshell/.bashrc_env 2>/dev/null; then
+        echo "export ${VAR}=\"${!VAR:-}\"" >> /home/cloudshell/.bashrc_env
+    fi
+done
+
+chown cloudshell:cloudshell /home/cloudshell/.bashrc_env 2>/dev/null || true
+
+# Start the direct-to-NVIDIA proxy on port 8082
+# (v3 proxy: no fcc-server needed — goes directly to NVIDIA NIM API)
 if [ -f /home/cloudshell/scripts/fcc-model-discovery-proxy.js ]; then
     # Start the full proxy on port 8082
-    # Pass NVIDIA_NIM_API_KEY as fallback key for users without personal keys
+    # Pass the RESOLVED NVIDIA_NIM_API_KEY as fallback key for users without personal keys
+    export NVIDIA_NIM_API_KEY="$RESOLVED_NVIDIA_KEY"
     gosu cloudshell bash -c '
         source /home/cloudshell/.bashrc_env 2>/dev/null || true
-        NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}" FCC_PROXY_PORT=8082 nohup node /home/cloudshell/scripts/fcc-model-discovery-proxy.js > /tmp/fcc-model-proxy.log 2>&1 &
+        NVIDIA_NIM_API_KEY="'"$RESOLVED_NVIDIA_KEY"'" FCC_PROXY_PORT=8082 nohup node /home/cloudshell/scripts/fcc-model-discovery-proxy.js > /tmp/fcc-model-proxy.log 2>&1 &
         echo "Full proxy PID: $!"
+        echo $! > /home/cloudshell/.fcc/proxy.pid
     ' 2>/dev/null || true
     sleep 2
-    if curl -s http://localhost:8082/v1/models >/dev/null 2>&1; then
+
+    # Verify proxy started and check health
+    if curl -s http://localhost:8082/health >/dev/null 2>&1; then
+        PROXY_HEALTH=$(curl -s http://localhost:8082/health 2>&1)
         echo "[Entrypoint] ✅ Full NVIDIA NIM proxy running on http://localhost:8082"
         echo "[Entrypoint]    Per-user key isolation: ENABLED"
+        echo "[Entrypoint]    Fallback key: $([ -n "$RESOLVED_NVIDIA_KEY" ] && echo '****'${RESOLVED_NVIDIA_KEY: -4} || echo 'NONE')"
         echo "[Entrypoint]    Models: z-ai/glm-5.2, nemotron, llama, deepseek-r1, phi-4, etc."
     else
-        echo "[Entrypoint] ⚠ Proxy still starting..."
+        echo "[Entrypoint] ⚠ Proxy still starting... Check: tail -f /tmp/fcc-model-proxy.log"
     fi
 elif command -v fcc-server &>/dev/null; then
     # Fallback: start fcc-server on 8082 if the full proxy script is missing
