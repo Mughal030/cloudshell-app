@@ -1298,3 +1298,32 @@ Stage Summary:
 - NVIDIA NIM API key now properly propagated to fcc proxy process at boot and on save
 - Proxy restart is more robust with multiple kill methods and process verification
 - Settings panel shows real-time proxy status with restart capability
+---
+Task ID: 3
+Agent: main
+Task: Fix NVIDIA models not showing in Claude Code /model picker
+
+Work Log:
+- Identified root cause: Claude Code's /model picker calls GET /v1/models on ANTHROPIC_BASE_URL
+  to discover models, but fcc-server doesn't implement /v1/models endpoint
+- Also identified ANTHROPIC_MODEL was never set, so Claude Code had no default NVIDIA model
+- Created fcc-model-discovery-proxy.js: lightweight Node.js proxy that:
+  - Serves GET /v1/models with 6 NVIDIA NIM models in Anthropic-compatible format
+  - Proxies all other requests to fcc-server (POST /v1/messages, /health, etc.)
+  - Handles CORS preflight requests
+- Restructured port architecture:
+  - fcc-server now runs on port 8083 (internal, behind model-discovery proxy)
+  - model-discovery proxy runs on port 8082 (public, what Claude Code connects to)
+  - ANTHROPIC_BASE_URL unchanged (still http://localhost:8082)
+- Added ANTHROPIC_MODEL="nvidia/nemotron-3-super-120b-a12b" to:
+  - Dockerfile ENV
+  - .bashrc_env template
+  - Existing .bashrc_env update (for already-deployed containers)
+- Updated all shell functions: fcc-start, fcc-stop, fcc-status, setup-fcc-proxy
+- Updated keys/route.ts: start script starts both services, kill function handles both ports
+- Pushed to GitHub and Hugging Face
+
+Stage Summary:
+- NVIDIA NIM models now appear in Claude Code's /model picker
+- Architecture: Claude Code → 8082 (model-discovery) → 8083 (fcc-server) → NVIDIA NIM
+- Default model set to nvidia/nemotron-3-super-120b-a12b
