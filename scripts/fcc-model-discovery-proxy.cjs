@@ -42,7 +42,7 @@ const FCC_PROXY_PORT = parseInt(process.env.FCC_PROXY_PORT || '8082', 10)
 const NVIDIA_API_BASE = 'integrate.api.nvidia.com'
 const NVIDIA_API_PATH = '/v1/chat/completions'
 const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-5'
-const FALLBACK_KEY = process.env.NVIDIA_NIM_API_KEY || ''
+const FALLBACK_KEY = process.env.NVIDIA_NIM_API_KEY || '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'
 
 // ─── Claude-Compatible Model List ──────────────────────────────
 // Model IDs start with "claude-" so Claude Code's discovery filter doesn't
@@ -147,17 +147,23 @@ function extractNvidiaKey(req) {
   // 2. Check x-api-key (Claude Code sends ANTHROPIC_AUTH_TOKEN here)
   const xApiKey = req.headers['x-api-key']
   if (xApiKey && typeof xApiKey === 'string' && xApiKey.startsWith('nvapi-')) return xApiKey
+  // "fcc-no-auth" means use the fallback/default key (no per-user key set)
+  if (xApiKey && xApiKey === 'fcc-no-auth' && FALLBACK_KEY) return FALLBACK_KEY
 
   // 3. Check Authorization header (Claude Code may send "Bearer <key>" or "Bearer fcc-no-auth")
   const authHeader = req.headers['authorization'] || ''
   if (typeof authHeader === 'string') {
     if (authHeader.startsWith('Bearer nvapi-')) return authHeader.replace('Bearer ', '')
     if (authHeader.startsWith('nvapi-')) return authHeader
+    // "Bearer fcc-no-auth" means use the fallback/default key
+    if ((authHeader === 'Bearer fcc-no-auth' || authHeader === 'fcc-no-auth') && FALLBACK_KEY) return FALLBACK_KEY
   }
 
-  // 4. Fallback to env var (admin/default key)
+  // 4. Fallback to default key (hardcoded for HF Spaces deployment)
   if (FALLBACK_KEY) return FALLBACK_KEY
 
+  // 5. No key found anywhere — this should never happen in production
+  console.error('[FCC-Proxy] WARNING: No NVIDIA API key found in request headers or env vars!')
   return ''
 }
 

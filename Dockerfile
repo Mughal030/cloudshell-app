@@ -74,13 +74,13 @@ RUN chmod +x /home/cloudshell/workspace/scripts/test-nvidia-api.py && \
 # ─── Model Discovery Proxy ───────────────────────────────────
 # Lightweight Node.js proxy that adds /v1/models endpoint for Claude Code's
 # model picker. Sits between Claude Code (port 8082) and fcc-server (port 8083).
-COPY scripts/fcc-model-discovery-proxy.js /home/cloudshell/scripts/fcc-model-discovery-proxy.js
-RUN chmod +x /home/cloudshell/scripts/fcc-model-discovery-proxy.js && \
-    chown cloudshell:cloudshell /home/cloudshell/scripts/fcc-model-discovery-proxy.js
+COPY scripts/fcc-model-discovery-proxy.cjs /home/cloudshell/scripts/fcc-model-discovery-proxy.cjs
+RUN chmod +x /home/cloudshell/scripts/fcc-model-discovery-proxy.cjs && \
+    chown cloudshell:cloudshell /home/cloudshell/scripts/fcc-model-discovery-proxy.cjs
 
 # ─── Claude Code default environment (via free-claude-code proxy) ───
 # Architecture:
-#   Claude Code → localhost:8082 (model-discovery proxy) → localhost:8083 (fcc-server) → NVIDIA NIM API
+#   Claude Code → localhost:8082 (model-discovery proxy) → NVIDIA NIM API
 # The model-discovery proxy adds /v1/models endpoint for Claude Code's model picker.
 # The fcc-server translates Anthropic API requests to NVIDIA NIM format.
 #
@@ -93,16 +93,13 @@ RUN chmod +x /home/cloudshell/scripts/fcc-model-discovery-proxy.js && \
 #   CLAUDE_CODE_USE_AUTH_TOKEN → tells Claude Code to use the token, not OAuth
 #   CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY → enables /model picker
 #   CLAUDE_CODE_AUTO_COMPACT_WINDOW → auto-compaction for long sessions
-#   ANTHROPIC_MODEL → default model for Claude Code (NVIDIA NIM model ID)
-# NOTE: NVIDIA_NIM_API_KEY is intentionally NOT set here.
-# Each user sets their own key via the Settings panel in the web UI.
-# The admin can pass a default key at deployment time:
-#   docker run -e NVIDIA_NIM_API_KEY=nvapi-xxx ...
-# Or via HF Spaces "Secrets" tab.
-# The proxy reads from ~/.fcc/.env or falls back to this env var.
+#   ANTHROPIC_MODEL → default model for Claude Code (Claude-compatible ID)
+#   NVIDIA_NIM_API_KEY → default NVIDIA key (can be overridden via HF Secrets)
+#     The proxy uses this as fallback when no per-user key is provided.
 ENV ANTHROPIC_BASE_URL="http://localhost:8082" \
     ANTHROPIC_AUTH_TOKEN="fcc-no-auth" \
     ANTHROPIC_MODEL="claude-opus-4-5" \
+    NVIDIA_NIM_API_KEY="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" \
     CLAUDE_CODE_USE_AUTH_TOKEN="true" \
     CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="1" \
     CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000" \

@@ -109,5 +109,10 @@
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5"
+  },
+  "allowScripts": {
+    "highlight.js@9.18.5": true,
+    "ejs@2.7.4": true,
+    "@homebridge/node-pty-prebuilt-multiarch@0.14.0": true
   }
 }
