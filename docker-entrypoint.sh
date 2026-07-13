@@ -598,7 +598,7 @@ WRAPPEREOF
     fi
     echo ""
     echo "  Creating .env with your NVIDIA key..."
-    _fcc_update_env PORT "8082"
+    _fcc_update_env PORT "8083"
     _fcc_update_env NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY:-nvapi-YOUR-KEY-HERE}"
     _fcc_update_env MODEL "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
     _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
@@ -610,96 +610,105 @@ WRAPPEREOF
 # ─── Start the free-claude-code proxy ──────────────────────
 fcc-start() {
     if curl -s http://localhost:8082/health >/dev/null 2>&1; then
-        echo "Proxy (fcc-server) is already running on port 8082"
+        echo "Proxy (fcc-server + model discovery) is already running on port 8082"
         return 0
     fi
 
-    echo "Starting free-claude-code proxy on port 8082..."
+    echo "Starting free-claude-code proxy..."
 
     # Ensure .env exists with NVIDIA key
-    _fcc_update_env PORT "8082"
+    _fcc_update_env PORT "8083"  # fcc-server runs on 8083 internally
     _fcc_update_env NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY:-}"
     _fcc_update_env MODEL "nvidia_nim/${ANTHROPIC_MODEL:-nvidia/nemotron-3-super-120b-a12b}"
     _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
 
-    # Start in background — explicitly set PORT=8082 and NVIDIA_NIM_API_KEY
-    # to override HF Spaces' PORT=7860 and ensure pydantic-settings gets the key.
-    # CRITICAL: pydantic-settings reads env vars with HIGHER priority than ~/.fcc/.env,
-    # so we MUST pass the key as an env var here, not just write it to the .env file.
-    # Read key from .env file if not already in environment (e.g. after container boot)
+    # Read key from .env file if not in environment
     local FCC_NVIDIA_KEY="${NVIDIA_NIM_API_KEY:-}"
     if [ -z "$FCC_NVIDIA_KEY" ] && [ -f "${HOME}/.fcc/.env" ]; then
         FCC_NVIDIA_KEY=$(grep '^NVIDIA_NIM_API_KEY=' "${HOME}/.fcc/.env" 2>/dev/null | head -1 | sed 's/^NVIDIA_NIM_API_KEY="//;s/"$//')
     fi
-    PORT=8082 NVIDIA_NIM_API_KEY="$FCC_NVIDIA_KEY" nohup fcc-server > /tmp/fcc-server.log 2>&1 &
-    local PID=$!
-    # Save PID to file so the Next.js API can kill/restart reliably
-    echo "$PID" > "${HOME}/.fcc/fcc-server.pid"
-    echo "  Started with PID $PID (saved to ~/.fcc/fcc-server.pid)"
 
-    # Wait for it to become healthy (max 30 seconds)
-    echo "  Waiting for proxy to start..."
+    # Step 1: Start fcc-server on port 8083 (internal)
+    PORT=8083 NVIDIA_NIM_API_KEY="$FCC_NVIDIA_KEY" nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+    local FCC_PID=$!
+    echo "$FCC_PID" > "${HOME}/.fcc/fcc-server.pid"
+    echo "  fcc-server started with PID $FCC_PID on port 8083 (internal)"
+
+    # Wait for fcc-server to be ready (max 15 seconds)
+    echo "  Waiting for fcc-server to start..."
     local WAITED=0
-    while [ $WAITED -lt 30 ]; do
-        if curl -s http://localhost:8082/health >/dev/null 2>&1; then
-            echo "  ✅ Proxy is running on http://localhost:8082"
-            echo "  ✅ Admin UI at http://localhost:8082/admin"
-            echo ""
-            echo "  Now just type: fcc-claude"
-            return 0
+    while [ $WAITED -lt 15 ]; do
+        if curl -s http://localhost:8083/health >/dev/null 2>&1; then
+            echo "  ✅ fcc-server is running on port 8083"
+            break
         fi
         sleep 1
         WAITED=$((WAITED + 1))
     done
 
+    # Step 2: Start model-discovery proxy on port 8082 (public)
+    if [ -f /home/cloudshell/scripts/fcc-model-discovery-proxy.js ]; then
+        FCC_INTERNAL_PORT=8083 FCC_PROXY_PORT=8082 nohup node /home/cloudshell/scripts/fcc-model-discovery-proxy.js > /tmp/fcc-model-proxy.log 2>&1 &
+        local PROXY_PID=$!
+        echo "  Model discovery proxy started with PID $PROXY_PID on port 8082"
+        sleep 1
+        if curl -s http://localhost:8082/v1/models >/dev/null 2>&1; then
+            echo "  ✅ Model discovery proxy running — NVIDIA models available in /model picker"
+        else
+            echo "  ⚠ Model discovery proxy may still be starting"
+        fi
+    else
+        echo "  ⚠ fcc-model-discovery-proxy.js not found — /model picker may show Anthropic models only"
+    fi
+
+    # Final check
+    if curl -s http://localhost:8082/health >/dev/null 2>&1; then
+        echo "  ✅ Full proxy stack is running on http://localhost:8082"
+        echo "  ✅ Admin UI at http://localhost:8083/admin (internal)"
+        echo ""
+        echo "  Now just type: fcc-claude"
+        return 0
+    fi
+
     echo "  ⚠ Proxy may still be starting. Check: fcc-status"
-    echo "  Logs: tail -f /tmp/fcc-server.log"
+    echo "  Logs: tail -f /tmp/fcc-server.log /tmp/fcc-model-proxy.log"
 }
 
 # ─── Stop the free-claude-code proxy ───────────────────────
 fcc-stop() {
     echo "Stopping free-claude-code proxy..."
-    local PID=""
 
-    # Method 1: PID file
+    # Kill model-discovery proxy on port 8082
+    pkill -f fcc-model-discovery-proxy 2>/dev/null || true
+    fuser -k 8082/tcp 2>/dev/null || true
+
+    # Kill fcc-server on port 8083
+    local PID=""
     if [ -f "${HOME}/.fcc/fcc-server.pid" ]; then
         PID=$(cat "${HOME}/.fcc/fcc-server.pid" 2>/dev/null | tr -d '[:space:]')
     fi
-
-    # Method 2: lsof fallback
     if [ -z "$PID" ] || ! kill -0 "$PID" 2>/dev/null; then
-        PID=$(lsof -ti:8082 2>/dev/null || true)
+        PID=$(lsof -ti:8083 2>/dev/null || true)
     fi
 
-    if [ -z "$PID" ]; then
-        echo "  Proxy (fcc-server) is not running"
-        rm -f "${HOME}/.fcc/fcc-server.pid" 2>/dev/null || true
-        return 0
+    if [ -n "$PID" ]; then
+        for P in $PID; do kill "$P" 2>/dev/null || true; done
+        sleep 1
+        for P in $PID; do
+            if kill -0 "$P" 2>/dev/null; then kill -9 "$P" 2>/dev/null || true; fi
+        done
     fi
 
-    # Kill gracefully first, then force kill after 2s
-    for P in $PID; do
-        kill "$P" 2>/dev/null || true
-    done
-    sleep 1
-
-    # Check if still alive, force kill
-    for P in $PID; do
-        if kill -0 "$P" 2>/dev/null; then
-            kill -9 "$P" 2>/dev/null || true
-        fi
-    done
-
-    # Also kill via fuser for reliability
+    # Force kill anything left on both ports
     fuser -k 8082/tcp 2>/dev/null || true
-
-    # Also pkill by name
+    fuser -k 8083/tcp 2>/dev/null || true
     pkill -9 -f fcc-server 2>/dev/null || true
+    pkill -9 -f fcc-model-discovery-proxy 2>/dev/null || true
 
-    # Wait for port to be free (up to 5s)
+    # Wait for ports to be free (up to 5s)
     local WAITED=0
     while [ $WAITED -lt 10 ]; do
-        if ! lsof -ti:8082 2>/dev/null; then
+        if ! lsof -ti:8082 2>/dev/null && ! lsof -ti:8083 2>/dev/null; then
             break
         fi
         sleep 0.5
@@ -707,31 +716,48 @@ fcc-stop() {
     done
 
     rm -f "${HOME}/.fcc/fcc-server.pid" 2>/dev/null || true
-    echo "  Proxy (fcc-server) stopped (PID $PID killed)"
+    echo "  Proxy stopped (both fcc-server and model-discovery proxy)"
 }
 
 # ─── Check proxy status ───────────────────────────────────
 fcc-status() {
+    echo "=== Free-Claude-Code Proxy Status ==="
+    echo ""
+
+    # Check model-discovery proxy on port 8082
     if curl -s http://localhost:8082/health >/dev/null 2>&1; then
-        echo "✅ Proxy (fcc-server) is RUNNING on port 8082"
-        echo "   Admin UI: http://localhost:8082/admin"
-        local PID=""
-        if [ -f "${HOME}/.fcc/fcc-server.pid" ]; then
-            PID=$(cat "${HOME}/.fcc/fcc-server.pid" 2>/dev/null | tr -d '[:space:]')
-        fi
-        if [ -z "$PID" ] || ! kill -0 "$PID" 2>/dev/null; then
-            PID=$(lsof -ti:8082 2>/dev/null || echo "unknown")
-        fi
-        echo "   PID: $PID"
-        # Show NVIDIA key status
-        if [ -n "$NVIDIA_NIM_API_KEY" ]; then
-            echo "   NVIDIA key: ****${NVIDIA_NIM_API_KEY: -4}"
-        else
-            echo "   NVIDIA key: NOT SET (set via: claude-set-nvidia-key <key>)"
-        fi
+        echo "✅ Model Discovery Proxy: RUNNING on port 8082"
+        # Check if /v1/models works
+        local MODEL_COUNT=$(curl -s http://localhost:8082/v1/models 2>/dev/null | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('data',[])))" 2>/dev/null || echo "?")
+        echo "   Models available: $MODEL_COUNT"
     else
-        echo "❌ Proxy (fcc-server) is NOT running"
-        echo "   Start it with: fcc-start"
+        echo "❌ Model Discovery Proxy: NOT running on port 8082"
+    fi
+
+    # Check fcc-server on port 8083
+    if curl -s http://localhost:8083/health >/dev/null 2>&1; then
+        echo "✅ fcc-server: RUNNING on port 8083 (internal)"
+        echo "   Admin UI: http://localhost:8083/admin"
+    else
+        echo "❌ fcc-server: NOT running on port 8083"
+    fi
+
+    local PID=""
+    if [ -f "${HOME}/.fcc/fcc-server.pid" ]; then
+        PID=$(cat "${HOME}/.fcc/fcc-server.pid" 2>/dev/null | tr -d '[:space:]')
+        echo "   fcc-server PID: $PID"
+    fi
+
+    # Show NVIDIA key status
+    if [ -n "$NVIDIA_NIM_API_KEY" ]; then
+        echo "   NVIDIA key: ****${NVIDIA_NIM_API_KEY: -4}"
+    else
+        echo "   NVIDIA key: NOT SET (set via: claude-set-nvidia-key <key>)"
+    fi
+
+    echo ""
+    if ! curl -s http://localhost:8082/health >/dev/null 2>&1; then
+        echo "Start both with: fcc-start"
     fi
 }
 
@@ -773,7 +799,7 @@ claude-test() {
         PROXY_PID=$(cat "${HOME}/.fcc/fcc-server.pid" 2>/dev/null | tr -d '[:space:]')
     fi
     if [ -z "$PROXY_PID" ]; then
-        PROXY_PID=$(lsof -ti:8082 2>/dev/null | head -1 || true)
+        PROXY_PID=$(lsof -ti:8083 2>/dev/null | head -1 || true)
     fi
     if [ -n "$PROXY_PID" ] && [ -d "/proc/$PROXY_PID" ]; then
         local PROXY_KEY_IN_ENV
@@ -1137,6 +1163,7 @@ if [ ! -f "/home/cloudshell/.bashrc_env" ]; then
 # Claude Code proxy environment (auto-generated)
 export ANTHROPIC_BASE_URL="http://localhost:8082"
 export ANTHROPIC_AUTH_TOKEN="fcc-no-auth"
+export ANTHROPIC_MODEL="nvidia/nemotron-3-super-120b-a12b"
 export CLAUDE_CODE_USE_AUTH_TOKEN="true"
 export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="1"
 export CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000"
@@ -1147,6 +1174,12 @@ export CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000"
 export FCC_PORT="8082"
 BASHEOF
     chown cloudshell:cloudshell /home/cloudshell/.bashrc_env 2>/dev/null || true
+else
+    # .bashrc_env already exists — ensure ANTHROPIC_MODEL is set
+    if ! grep -q '^export ANTHROPIC_MODEL=' /home/cloudshell/.bashrc_env 2>/dev/null; then
+        echo 'export ANTHROPIC_MODEL="nvidia/nemotron-3-super-120b-a12b"' >> /home/cloudshell/.bashrc_env
+        echo "[Entrypoint] Added ANTHROPIC_MODEL to existing ~/.bashrc_env"
+    fi
 fi
 
 # ─── Ensure auth users directory exists ─────────────────────────
@@ -1180,7 +1213,7 @@ if [ ! -f /home/cloudshell/.fcc/.env ]; then
 NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}"
 MODEL="nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
 ANTHROPIC_AUTH_TOKEN="fcc-no-auth"
-PORT="8082"
+PORT="8083"
 FCC_OPEN_BROWSER="false"
 MESSAGING_PLATFORM="none"
 ENABLE_MODEL_THINKING="true"
@@ -1198,7 +1231,7 @@ else
         fi
     fi
     # Always ensure these are set correctly
-    _fcc_update_env PORT "8082"
+    _fcc_update_env PORT "8083"
     _fcc_update_env MODEL "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
     _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
     _fcc_update_env FCC_OPEN_BROWSER "false"
@@ -1249,30 +1282,63 @@ WRAPPEREOF
 fi
 
 # Start fcc-server in background as cloudshell user
-# IMPORTANT: Explicitly set PORT=8082 because HF Spaces sets PORT=7860
-# in the runtime environment, and pydantic-settings reads env vars with
-# higher priority than ~/.fcc/.env. Without this, fcc-server would bind
-# to 7860 (clashing with Next.js) instead of 8082.
+# IMPORTANT: Explicitly set PORT=8083 because we now run a model-discovery
+# proxy on port 8082 that adds /v1/models endpoint for Claude Code's
+# model picker. The real fcc-server runs on 8083 (internal only).
+# HF Spaces sets PORT=7860 in the runtime environment, and pydantic-settings
+# reads env vars with higher priority than ~/.fcc/.env. Without explicitly
+# setting PORT=8083, fcc-server would bind to 7860 (clashing with Next.js).
 #
 # We also save the PID to ~/.fcc/fcc-server.pid so the Next.js API
 # can reliably kill and restart the proxy when the user updates their
 # NVIDIA API key via the Settings panel.
 if command -v fcc-server &>/dev/null; then
+    # Update .fcc/.env to use port 8083 (internal fcc-server port)
+    _fcc_update_env PORT "8083"
     gosu cloudshell bash -c '
         source /home/cloudshell/.bashrc_env 2>/dev/null || true
-        PORT=8082 NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}" nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+        PORT=8083 NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}" nohup fcc-server > /tmp/fcc-server.log 2>&1 &
         PID=$!
         echo "$PID" > /home/cloudshell/.fcc/fcc-server.pid
-        echo "fcc-server PID: $PID (NVIDIA key: ****${NVIDIA_NIM_API_KEY: -4})"
+        echo "fcc-server PID: $PID (internal port 8083, NVIDIA key: ****${NVIDIA_NIM_API_KEY: -4})"
     ' 2>/dev/null || true
     # Give it a few seconds to start
     sleep 3
-    if curl -s http://localhost:8082/health >/dev/null 2>&1; then
-        echo "[Entrypoint] ✅ free-claude-code proxy running on http://localhost:8082"
-        echo "[Entrypoint]    Admin UI: http://localhost:8082/admin"
+    if curl -s http://localhost:8083/health >/dev/null 2>&1; then
+        echo "[Entrypoint] ✅ free-claude-code server running on http://localhost:8083 (internal)"
     else
-        echo "[Entrypoint] ⚠ free-claude-code proxy still starting (may take a few more seconds)"
-        echo "[Entrypoint]    Check later with: fcc-status"
+        echo "[Entrypoint] ⚠ free-claude-code server still starting (may take a few more seconds)"
+    fi
+
+    # ─── Start Model Discovery Proxy on port 8082 ────────────
+    # This lightweight Node.js proxy adds a /v1/models endpoint
+    # that returns NVIDIA NIM models in Anthropic-compatible format.
+    # Claude Code's /model picker uses GET /v1/models to discover models.
+    # All other requests (POST /v1/messages, etc.) are proxied to fcc-server on 8083.
+    if [ -f /home/cloudshell/scripts/fcc-model-discovery-proxy.js ]; then
+        gosu cloudshell bash -c '
+            source /home/cloudshell/.bashrc_env 2>/dev/null || true
+            FCC_INTERNAL_PORT=8083 FCC_PROXY_PORT=8082 nohup node /home/cloudshell/scripts/fcc-model-discovery-proxy.js > /tmp/fcc-model-proxy.log 2>&1 &
+            echo "Model discovery proxy PID: $!"
+        ' 2>/dev/null || true
+        sleep 1
+        if curl -s http://localhost:8082/v1/models >/dev/null 2>&1; then
+            echo "[Entrypoint] ✅ Model discovery proxy running on http://localhost:8082"
+            echo "[Entrypoint]    NVIDIA models available in Claude Code /model picker"
+        else
+            echo "[Entrypoint] ⚠ Model discovery proxy still starting"
+        fi
+    else
+        echo "[Entrypoint] ⚠ fcc-model-discovery-proxy.js not found — /model picker may show Anthropic models only"
+        # Fallback: start fcc-server directly on 8082 (no model discovery)
+        gosu cloudshell bash -c '
+            fuser -k 8083/tcp 2>/dev/null || true
+            PORT=8082 NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}" nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+            PID=$!
+            echo "$PID" > /home/cloudshell/.fcc/fcc-server.pid
+        ' 2>/dev/null || true
+        sleep 2
+        echo "[Entrypoint] ✅ free-claude-code proxy running on http://localhost:8082 (no model discovery)"
     fi
 else
     echo "[Entrypoint] ⚠ fcc-server install failed. Run manually: setup-fcc-proxy"

@@ -71,10 +71,18 @@ COPY scripts/test-nvidia-api.py /home/cloudshell/workspace/scripts/test-nvidia-a
 RUN chmod +x /home/cloudshell/workspace/scripts/test-nvidia-api.py && \
     chown cloudshell:cloudshell /home/cloudshell/workspace/scripts/test-nvidia-api.py
 
+# ─── Model Discovery Proxy ───────────────────────────────────
+# Lightweight Node.js proxy that adds /v1/models endpoint for Claude Code's
+# model picker. Sits between Claude Code (port 8082) and fcc-server (port 8083).
+COPY scripts/fcc-model-discovery-proxy.js /home/cloudshell/scripts/fcc-model-discovery-proxy.js
+RUN chmod +x /home/cloudshell/scripts/fcc-model-discovery-proxy.js && \
+    chown cloudshell:cloudshell /home/cloudshell/scripts/fcc-model-discovery-proxy.js
+
 # ─── Claude Code default environment (via free-claude-code proxy) ───
-# The proxy (fcc-server) is installed at RUNTIME to save build time.
-# It runs on localhost:8082 and translates Anthropic API requests
-# to NVIDIA NIM format using the NVIDIA_NIM_API_KEY.
+# Architecture:
+#   Claude Code → localhost:8082 (model-discovery proxy) → localhost:8083 (fcc-server) → NVIDIA NIM API
+# The model-discovery proxy adds /v1/models endpoint for Claude Code's model picker.
+# The fcc-server translates Anthropic API requests to NVIDIA NIM format.
 #
 # KEY: Use "fcc-claude" (not "claude") to launch Claude Code.
 # fcc-claude auto-sets all env vars and skips the login prompt.
@@ -85,11 +93,13 @@ RUN chmod +x /home/cloudshell/workspace/scripts/test-nvidia-api.py && \
 #   CLAUDE_CODE_USE_AUTH_TOKEN → tells Claude Code to use the token, not OAuth
 #   CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY → enables /model picker
 #   CLAUDE_CODE_AUTO_COMPACT_WINDOW → auto-compaction for long sessions
+#   ANTHROPIC_MODEL → default model for Claude Code (NVIDIA NIM model ID)
 # SECURITY: NVIDIA_NIM_API_KEY is NO LONGER set here. Each user configures
 # their own key via the Settings panel. The admin can set a default key
 # via the NVIDIA_NIM_API_KEY env var at deployment time if desired.
 ENV ANTHROPIC_BASE_URL="http://localhost:8082" \
     ANTHROPIC_AUTH_TOKEN="fcc-no-auth" \
+    ANTHROPIC_MODEL="nvidia/nemotron-3-super-120b-a12b" \
     CLAUDE_CODE_USE_AUTH_TOKEN="true" \
     CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="1" \
     CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000"

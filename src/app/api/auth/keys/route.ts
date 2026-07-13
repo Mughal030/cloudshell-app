@@ -45,11 +45,18 @@ function updateFccEnv(key: string, value: string) {
   }
 }
 
-/** Kill process using port 8082 — tries multiple methods for robustness */
+/** Kill process using ports 8082 and 8083 — tries multiple methods for robustness */
 function killPort8082(): boolean {
   let killed = false
 
-  // Method 1: Use PID file if it exists
+  // Method 0: Kill model-discovery proxy by name
+  try {
+    execSync('pkill -9 -f fcc-model-discovery-proxy 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
+    console.log('[FCC] Killed fcc-model-discovery-proxy processes via pkill')
+    killed = true
+  } catch {}
+
+  // Method 1: Use PID file if it exists (for fcc-server on 8083)
   try {
     if (existsSync(FCC_PID_PATH)) {
       const pid = readFileSync(FCC_PID_PATH, 'utf-8').trim()
@@ -74,32 +81,32 @@ function killPort8082(): boolean {
     console.warn('[FCC] PID file method failed:', err)
   }
 
-  // Method 2: Use fuser (more reliable than lsof on some systems)
-  try {
-    execSync('fuser -k 8082/tcp 2>/dev/null', { encoding: 'utf-8', timeout: 5000 })
-    console.log('[FCC] Killed process on port 8082 via fuser')
-    killed = true
-  } catch {
-    // fuser not available or no process — try next method
+  // Method 2: Use fuser on both ports
+  for (const port of ['8082', '8083']) {
+    try {
+      execSync(`fuser -k ${port}/tcp 2>/dev/null`, { encoding: 'utf-8', timeout: 5000 })
+      console.log(`[FCC] Killed process on port ${port} via fuser`)
+      killed = true
+    } catch {}
   }
 
-  // Method 3: Use lsof (original method, as backup)
-  try {
-    const pids = execSync('lsof -ti:8082 2>/dev/null', { encoding: 'utf-8', timeout: 5000 }).trim()
-    if (pids) {
-      for (const pid of pids.split('\n')) {
-        const p = pid.trim()
-        if (p && /^\d+$/.test(p)) {
-          try {
-            process.kill(parseInt(p), 9)
-            console.log(`[FCC] Killed PID ${p} on port 8082 via lsof`)
-            killed = true
-          } catch {}
+  // Method 3: Use lsof on both ports (backup)
+  for (const port of ['8082', '8083']) {
+    try {
+      const pids = execSync(`lsof -ti:${port} 2>/dev/null`, { encoding: 'utf-8', timeout: 5000 }).trim()
+      if (pids) {
+        for (const pid of pids.split('\n')) {
+          const p = pid.trim()
+          if (p && /^\d+$/.test(p)) {
+            try {
+              process.kill(parseInt(p), 9)
+              console.log(`[FCC] Killed PID ${p} on port ${port} via lsof`)
+              killed = true
+            } catch {}
+          }
         }
       }
-    }
-  } catch {
-    // No process on port 8082 — that's fine
+    } catch {}
   }
 
   // Method 4: pkill by name
@@ -114,22 +121,31 @@ function killPort8082(): boolean {
   return killed
 }
 
-/** Wait for port 8082 to be free (no process listening) */
+/** Wait for ports 8082 and 8083 to be free (no process listening) */
 function waitForPortFree(maxWaitMs: number = 8000): boolean {
   const start = Date.now()
   while (Date.now() - start < maxWaitMs) {
     try {
       // Try to connect — if it fails, port is free
-      execSync('bash -c "echo >/dev/tcp/localhost/8082" 2>/dev/null', { timeout: 1000 })
-      // Port still in use, wait
+      execSync('bash -c "echo >/dev/tcp/localhost/8082" 2>/dev/null && bash -c "echo >/dev/tcp/localhost/8083" 2>/dev/null', { timeout: 1000 })
+      // At least one port still in use, wait
     } catch {
-      // Connection refused = port is free
-      return true
+      // Connection refused = at least one port is free — check both
+      try {
+        execSync('bash -c "echo >/dev/tcp/localhost/8082" 2>/dev/null', { timeout: 500 })
+      } catch {
+        try {
+          execSync('bash -c "echo >/dev/tcp/localhost/8083" 2>/dev/null', { timeout: 500 })
+        } catch {
+          // Both ports free!
+          return true
+        }
+      }
     }
     // Wait 500ms before retry
     execSync('sleep 0.5', { timeout: 2000 })
   }
-  console.warn('[FCC] Port 8082 still in use after waiting — proceeding anyway')
+  console.warn('[FCC] Ports 8082/8083 still in use after waiting — proceeding anyway')
   return false
 }
 
@@ -163,27 +179,37 @@ cd ${APP_HOME}
 source /home/cloudshell/.bashrc_env 2>/dev/null || true
 
 export NVIDIA_NIM_API_KEY="${nvidiaKey.replace(/"/g, '\\"')}"
-export PORT=8082
+export PORT=8083
 export FCC_OPEN_BROWSER=false
 
-# Kill any leftover fcc-server on port 8082 (race condition protection)
+# Kill any leftover processes on ports 8082 and 8083 (race condition protection)
+fuser -k 8083/tcp 2>/dev/null || true
 fuser -k 8082/tcp 2>/dev/null || true
+pkill -f fcc-model-discovery-proxy 2>/dev/null || true
 sleep 0.5
 
-# Double-fork: the outer fork exits immediately, the inner fork runs fcc-server
-# This ensures the process is fully detached (init inherits it)
+# Double-fork: start fcc-server on port 8083 (internal)
 (
     nohup ${fccBin} > /tmp/fcc-server.log 2>&1 &
     PID=$!
     echo $PID > ${FCC_PID_PATH}
     disown $PID
-    echo "fcc-server started with PID $PID"
+    echo "fcc-server started with PID $PID on port 8083"
 ) &
-# Wait briefly for the inner fork to write the PID
-sleep 1
-if [ -f ${FCC_PID_PATH} ]; then
-    echo "PID file confirmed: $(cat ${FCC_PID_PATH})"
+
+# Wait for fcc-server to start
+sleep 3
+
+# Start model-discovery proxy on port 8082 (public)
+if [ -f /home/cloudshell/scripts/fcc-model-discovery-proxy.js ]; then
+    FCC_INTERNAL_PORT=8083 FCC_PROXY_PORT=8082 nohup node /home/cloudshell/scripts/fcc-model-discovery-proxy.js > /tmp/fcc-model-proxy.log 2>&1 &
+    disown $!
+    echo "Model discovery proxy started on port 8082"
 fi
+
+# Wait briefly for everything to be ready
+sleep 1
+echo "All proxy services started"
 `
   try {
     writeFileSync(startScript, scriptContent, 'utf-8')
