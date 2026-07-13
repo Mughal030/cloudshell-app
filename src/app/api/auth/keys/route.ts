@@ -147,23 +147,43 @@ function startFccServer(nvidiaKey: string): boolean {
     if (existsSync(p)) { fccBin = p; break }
   }
 
-  console.log(`[FCC] Starting fcc-server (${fccBin}) with NVIDIA key ****${nvidiaKey.slice(-4)}`)
+  const keySuffix = nvidiaKey ? nvidiaKey.slice(-4) : 'EMPTY'
+  console.log(`[FCC] Starting fcc-server (${fccBin}) with NVIDIA key ****${keySuffix}`)
 
-  // Use setsid + disown for proper process detachment.
-  // execSync with nohup ... & can fail because the spawned shell's children
-  // may get SIGHUP when the shell exits. Using a wrapper script avoids this.
+  // Write a self-daemonizing wrapper script that properly detaches.
+  // We can't use `setsid bash script` because setsid blocks until child exits.
+  // Instead, the script double-forks to fully detach from the parent process.
   const startScript = join(APP_HOME, '.fcc', 'start-fcc.sh')
   const scriptContent = `#!/bin/bash
-# FCC server start script — properly detaches from parent
+# FCC server start script — double-fork to fully detach from parent process.
+# This ensures the proxy keeps running even after the Next.js API call returns.
 cd ${APP_HOME}
+
+# Source bashrc_env to pick up other env vars like PATH
+source /home/cloudshell/.bashrc_env 2>/dev/null || true
+
 export NVIDIA_NIM_API_KEY="${nvidiaKey.replace(/"/g, '\\"')}"
 export PORT=8082
 export FCC_OPEN_BROWSER=false
-nohup ${fccBin} > /tmp/fcc-server.log 2>&1 &
-PID=$!
-echo $PID > ${FCC_PID_PATH}
-disown $PID
-echo "fcc-server started with PID $PID"
+
+# Kill any leftover fcc-server on port 8082 (race condition protection)
+fuser -k 8082/tcp 2>/dev/null || true
+sleep 0.5
+
+# Double-fork: the outer fork exits immediately, the inner fork runs fcc-server
+# This ensures the process is fully detached (init inherits it)
+(
+    nohup ${fccBin} > /tmp/fcc-server.log 2>&1 &
+    PID=$!
+    echo $PID > ${FCC_PID_PATH}
+    disown $PID
+    echo "fcc-server started with PID $PID"
+) &
+# Wait briefly for the inner fork to write the PID
+sleep 1
+if [ -f ${FCC_PID_PATH} ]; then
+    echo "PID file confirmed: $(cat ${FCC_PID_PATH})"
+fi
 `
   try {
     writeFileSync(startScript, scriptContent, 'utf-8')
@@ -173,26 +193,39 @@ echo "fcc-server started with PID $PID"
     return false
   }
 
-  // Execute the start script — setsid ensures it's in its own session
+  // Execute the start script — the script double-forks so bash returns quickly.
+  // Try as cloudshell user first (preferred), fall back to current user.
   try {
-    const output = execSync(`setsid bash ${startScript}`, {
+    // Try with gosu cloudshell (proper user context)
+    const output = execSync(`gosu cloudshell bash ${startScript}`, {
       encoding: 'utf-8',
-      timeout: 10000,
+      timeout: 15000,
       shell: '/bin/bash',
     })
-    console.log('[FCC] Start script output:', output.trim())
-  } catch (err) {
-    console.error('[FCC] Start script failed:', err)
-    // Fallback: try direct execSync
+    console.log('[FCC] Start script output (gosu):', output.trim())
+  } catch (err: any) {
+    console.warn('[FCC] gosu start failed:', err.message?.substring(0, 200))
+    // Fallback 1: Try as current user (may be root)
     try {
-      execSync(
-        `cd ${APP_HOME} && NVIDIA_NIM_API_KEY="${nvidiaKey.replace(/"/g, '\\"')}" PORT=8082 nohup ${fccBin} > /tmp/fcc-server.log 2>&1 & echo $! > ${FCC_PID_PATH}`,
-        { encoding: 'utf-8', timeout: 10000, shell: '/bin/bash' }
-      )
-      console.log('[FCC] Fallback start succeeded')
-    } catch (err2) {
-      console.error('[FCC] Fallback start also failed:', err2)
-      return false
+      const output = execSync(`bash ${startScript}`, {
+        encoding: 'utf-8',
+        timeout: 15000,
+        shell: '/bin/bash',
+      })
+      console.log('[FCC] Start script output (direct):', output.trim())
+    } catch (err2: any) {
+      console.error('[FCC] Direct start also failed:', err2.message?.substring(0, 200))
+      // Fallback 2: Try inline command
+      try {
+        execSync(
+          `cd ${APP_HOME} && NVIDIA_NIM_API_KEY="${nvidiaKey.replace(/"/g, '\\"')}" PORT=8082 nohup ${fccBin} > /tmp/fcc-server.log 2>&1 & echo $! > ${FCC_PID_PATH}`,
+          { encoding: 'utf-8', timeout: 10000, shell: '/bin/bash' }
+        )
+        console.log('[FCC] Inline start succeeded')
+      } catch (err3: any) {
+        console.error('[FCC] All start methods failed:', err3.message?.substring(0, 200))
+        return false
+      }
     }
   }
 
@@ -244,7 +277,17 @@ function restartFccProxy(nvidiaKey?: string) {
   // Step 4: Update the .env file with the key
   updateFccEnv('NVIDIA_NIM_API_KEY', keyToUse)
 
-  // Step 5: Start new fcc-server with key as env var
+  // Step 5: Also update process.env so that new terminal sessions spawned by server.ts
+  // get the key immediately without waiting for the next container restart
+  if (keyToUse) {
+    process.env.NVIDIA_NIM_API_KEY = keyToUse
+    console.log(`[FCC] Updated process.env.NVIDIA_NIM_API_KEY = ****${keyToUse.slice(-4)}`)
+  } else {
+    delete process.env.NVIDIA_NIM_API_KEY
+    console.log('[FCC] Cleared process.env.NVIDIA_NIM_API_KEY')
+  }
+
+  // Step 6: Start new fcc-server with key as env var
   console.log('[FCC] Step 3: Starting new fcc-server...')
   const started = startFccServer(keyToUse)
   if (!started) {
@@ -252,12 +295,27 @@ function restartFccProxy(nvidiaKey?: string) {
     return
   }
 
-  // Step 6: Wait and verify health
+  // Step 7: Wait and verify health
   console.log('[FCC] Step 4: Waiting for fcc-server to become healthy...')
-  const healthy = waitForFccHealthy(15000)
+  const healthy = waitForFccHealthy(20000)
 
   if (healthy) {
     console.log('[FCC] ✅ Proxy restart complete — fcc-server is healthy')
+    // Verify the running proxy process actually has the key in its environment
+    try {
+      const pidFile = readFileSync(FCC_PID_PATH, 'utf-8').trim()
+      if (pidFile && /^\d+$/.test(pidFile)) {
+        const proxyEnv = execSync(`tr '\\0' '\\n' < /proc/${pidFile}/environ 2>/dev/null | grep '^NVIDIA_NIM_API_KEY=' || echo 'NOT_FOUND'`, { encoding: 'utf-8', timeout: 3000 })
+        if (proxyEnv.includes('NVIDIA_NIM_API_KEY=') && !proxyEnv.includes('NOT_FOUND')) {
+          const proxyKey = proxyEnv.replace('NVIDIA_NIM_API_KEY=', '').trim()
+          console.log(`[FCC] ✅ Verified: proxy process has NVIDIA key ****${proxyKey.slice(-4)}`)
+        } else {
+          console.warn('[FCC] ⚠️ Proxy process does NOT have NVIDIA_NIM_API_KEY in env — proxy may return 503')
+        }
+      }
+    } catch (err) {
+      console.warn('[FCC] Could not verify proxy env:', err)
+    }
     // Quick test: verify the key actually works by checking if the proxy
     // can connect to NVIDIA (optional, non-blocking)
     try {
@@ -267,8 +325,8 @@ function restartFccProxy(nvidiaKey?: string) {
         `-H "x-api-key: fcc-no-auth" ` +
         `-H "anthropic-version: 2023-06-01" ` +
         `-d '{"model":"nvidia/nemotron-3-super-120b-a12b","messages":[{"role":"user","content":"hi"}],"max_tokens":5,"stream":false}' ` +
-        `--connect-timeout 5 --max-time 15 2>&1`,
-        { encoding: 'utf-8', timeout: 20000 }
+        `--connect-timeout 5 --max-time 20 2>&1`,
+        { encoding: 'utf-8', timeout: 25000 }
       )
       const httpCode = testResult.trim().split('\n').pop()
       if (httpCode === '200') {
@@ -280,7 +338,7 @@ function restartFccProxy(nvidiaKey?: string) {
       console.warn('[FCC] ⚠ NVIDIA API test failed (non-fatal):', err)
     }
   } else {
-    console.error('[FCC] ❌ Proxy restart failed — fcc-server not healthy after 15s')
+    console.error('[FCC] ❌ Proxy restart failed — fcc-server not healthy after 20s')
     // Log the fcc-server output for debugging
     try {
       const log = readFileSync('/tmp/fcc-server.log', 'utf-8')
@@ -305,6 +363,24 @@ export async function GET(request: NextRequest) {
     }
 
     const keys = getUserApiKeys(decoded.userId)
+
+    // Check if the fcc proxy is running and has the key
+    let proxyRunning = false
+    let proxyHasKey = false
+    try {
+      const health = execSync('curl -s http://localhost:8082/health', { encoding: 'utf-8', timeout: 3000 })
+      proxyRunning = health.includes('healthy')
+      if (proxyRunning && existsSync(FCC_PID_PATH)) {
+        const pid = readFileSync(FCC_PID_PATH, 'utf-8').trim()
+        if (pid && /^\d+$/.test(pid)) {
+          const envCheck = execSync(`tr '\\0' '\\n' < /proc/${pid}/environ 2>/dev/null | grep '^NVIDIA_NIM_API_KEY=' || echo ''`, { encoding: 'utf-8', timeout: 2000 })
+          proxyHasKey = envCheck.includes('NVIDIA_NIM_API_KEY=') && envCheck.replace('NVIDIA_NIM_API_KEY=', '').trim().length > 0
+        }
+      }
+    } catch {
+      // Proxy not running or not reachable
+    }
+
     // Mask the keys for security — never return full keys
     return NextResponse.json({
       nvidiaApiKey: keys.nvidiaApiKey ? `${keys.nvidiaApiKey.substring(0, 8)}...${keys.nvidiaApiKey.slice(-4)}` : null,
@@ -312,6 +388,8 @@ export async function GET(request: NextRequest) {
       openrouterApiKey: keys.openrouterApiKey ? `${keys.openrouterApiKey.substring(0, 8)}...${keys.openrouterApiKey.slice(-4)}` : null,
       openrouterKeySet: !!keys.openrouterApiKey,
       preferredProvider: keys.preferredProvider || 'none',
+      proxyRunning,
+      proxyHasKey,
     })
   } catch (error) {
     console.error('[API Keys GET] Error:', error)
@@ -342,6 +420,32 @@ export async function POST(request: NextRequest) {
     }
 
     if (provider && apiKey !== undefined) {
+      // Special case: __RESTART_PROXY__ means "restart the proxy with the user's existing key"
+      if (apiKey === '__RESTART_PROXY__' && provider === 'nvidia') {
+        const existingKeys = getUserApiKeys(decoded.userId)
+        const keyToUse = existingKeys.nvidiaApiKey || ''
+        if (!keyToUse) {
+          return NextResponse.json({ error: 'No NVIDIA key saved — save a key first before restarting the proxy' }, { status: 400 })
+        }
+        console.log(`[API Keys] Proxy restart requested by user ${decoded.username} — using existing key ****${keyToUse.slice(-4)}`)
+        updateFccEnv('NVIDIA_NIM_API_KEY', keyToUse)
+        // Update bashrc_env
+        try {
+          const bashrcEnvPath = join(APP_HOME, '.bashrc_env')
+          if (existsSync(bashrcEnvPath)) {
+            let bashrcContent = readFileSync(bashrcEnvPath, 'utf-8')
+            const lines = bashrcContent.split('\n').filter(line => !line.startsWith('export NVIDIA_NIM_API_KEY='))
+            lines.push(`export NVIDIA_NIM_API_KEY="${keyToUse}"`)
+            writeFileSync(bashrcEnvPath, lines.join('\n'), 'utf-8')
+          }
+        } catch {}
+        // Restart in background
+        setTimeout(() => {
+          try { restartFccProxy(keyToUse) } catch (err) { console.error('[FCC] Background restart failed:', err) }
+        }, 100)
+        return NextResponse.json({ success: true, message: 'Proxy restart initiated — it will be ready in ~5 seconds' })
+      }
+
       // Validate key format
       if (apiKey && provider === 'nvidia' && !apiKey.startsWith('nvapi-')) {
         return NextResponse.json({ error: 'NVIDIA API keys must start with "nvapi-"' }, { status: 400 })
@@ -376,7 +480,15 @@ export async function POST(request: NextRequest) {
         }
         // Restart the fcc proxy so it picks up the new key
         // Pass the key directly so the restart uses it as env var (highest priority)
-        restartFccProxy(apiKey || '')
+        // Run in background so the API response isn't blocked for 20+ seconds
+        const keyForRestart = apiKey || ''
+        setTimeout(() => {
+          try {
+            restartFccProxy(keyForRestart)
+          } catch (err) {
+            console.error('[FCC] Background restart failed:', err)
+          }
+        }, 100)
       }
     }
 
@@ -429,7 +541,10 @@ export async function DELETE(request: NextRequest) {
           writeFileSync(bashrcEnvPath, lines.join('\n'), 'utf-8')
         }
       } catch {}
-      restartFccProxy('')
+      // Restart in background (clear key)
+      setTimeout(() => {
+        try { restartFccProxy('') } catch (err) { console.error('[FCC] Background restart failed:', err) }
+      }, 100)
     }
 
     return NextResponse.json({ success: true, message: 'API key removed' })

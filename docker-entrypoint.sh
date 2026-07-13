@@ -438,8 +438,11 @@ claude-set-nvidia-key() {
     echo "✅ NVIDIA_NIM_API_KEY updated to: ****${NEW_KEY: -4}"
     echo "  (Saved to ~/.bashrc_env AND fcc-server .env)"
     echo ""
-    echo "  Restart the proxy for changes to take effect:"
-    echo "    fcc-stop && fcc-start"
+    # Automatically restart the proxy with the new key
+    echo "  Restarting proxy with new key..."
+    fcc-stop
+    sleep 1
+    fcc-start
 }
 
 # ─── Change Claude Code API Base URL ────────────────────────
@@ -619,8 +622,16 @@ fcc-start() {
     _fcc_update_env MODEL "nvidia_nim/${ANTHROPIC_MODEL:-nvidia/nemotron-3-super-120b-a12b}"
     _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
 
-    # Start in background — explicitly set PORT=8082 to override HF Spaces' PORT=7860
-    PORT=8082 nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+    # Start in background — explicitly set PORT=8082 and NVIDIA_NIM_API_KEY
+    # to override HF Spaces' PORT=7860 and ensure pydantic-settings gets the key.
+    # CRITICAL: pydantic-settings reads env vars with HIGHER priority than ~/.fcc/.env,
+    # so we MUST pass the key as an env var here, not just write it to the .env file.
+    # Read key from .env file if not already in environment (e.g. after container boot)
+    local FCC_NVIDIA_KEY="${NVIDIA_NIM_API_KEY:-}"
+    if [ -z "$FCC_NVIDIA_KEY" ] && [ -f "${HOME}/.fcc/.env" ]; then
+        FCC_NVIDIA_KEY=$(grep '^NVIDIA_NIM_API_KEY=' "${HOME}/.fcc/.env" 2>/dev/null | head -1 | sed 's/^NVIDIA_NIM_API_KEY="//;s/"$//')
+    fi
+    PORT=8082 NVIDIA_NIM_API_KEY="$FCC_NVIDIA_KEY" nohup fcc-server > /tmp/fcc-server.log 2>&1 &
     local PID=$!
     # Save PID to file so the Next.js API can kill/restart reliably
     echo "$PID" > "${HOME}/.fcc/fcc-server.pid"
@@ -647,23 +658,56 @@ fcc-start() {
 
 # ─── Stop the free-claude-code proxy ───────────────────────
 fcc-stop() {
+    echo "Stopping free-claude-code proxy..."
     local PID=""
-    # Try PID file first (most reliable)
+
+    # Method 1: PID file
     if [ -f "${HOME}/.fcc/fcc-server.pid" ]; then
         PID=$(cat "${HOME}/.fcc/fcc-server.pid" 2>/dev/null | tr -d '[:space:]')
     fi
-    # Fall back to lsof
+
+    # Method 2: lsof fallback
     if [ -z "$PID" ] || ! kill -0 "$PID" 2>/dev/null; then
         PID=$(lsof -ti:8082 2>/dev/null || true)
     fi
+
     if [ -z "$PID" ]; then
-        echo "Proxy (fcc-server) is not running"
+        echo "  Proxy (fcc-server) is not running"
         rm -f "${HOME}/.fcc/fcc-server.pid" 2>/dev/null || true
         return 0
     fi
-    kill "$PID" 2>/dev/null || kill -9 "$PID" 2>/dev/null || true
+
+    # Kill gracefully first, then force kill after 2s
+    for P in $PID; do
+        kill "$P" 2>/dev/null || true
+    done
+    sleep 1
+
+    # Check if still alive, force kill
+    for P in $PID; do
+        if kill -0 "$P" 2>/dev/null; then
+            kill -9 "$P" 2>/dev/null || true
+        fi
+    done
+
+    # Also kill via fuser for reliability
+    fuser -k 8082/tcp 2>/dev/null || true
+
+    # Also pkill by name
+    pkill -9 -f fcc-server 2>/dev/null || true
+
+    # Wait for port to be free (up to 5s)
+    local WAITED=0
+    while [ $WAITED -lt 10 ]; do
+        if ! lsof -ti:8082 2>/dev/null; then
+            break
+        fi
+        sleep 0.5
+        WAITED=$((WAITED + 1))
+    done
+
     rm -f "${HOME}/.fcc/fcc-server.pid" 2>/dev/null || true
-    echo "Proxy (fcc-server) stopped (PID $PID killed)"
+    echo "  Proxy (fcc-server) stopped (PID $PID killed)"
 }
 
 # ─── Check proxy status ───────────────────────────────────
@@ -709,15 +753,46 @@ claude-test() {
         fi
     fi
 
-    # Step 2: Check NVIDIA key
+    # Step 2: Check NVIDIA key (check both shell env AND .env file)
     echo ""
     echo "  Step 2: Checking NVIDIA API key..."
-    if [ -z "$NVIDIA_NIM_API_KEY" ]; then
-        echo "  ❌ NVIDIA_NIM_API_KEY is not set!"
+    local TEST_NVIDIA_KEY="${NVIDIA_NIM_API_KEY:-}"
+    if [ -z "$TEST_NVIDIA_KEY" ] && [ -f "${HOME}/.fcc/.env" ]; then
+        TEST_NVIDIA_KEY=$(grep '^NVIDIA_NIM_API_KEY=' "${HOME}/.fcc/.env" 2>/dev/null | head -1 | sed 's/^NVIDIA_NIM_API_KEY="//;s/"$//')
+    fi
+    if [ -z "$TEST_NVIDIA_KEY" ]; then
+        echo "  ❌ NVIDIA_NIM_API_KEY is not set in environment or ~/.fcc/.env!"
         echo "     Run: claude-set-nvidia-key \"nvapi-your-key-here\""
+        echo "     Or set it in the Settings panel of the web UI"
         return 1
     fi
-    echo "  ✅ NVIDIA key: ****${NVIDIA_NIM_API_KEY: -4}"
+    echo "  ✅ NVIDIA key: ****${TEST_NVIDIA_KEY: -4}"
+    # Also verify the running proxy process has the key
+    local PROXY_PID=""
+    if [ -f "${HOME}/.fcc/fcc-server.pid" ]; then
+        PROXY_PID=$(cat "${HOME}/.fcc/fcc-server.pid" 2>/dev/null | tr -d '[:space:]')
+    fi
+    if [ -z "$PROXY_PID" ]; then
+        PROXY_PID=$(lsof -ti:8082 2>/dev/null | head -1 || true)
+    fi
+    if [ -n "$PROXY_PID" ] && [ -d "/proc/$PROXY_PID" ]; then
+        local PROXY_KEY_IN_ENV
+        PROXY_KEY_IN_ENV=$(tr '\0' '\n' < "/proc/$PROXY_PID/environ" 2>/dev/null | grep '^NVIDIA_NIM_API_KEY=' | sed 's/^NVIDIA_NIM_API_KEY=//' || true)
+        if [ -n "$PROXY_KEY_IN_ENV" ]; then
+            echo "  ✅ Proxy process (PID $PROXY_PID) has NVIDIA key: ****${PROXY_KEY_IN_ENV: -4}"
+        else
+            echo "  ⚠️ Proxy process (PID $PROXY_PID) does NOT have NVIDIA_NIM_API_KEY in its environment!"
+            echo "     This means the proxy was started WITHOUT the key. Restarting proxy..."
+            fcc-stop
+            sleep 1
+            # Re-export the key for fcc-start
+            export NVIDIA_NIM_API_KEY="$TEST_NVIDIA_KEY"
+            fcc-start
+            echo ""
+            echo "  Proxy restarted with key. Re-testing..."
+            sleep 2
+        fi
+    fi
 
     # Step 3: Test the proxy's /health endpoint
     echo ""
@@ -1184,10 +1259,11 @@ fi
 # NVIDIA API key via the Settings panel.
 if command -v fcc-server &>/dev/null; then
     gosu cloudshell bash -c '
-        PORT=8082 nohup fcc-server > /tmp/fcc-server.log 2>&1 &
+        source /home/cloudshell/.bashrc_env 2>/dev/null || true
+        PORT=8082 NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-}" nohup fcc-server > /tmp/fcc-server.log 2>&1 &
         PID=$!
         echo "$PID" > /home/cloudshell/.fcc/fcc-server.pid
-        echo "fcc-server PID: $PID"
+        echo "fcc-server PID: $PID (NVIDIA key: ****${NVIDIA_NIM_API_KEY: -4})"
     ' 2>/dev/null || true
     # Give it a few seconds to start
     sleep 3

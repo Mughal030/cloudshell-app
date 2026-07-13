@@ -12,6 +12,7 @@ import {
   Globe, ScanLine, Bug, KeyRound, Smartphone, Network,
   Search, FileSearch, List, Boxes, Rocket,
   Settings, Eye, EyeOff, Trash2, CheckCircle2, AlertCircle,
+  Server, Activity, RefreshCw,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
@@ -685,6 +686,8 @@ function SettingsPanel() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [proxyRunning, setProxyRunning] = useState(false)
+  const [proxyHasKey, setProxyHasKey] = useState(false)
 
   // Load current key status on mount
   useEffect(() => {
@@ -699,6 +702,8 @@ function SettingsPanel() {
         setNvidiaKeySet(data.nvidiaKeySet || false)
         setOpenrouterKeySet(data.openrouterKeySet || false)
         setPreferredProvider(data.preferredProvider || 'none')
+        setProxyRunning(data.proxyRunning || false)
+        setProxyHasKey(data.proxyHasKey || false)
         setLoaded(true)
       })
       .catch(() => setLoaded(true))
@@ -871,6 +876,102 @@ function SettingsPanel() {
                 <Trash2 className="h-3 w-3" />
               </Button>
             )}
+          </div>
+        </div>
+
+        {/* FCC Proxy Status */}
+        <div className="nx-settings-card space-y-2.5 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-center w-7 h-7 rounded-md bg-[var(--nx-accent)]/10">
+                <Server className="h-4 w-4 text-[var(--nx-accent)]" />
+              </div>
+              <div>
+                <span className="text-xs font-semibold text-[var(--nx-text)]">Claude Code Proxy</span>
+                <Badge variant="secondary" className={`ml-2 h-4 px-1.5 text-[8px] ${
+                  proxyRunning && proxyHasKey
+                    ? 'bg-[var(--nx-success)]/10 text-[var(--nx-success)] border-[var(--nx-success)]/20'
+                    : proxyRunning
+                      ? 'bg-[var(--nx-warning)]/10 text-[var(--nx-warning)] border-[var(--nx-warning)]/20'
+                      : 'bg-[var(--nx-error)]/10 text-[var(--nx-error)] border-[var(--nx-error)]/20'
+                }`}>
+                  {proxyRunning && proxyHasKey ? 'ACTIVE' : proxyRunning ? 'NO KEY' : 'DOWN'}
+                </Badge>
+              </div>
+            </div>
+          </div>
+          <p className="text-[10px] text-[var(--nx-text-dim)]">
+            The free-claude-code proxy connects Claude Code to NVIDIA NIM.
+            {!proxyRunning && ' ⚠ Proxy is not running — Claude Code will not work.'}
+            {proxyRunning && !proxyHasKey && ' ⚠ Proxy is running but your NVIDIA key is not loaded — restart the proxy or re-save your key.'}
+            {proxyRunning && proxyHasKey && ' ✅ Proxy is running with your NVIDIA key — Claude Code should work.'}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="h-7 text-xs bg-[var(--nx-bg-primary)] border-[var(--nx-border)] text-[var(--nx-text-muted)] hover:border-[var(--nx-accent)]/20 hover:text-[var(--nx-text)] hover:bg-[var(--nx-bg-hover)] transition-all duration-200"
+              onClick={async () => {
+                const token = getToken()
+                if (!token) return
+                setSaving(true)
+                try {
+                  // Re-save the NVIDIA key to trigger proxy restart
+                  const keysRes = await fetch('/api/auth/keys', { headers: { Authorization: `Bearer ${token}` } })
+                  const keysData = await keysRes.json()
+                  if (keysData.nvidiaKeySet) {
+                    // Key is set — just re-trigger save to restart proxy
+                    setMessage({ type: 'success', text: 'Restarting FCC proxy with your NVIDIA key... This takes ~5 seconds.' })
+                    // We can't read the full key from the API (it's masked), so use a special restart endpoint
+                    const res = await fetch('/api/auth/keys', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ provider: 'nvidia', apiKey: '__RESTART_PROXY__' })
+                    })
+                    if (!res.ok) {
+                      setMessage({ type: 'error', text: 'Failed to restart proxy' })
+                    }
+                  } else {
+                    setMessage({ type: 'error', text: 'No NVIDIA key set — save a key first' })
+                  }
+                } catch { setMessage({ type: 'error', text: 'Failed to check key status' }) }
+                finally { setSaving(false) }
+                // Refresh status after 8 seconds
+                setTimeout(() => {
+                  fetch('/api/auth/keys', { headers: { Authorization: `Bearer ${getToken()}` } })
+                    .then(r => r.json())
+                    .then(data => {
+                      setProxyRunning(data.proxyRunning || false)
+                      setProxyHasKey(data.proxyHasKey || false)
+                    })
+                    .catch(() => {})
+                }, 8000)
+              }}
+              disabled={saving}
+            >
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Restart Proxy
+            </Button>
+            <Button
+              size="sm"
+              className="h-7 text-xs bg-[var(--nx-bg-primary)] border-[var(--nx-border)] text-[var(--nx-text-muted)] hover:border-[var(--nx-accent)]/20 hover:text-[var(--nx-text)] hover:bg-[var(--nx-bg-hover)] transition-all duration-200"
+              onClick={async () => {
+                const token = getToken()
+                if (!token) return
+                fetch('/api/auth/keys', { headers: { Authorization: `Bearer ${token}` } })
+                  .then(r => r.json())
+                  .then(data => {
+                    setProxyRunning(data.proxyRunning || false)
+                    setProxyHasKey(data.proxyHasKey || false)
+                    setNvidiaKeySet(data.nvidiaKeySet || false)
+                    setOpenrouterKeySet(data.openrouterKeySet || false)
+                    setMessage({ type: 'success', text: `Proxy: ${data.proxyRunning ? 'Running' : 'Down'}, Key: ${data.proxyHasKey ? 'Loaded' : 'Not loaded'}` })
+                  })
+                  .catch(() => setMessage({ type: 'error', text: 'Failed to check proxy status' }))
+              }}
+            >
+              <Activity className="h-3 w-3 mr-1" />
+              Check Status
+            </Button>
           </div>
         </div>
 
