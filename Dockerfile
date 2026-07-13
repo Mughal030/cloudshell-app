@@ -97,12 +97,23 @@ RUN chmod +x /home/cloudshell/scripts/fcc-model-discovery-proxy.js && \
 # SECURITY: NVIDIA_NIM_API_KEY is NO LONGER set here. Each user configures
 # their own key via the Settings panel. The admin can set a default key
 # via the NVIDIA_NIM_API_KEY env var at deployment time if desired.
+#
+# Model IDs use "claude-" prefix so Claude Code's model discovery
+# filter doesn't reject them. The proxy maps them to real NVIDIA models:
+#   claude-opus-4-5   → z-ai/glm-5.2 (most capable)
+#   claude-sonnet-4-5 → nvidia/llama-3.3-nemotron-super-49b-v1 (balanced)
+#   claude-sonnet-4-5-mini → nvidia/phi-4 (fast)
 ENV ANTHROPIC_BASE_URL="http://localhost:8082" \
     ANTHROPIC_AUTH_TOKEN="fcc-no-auth" \
-    ANTHROPIC_MODEL="z-ai/glm-5.2" \
+    ANTHROPIC_MODEL="claude-opus-4-5" \
     CLAUDE_CODE_USE_AUTH_TOKEN="true" \
     CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="1" \
-    CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000"
+    CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000" \
+    ANTHROPIC_DEFAULT_OPUS_MODEL="claude-opus-4-5" \
+    ANTHROPIC_DEFAULT_SONNET_MODEL="claude-sonnet-4-5" \
+    ANTHROPIC_DEFAULT_HAIKU_MODEL="claude-sonnet-4-5-mini" \
+    CLAUDE_CODE_SUBAGENT_MODEL="claude-sonnet-4-5" \
+    CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING="1"
 
 # ─── Environment Variables ───────────────────────────────────────
 # IMPORTANT: PORT=8082 is for fcc-server proxy. The Next.js web server

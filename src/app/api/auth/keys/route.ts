@@ -55,12 +55,16 @@ function restartProxy(fallbackKey?: string) {
 
   // Start proxy with fallback key as env var
   const keyEnv = fallbackKey ? `NVIDIA_NIM_API_KEY="${fallbackKey.replace(/"/g, '\\"')}" ` : ''
+  const modelEnv = `ANTHROPIC_MODEL="${process.env.ANTHROPIC_MODEL || 'claude-opus-4-5'}" `
   const proxyScript = '/home/cloudshell/scripts/fcc-model-discovery-proxy.js'
 
-  if (existsSync(proxyScript)) {
+  // Try Docker path first, then local dev path
+  const proxyPath = existsSync(proxyScript) ? proxyScript : join(process.cwd(), 'scripts', 'fcc-model-discovery-proxy.js')
+
+  if (existsSync(proxyPath)) {
     try {
       execSync(
-        `cd ${APP_HOME} && ${keyEnv}FCC_PROXY_PORT=8082 nohup node ${proxyScript} > /tmp/fcc-model-proxy.log 2>&1 &`,
+        `cd ${APP_HOME} && ${keyEnv}${modelEnv}FCC_PROXY_PORT=8082 nohup node ${proxyPath} > /tmp/fcc-model-proxy.log 2>&1 &`,
         { timeout: 5000, shell: '/bin/bash' }
       )
       console.log('[FCC] Proxy restart initiated')

@@ -486,6 +486,14 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
       ...(process.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY ? { CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY: process.env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY } : {}),
       ...(process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW ? { CLAUDE_CODE_AUTO_COMPACT_WINDOW: process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW } : {}),
       ...(process.env.ANTHROPIC_API_KEY ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } : {}),
+      // Claude Code alias env vars — route built-in opus/sonnet/haiku shorthands
+      // to our Claude-compatible proxy model IDs. These ensure the /model picker
+      // and tier-based routing work correctly with the NVIDIA NIM proxy.
+      ...(process.env.ANTHROPIC_DEFAULT_OPUS_MODEL ? { ANTHROPIC_DEFAULT_OPUS_MODEL: process.env.ANTHROPIC_DEFAULT_OPUS_MODEL } : { ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-opus-4-5' }),
+      ...(process.env.ANTHROPIC_DEFAULT_SONNET_MODEL ? { ANTHROPIC_DEFAULT_SONNET_MODEL: process.env.ANTHROPIC_DEFAULT_SONNET_MODEL } : { ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-5' }),
+      ...(process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL ? { ANTHROPIC_DEFAULT_HAIKU_MODEL: process.env.ANTHROPIC_DEFAULT_HAIKU_MODEL } : { ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet-4-5-mini' }),
+      ...(process.env.CLAUDE_CODE_SUBAGENT_MODEL ? { CLAUDE_CODE_SUBAGENT_MODEL: process.env.CLAUDE_CODE_SUBAGENT_MODEL } : { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-sonnet-4-5' }),
+      ...(process.env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING ? { CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING: process.env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING } : { CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING: '1' }),
       // Per-user NVIDIA key isolation:
       // - Each user's NVIDIA key is injected as NVIDIA_NIM_API_KEY in their terminal
       // - ANTHROPIC_AUTH_TOKEN is set to the user's NVIDIA key so the proxy can use it
@@ -544,9 +552,11 @@ function createPtySession(sessionId: string, socketId: string, cols: number, row
     '\x1b[33m  Free-Claude-Code proxy is running on localhost:8082\x1b[0m',
     '\x1b[2m  Architecture: Claude Code → localhost:8082 (proxy) → NVIDIA NIM\x1b[0m',
     '\x1b[2m  ⚠ Do NOT use raw "claude" — use "fcc-claude" to skip login prompt\x1b[0m',
+    '\x1b[2m  Default model: claude-opus-4-5 → z-ai/glm-5.2 (via proxy mapping)\x1b[0m',
+    '\x1b[2m  Use /model inside Claude Code to see all available NVIDIA models\x1b[0m',
     '\x1b[2m  Change your NVIDIA API key:\x1b[0m',
     '\x1b[2m    claude-set-nvidia-key "nvapi-your-key"   (change NVIDIA key)\x1b[0m',
-    '\x1b[2m    claude-set-model "z-ai/glm-5.2"          (change model)\x1b[0m',
+    '\x1b[2m    claude-set-model "claude-opus-4-5"       (change model)\x1b[0m',
     '\x1b[2m    claude-show                              (show current config)\x1b[0m',
     '\x1b[2m    claude-test                              (test proxy + NVIDIA API)\x1b[0m',
     '\x1b[2m    fcc-start / fcc-stop / fcc-status        (manage proxy)\x1b[0m',

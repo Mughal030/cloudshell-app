@@ -1,28 +1,38 @@
 /**
- * FCC Full Proxy — Per-User Key Isolation + Model Discovery
+ * FCC Full Proxy v3 — Per-User Key Isolation + Claude-Compatible Model Discovery
  *
- * This proxy handles TWO responsibilities:
- * 1. Model discovery: GET /v1/models returns NVIDIA NIM models in Anthropic format
- * 2. API proxying: POST /v1/messages translates Anthropic API → NVIDIA NIM API,
- *    using the per-user NVIDIA key from the X-User-NVIDIA-Key header or
- *    from the terminal's NVIDIA_NIM_API_KEY env var.
- *
- * ARCHITECTURE:
+ * This proxy sits between Claude Code and NVIDIA NIM API:
  *   Claude Code → localhost:8082 (this proxy) → NVIDIA NIM API (integrate.api.nvidia.com)
  *
- * Per-user key isolation:
- *   - When launched from a terminal, the user's NVIDIA_NIM_API_KEY is in their env
- *   - fcc-claude passes this key in the Authorization header (as Bearer token)
- *   - This proxy extracts the key from the request and uses it to call NVIDIA
- *   - Each user's requests use ONLY their own key — no cross-user leakage
+ * KEY INSIGHT (v3): Claude Code's model discovery FILTERS OUT models whose `id`
+ * doesn't start with "claude" or "anthropic". So we expose NVIDIA models with
+ * `claude-` prefixed IDs that trigger the right capability detection in Claude Code,
+ * then map them back to real NVIDIA model IDs when calling the API.
  *
- * If no per-user key is found, falls back to the NVIDIA_NIM_API_KEY env var
- * (which is the admin/default key or the last saved key via Settings panel).
+ * Model ID Mapping:
+ *   claude-opus-4-5        → z-ai/glm-5.2           (most capable, Opus-tier)
+ *   claude-sonnet-4-5      → nvidia/llama-3.3-nemotron-super-49b-v1  (balanced)
+ *   claude-haiku-4-5       → nvidia/phi-4            (fast)
+ *   claude-sonnet-4        → nvidia/llama-3.1-nemotron-70b-instruct  (legacy)
+ *   claude-opus-4          → nvidia/nemotron-3-super-120b-a12b       (legacy)
+ *   claude-haiku-3-5       → nvidia/mistral-large-2411              (legacy)
+ *   claude-deepseek-r1     → deepseek-ai/deepseek-r1               (reasoning)
+ *
+ * Capability Detection:
+ *   - "opus-4-5" → 64K tokens, extended thinking, opus plan mode
+ *   - "sonnet-4-5" → 64K tokens, extended thinking
+ *   - "haiku" → DISABLES extended thinking (avoid if model needs it)
+ *   - Use dashes not dots: claude-opus-4-5 NOT claude-opus-4.5
+ *
+ * Per-user key isolation:
+ *   - User's NVIDIA_NIM_API_KEY is injected as ANTHROPIC_AUTH_TOKEN in their terminal
+ *   - Claude Code sends it as x-api-key or Authorization header
+ *   - Proxy extracts it per-request — each user uses ONLY their own key
  *
  * Environment variables:
  *   FCC_PROXY_PORT     - Port where this proxy listens (default: 8082)
  *   NVIDIA_NIM_API_KEY - Default/fallback NVIDIA API key
- *   ANTHROPIC_MODEL    - Default model (default: z-ai/glm-5.2)
+ *   ANTHROPIC_MODEL    - Default model (default: claude-opus-4-5)
  */
 
 const http = require('http')
@@ -31,86 +41,119 @@ const https = require('https')
 const FCC_PROXY_PORT = parseInt(process.env.FCC_PROXY_PORT || '8082', 10)
 const NVIDIA_API_BASE = 'integrate.api.nvidia.com'
 const NVIDIA_API_PATH = '/v1/chat/completions'
-const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL || 'z-ai/glm-5.2'
+const DEFAULT_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-5'
 const FALLBACK_KEY = process.env.NVIDIA_NIM_API_KEY || ''
 
-// ─── NVIDIA NIM Model List ──────────────────────────────────
-// These are the models available via NVIDIA NIM API.
-// Claude Code's model picker will show these.
-const NVIDIA_MODELS = [
+// ─── Claude-Compatible Model List ──────────────────────────────
+// Model IDs start with "claude-" so Claude Code's discovery filter doesn't
+// reject them. Each ID contains capability-triggering substrings.
+// The `nvidiaModel` field is the real NVIDIA NIM model ID used for API calls.
+const CLAUDE_MODELS = [
   {
-    id: 'z-ai/glm-5.2',
-    display_name: 'GLM 5.2',
+    id: 'claude-opus-4-5',
+    display_name: 'GLM 5.2 (Opus)',
+    nvidiaModel: 'z-ai/glm-5.2',
     description: 'Most capable model — best for complex tasks (NVIDIA NIM)',
     context_window: 16384,
     max_tokens: 16384,
     created_at: '2025-01-01',
   },
   {
-    id: 'nvidia/nemotron-3-super-120b-a12b',
-    display_name: 'Nemotron 3 Super 120B',
-    description: 'Most capable NVIDIA model — best for complex tasks',
+    id: 'claude-sonnet-4-5',
+    display_name: 'Llama 3.3 Nemotron Super 49B (Sonnet)',
+    nvidiaModel: 'nvidia/llama-3.3-nemotron-super-49b-v1',
+    description: 'Balanced performance and speed — recommended for most tasks',
     context_window: 4096,
     max_tokens: 4096,
     created_at: '2025-01-01',
   },
   {
-    id: 'nvidia/llama-3.3-nemotron-super-49b-v1',
-    display_name: 'Llama 3.3 Nemotron Super 49B',
-    description: 'Efficient model for routine tasks',
+    id: 'claude-sonnet-4-5-mini',
+    display_name: 'Phi-4 (Sonnet Mini)',
+    nvidiaModel: 'nvidia/phi-4',
+    description: 'Fast and efficient — good for quick tasks',
     context_window: 4096,
     max_tokens: 4096,
     created_at: '2025-01-01',
   },
   {
-    id: 'nvidia/llama-3.1-nemotron-70b-instruct',
-    display_name: 'Llama 3.1 Nemotron 70B',
-    description: 'Balanced performance and speed',
+    id: 'claude-opus-4',
+    display_name: 'Nemotron 3 Super 120B (Opus)',
+    nvidiaModel: 'nvidia/nemotron-3-super-120b-a12b',
+    description: 'Large NVIDIA model — best for complex tasks',
     context_window: 4096,
     max_tokens: 4096,
     created_at: '2025-01-01',
   },
   {
-    id: 'nvidia/mistral-large-2411',
+    id: 'claude-sonnet-4',
+    display_name: 'Llama 3.1 Nemotron 70B (Sonnet)',
+    nvidiaModel: 'nvidia/llama-3.1-nemotron-70b-instruct',
+    description: 'Balanced model for general use',
+    context_window: 4096,
+    max_tokens: 4096,
+    created_at: '2025-01-01',
+  },
+  {
+    id: 'claude-deepseek-r1',
+    display_name: 'DeepSeek R1 (Reasoning)',
+    nvidiaModel: 'deepseek-ai/deepseek-r1',
+    description: 'DeepSeek reasoning model — best for math and logic',
+    context_window: 4096,
+    max_tokens: 4096,
+    created_at: '2025-01-01',
+  },
+  {
+    id: 'anthropic-mistral-large',
     display_name: 'Mistral Large 2411',
+    nvidiaModel: 'nvidia/mistral-large-2411',
     description: 'Mistral Large via NVIDIA NIM',
-    context_window: 4096,
-    max_tokens: 4096,
-    created_at: '2025-01-01',
-  },
-  {
-    id: 'deepseek-ai/deepseek-r1',
-    display_name: 'DeepSeek R1',
-    description: 'DeepSeek reasoning model via NVIDIA NIM',
-    context_window: 4096,
-    max_tokens: 4096,
-    created_at: '2025-01-01',
-  },
-  {
-    id: 'nvidia/phi-4',
-    display_name: 'Phi-4',
-    description: 'Small but capable model for quick tasks',
     context_window: 4096,
     max_tokens: 4096,
     created_at: '2025-01-01',
   },
 ]
 
+// ─── Model ID Mapping ──────────────────────────────────────────
+// Maps Claude-compatible IDs → real NVIDIA NIM model IDs
+// Also handles direct NVIDIA model IDs passed via ANTHROPIC_MODEL env var
+const MODEL_MAP = {}
+for (const m of CLAUDE_MODELS) {
+  MODEL_MAP[m.id] = m.nvidiaModel
+}
+// Also allow passing raw NVIDIA model IDs directly (they won't show in picker
+// but can be set via ANTHROPIC_MODEL env var or /model command)
+MODEL_MAP['z-ai/glm-5.2'] = 'z-ai/glm-5.2'
+MODEL_MAP['nvidia/nemotron-3-super-120b-a12b'] = 'nvidia/nemotron-3-super-120b-a12b'
+MODEL_MAP['nvidia/llama-3.3-nemotron-super-49b-v1'] = 'nvidia/llama-3.3-nemotron-super-49b-v1'
+MODEL_MAP['nvidia/llama-3.1-nemotron-70b-instruct'] = 'nvidia/llama-3.1-nemotron-70b-instruct'
+MODEL_MAP['nvidia/mistral-large-2411'] = 'nvidia/mistral-large-2411'
+MODEL_MAP['deepseek-ai/deepseek-r1'] = 'deepseek-ai/deepseek-r1'
+MODEL_MAP['nvidia/phi-4'] = 'nvidia/phi-4'
+
+// Default model resolution: if DEFAULT_MODEL is a Claude ID, map it; if it's
+// a raw NVIDIA ID, use it directly; otherwise fall back to GLM 5.2
+function resolveNvidiaModel(modelId) {
+  return MODEL_MAP[modelId] || MODEL_MAP[DEFAULT_MODEL] || 'z-ai/glm-5.2'
+}
+
 // ─── Extract NVIDIA API Key from Request ───────────────────
-// Priority: X-User-NVIDIA-Key header > Authorization Bearer > fallback env var
+// Priority: X-User-NVIDIA-Key header > x-api-key > Authorization Bearer > fallback env var
 function extractNvidiaKey(req) {
   // 1. Check custom per-user header (set by server.ts when proxying)
   const customKey = req.headers['x-user-nvidia-key']
   if (customKey && customKey.startsWith('nvapi-')) return customKey
 
-  // 2. Check Authorization header (Claude Code sends "Bearer <key>" or "fcc-no-auth")
-  const authHeader = req.headers['authorization'] || req.headers['x-api-key'] || ''
-  if (authHeader.startsWith('Bearer nvapi-')) return authHeader.replace('Bearer ', '')
-  if (authHeader.startsWith('nvapi-')) return authHeader
-
-  // 3. Check x-api-key (Claude Code sometimes sends the key here)
+  // 2. Check x-api-key (Claude Code sends ANTHROPIC_AUTH_TOKEN here)
   const xApiKey = req.headers['x-api-key']
-  if (xApiKey && xApiKey.startsWith('nvapi-')) return xApiKey
+  if (xApiKey && typeof xApiKey === 'string' && xApiKey.startsWith('nvapi-')) return xApiKey
+
+  // 3. Check Authorization header (Claude Code may send "Bearer <key>" or "Bearer fcc-no-auth")
+  const authHeader = req.headers['authorization'] || ''
+  if (typeof authHeader === 'string') {
+    if (authHeader.startsWith('Bearer nvapi-')) return authHeader.replace('Bearer ', '')
+    if (authHeader.startsWith('nvapi-')) return authHeader
+  }
 
   // 4. Fallback to env var (admin/default key)
   if (FALLBACK_KEY) return FALLBACK_KEY
@@ -120,7 +163,9 @@ function extractNvidiaKey(req) {
 
 // ─── Translate Anthropic API Request → NVIDIA NIM API Request ──
 function translateAnthropicToNvidia(anthropicBody) {
-  const model = anthropicBody.model || DEFAULT_MODEL
+  // Resolve the Claude-compatible model ID to a real NVIDIA model ID
+  const requestedModel = anthropicBody.model || DEFAULT_MODEL
+  const nvidiaModel = resolveNvidiaModel(requestedModel)
   const messages = []
 
   // Convert Anthropic system prompt → NVIDIA system message
@@ -144,19 +189,34 @@ function translateAnthropicToNvidia(anthropicBody) {
         if (typeof msg.content === 'string') {
           content = msg.content
         } else if (Array.isArray(msg.content)) {
-          // Extract text from content blocks, skip images/tools
+          // Extract text from content blocks, skip images/tools/thinking
           content = msg.content
-            .filter(b => b.type === 'text')
-            .map(b => b.text || '')
+            .filter(b => b.type === 'text' || (b.type === 'tool_result' && b.content))
+            .map(b => {
+              if (b.type === 'text') return b.text || ''
+              if (b.type === 'tool_result') {
+                // Flatten tool_result content into text
+                if (typeof b.content === 'string') return b.content
+                if (Array.isArray(b.content)) {
+                  return b.content
+                    .filter(c => c.type === 'text')
+                    .map(c => c.text || '')
+                    .join('\n')
+                }
+              }
+              return ''
+            })
             .join('\n')
         }
-        messages.push({ role: msg.role, content })
+        if (content) {
+          messages.push({ role: msg.role, content })
+        }
       }
     }
   }
 
   const nvidiaBody = {
-    model,
+    model: nvidiaModel,
     messages,
     temperature: anthropicBody.temperature ?? 1,
     top_p: anthropicBody.top_p ?? 1,
@@ -175,11 +235,9 @@ function translateAnthropicToNvidia(anthropicBody) {
 // ─── Translate NVIDIA NIM Response → Anthropic API Response ──
 function translateNvidiaToAnthropic(nvidiaBody, model, stream) {
   if (stream) {
-    // Streaming response translation is handled in the streaming path
     return nvidiaBody
   }
 
-  // Non-streaming: convert NVIDIA chat completion → Anthropic message
   const choice = nvidiaBody.choices?.[0]
   const content = choice?.message?.content || ''
 
@@ -217,10 +275,8 @@ function callNvidiaApi(nvidiaBody, apiKey, stream, callback) {
 
   const nvidiaReq = https.request(options, (nvidiaRes) => {
     if (stream) {
-      // Stream: pipe SSE events, translating NVIDIA format → Anthropic format
       callback(null, nvidiaRes)
     } else {
-      // Non-stream: collect full response
       let data = ''
       nvidiaRes.on('data', chunk => data += chunk)
       nvidiaRes.on('end', () => {
@@ -281,13 +337,12 @@ function translateStream(nvidiaRes, res, model) {
   nvidiaRes.on('data', (chunk) => {
     buffer += chunk.toString()
     const lines = buffer.split('\n')
-    buffer = lines.pop() || '' // Keep incomplete line in buffer
+    buffer = lines.pop() || ''
 
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue
       const data = line.slice(6).trim()
       if (data === '[DONE]') {
-        // Send Anthropic stream end events
         res.write(`event: content_block_stop\ndata: ${JSON.stringify({
           type: 'content_block_stop',
           index: 0,
@@ -309,7 +364,6 @@ function translateStream(nvidiaRes, res, model) {
         const parsed = JSON.parse(data)
         const delta = parsed.choices?.[0]?.delta
         if (delta?.content) {
-          // Translate NVIDIA delta → Anthropic content_block_delta
           res.write(`event: content_block_delta\ndata: ${JSON.stringify({
             type: 'content_block_delta',
             index: 0,
@@ -339,7 +393,7 @@ function translateStream(nvidiaRes, res, model) {
       } catch {}
     }
 
-    // Ensure stream end
+    // Ensure stream end events are always sent
     res.write(`event: content_block_stop\ndata: ${JSON.stringify({
       type: 'content_block_stop',
       index: 0,
@@ -357,7 +411,7 @@ function translateStream(nvidiaRes, res, model) {
 
   nvidiaRes.on('error', (err) => {
     console.error('[FCC-Proxy] NVIDIA stream error:', err.message)
-    res.end()
+    if (!res.writableEnded) res.end()
   })
 }
 
@@ -373,24 +427,31 @@ function collectBody(req) {
 
 // ─── Main Request Handler ──────────────────────────────
 async function handleRequest(req, res) {
-  const url = req.url || '/'
+  const rawUrl = req.url || '/'
   const method = req.method || 'GET'
 
-  // ─── Handle /v1/models directly ──────────────────────────
-  if ((url === '/v1/models' || url === '/models') && method === 'GET') {
+  // Parse URL (handle query params like ?limit=1000)
+  const urlPath = rawUrl.split('?')[0]
+
+  // ─── Handle GET /v1/models (Claude Code model discovery) ────────
+  // Claude Code requires model IDs starting with "claude" or "anthropic"
+  // to show them in the /model picker. We expose Claude-compatible IDs
+  // and map them back to real NVIDIA model IDs when making API calls.
+  if ((urlPath === '/v1/models' || urlPath === '/models') && method === 'GET') {
     const response = {
       object: 'list',
-      data: NVIDIA_MODELS.map(m => ({
+      data: CLAUDE_MODELS.map(m => ({
         id: m.id,
         display_name: m.display_name,
-        description: m.description,
-        context_window: m.context_window,
-        max_tokens: m.max_tokens,
+        // Claude Code only reads `id` and `display_name` from the response.
+        // Extra fields are ignored but included for compatibility.
+        type: 'model',
         created_at: m.created_at,
-        object: 'model',
-        owned_by: 'nvidia',
+        max_tokens: m.max_tokens,
       })),
-      default_model: DEFAULT_MODEL,
+      first_id: CLAUDE_MODELS[0]?.id || '',
+      has_more: false,
+      last_id: CLAUDE_MODELS[CLAUDE_MODELS.length - 1]?.id || '',
     }
     res.writeHead(200, {
       'Content-Type': 'application/json',
@@ -398,7 +459,7 @@ async function handleRequest(req, res) {
       'Access-Control-Allow-Headers': 'Content-Type, x-api-key, anthropic-version, Authorization, X-User-NVIDIA-Key',
     })
     res.end(JSON.stringify(response))
-    console.log(`[FCC-Proxy] GET /v1/models → ${NVIDIA_MODELS.length} models`)
+    console.log(`[FCC-Proxy] GET /v1/models → ${CLAUDE_MODELS.length} models (Claude-compatible IDs)`)
     return
   }
 
@@ -415,22 +476,24 @@ async function handleRequest(req, res) {
   }
 
   // ─── Health check ──────────────────────────────────────────
-  if (url === '/health' && method === 'GET') {
+  if (urlPath === '/health' && method === 'GET') {
     const hasKey = !!FALLBACK_KEY
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({
       status: 'healthy',
-      proxy: 'fcc-full-proxy',
-      models_available: NVIDIA_MODELS.length,
+      proxy: 'fcc-full-proxy-v3',
+      models_available: CLAUDE_MODELS.length,
       default_model: DEFAULT_MODEL,
+      resolved_nvidia_model: resolveNvidiaModel(DEFAULT_MODEL),
       has_default_key: hasKey,
       architecture: 'direct-to-nvidia',
+      model_mapping: Object.fromEntries(CLAUDE_MODELS.map(m => [m.id, m.nvidiaModel])),
     }))
     return
   }
 
   // ─── Handle POST /v1/messages (Anthropic → NVIDIA translation) ──
-  if ((url === '/v1/messages' || url === '/messages') && method === 'POST') {
+  if ((urlPath === '/v1/messages' || urlPath === '/messages') && method === 'POST') {
     try {
       // Extract per-user NVIDIA key
       const userKey = extractNvidiaKey(req)
@@ -460,20 +523,22 @@ async function handleRequest(req, res) {
         return
       }
 
-      const model = anthropicBody.model || DEFAULT_MODEL
+      const requestedModel = anthropicBody.model || DEFAULT_MODEL
+      const nvidiaModel = resolveNvidiaModel(requestedModel)
       const isStream = anthropicBody.stream ?? false
       const keySuffix = userKey.slice(-4)
 
+      // Log the model mapping for debugging
+      console.log(`[FCC-Proxy] POST /v1/messages model: ${requestedModel} → ${nvidiaModel} (key: ****${keySuffix}, stream: ${isStream})`)
+
       // Translate Anthropic format → NVIDIA format
       const nvidiaBody = translateAnthropicToNvidia(anthropicBody)
-      console.log(`[FCC-Proxy] POST /v1/messages → NVIDIA ${model} (key: ****${keySuffix}, stream: ${isStream})`)
 
       // Call NVIDIA API
       callNvidiaApi(nvidiaBody, userKey, isStream, (err, nvidiaData, statusCode) => {
         if (err) {
           console.error(`[FCC-Proxy] NVIDIA API error (${statusCode}):`, JSON.stringify(err).slice(200))
           const errStatus = statusCode || 502
-          // Translate NVIDIA errors to Anthropic error format
           let errorType = 'api_error'
           let errorMsg = typeof err === 'string' ? err : (err.error?.message || err.message || JSON.stringify(err))
 
@@ -486,6 +551,9 @@ async function handleRequest(req, res) {
           } else if (errStatus === 504) {
             errorType = 'timeout_error'
             errorMsg = 'NVIDIA API request timed out.'
+          } else if (errStatus === 404) {
+            errorType = 'not_found_error'
+            errorMsg = `Model "${nvidiaModel}" not found on NVIDIA NIM. Try a different model.`
           }
 
           res.writeHead(errStatus, { 'Content-Type': 'application/json' })
@@ -504,10 +572,10 @@ async function handleRequest(req, res) {
             'Connection': 'keep-alive',
             'Access-Control-Allow-Origin': '*',
           })
-          translateStream(nvidiaData, res, model)
+          translateStream(nvidiaData, res, requestedModel)
         } else {
           // Non-stream: translate full response
-          const anthropicResponse = translateNvidiaToAnthropic(nvidiaData, model, false)
+          const anthropicResponse = translateNvidiaToAnthropic(nvidiaData, requestedModel, false)
           res.writeHead(statusCode || 200, {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
@@ -545,20 +613,24 @@ const server = http.createServer((req, res) => {
 })
 
 server.listen(FCC_PROXY_PORT, '0.0.0.0', () => {
-  console.log(`[FCC-Full-Proxy] Listening on port ${FCC_PROXY_PORT}`)
-  console.log(`[FCC-Full-Proxy] Direct connection to NVIDIA NIM API (${NVIDIA_API_BASE})`)
-  console.log(`[FCC-Full-Proxy] ${NVIDIA_MODELS.length} models available, default: ${DEFAULT_MODEL}`)
-  console.log(`[FCC-Full-Proxy] Per-user key isolation: ENABLED`)
-  console.log(`[FCC-Full-Proxy] Endpoints: /v1/models, /v1/messages, /health`)
-  console.log(`[FCC-Full-Proxy] Fallback key: ${FALLBACK_KEY ? '****' + FALLBACK_KEY.slice(-4) : 'NONE'}`)
+  console.log(`[FCC-Proxy-v3] Listening on port ${FCC_PROXY_PORT}`)
+  console.log(`[FCC-Proxy-v3] Direct connection to NVIDIA NIM API (${NVIDIA_API_BASE})`)
+  console.log(`[FCC-Proxy-v3] ${CLAUDE_MODELS.length} models available, default: ${DEFAULT_MODEL} → ${resolveNvidiaModel(DEFAULT_MODEL)}`)
+  console.log(`[FCC-Proxy-v3] Model mapping (Claude ID → NVIDIA ID):`)
+  for (const m of CLAUDE_MODELS) {
+    console.log(`[FCC-Proxy-v3]   ${m.id.padEnd(28)} → ${m.nvidiaModel}`)
+  }
+  console.log(`[FCC-Proxy-v3] Per-user key isolation: ENABLED`)
+  console.log(`[FCC-Proxy-v3] Endpoints: /v1/models, /v1/messages, /health`)
+  console.log(`[FCC-Proxy-v3] Fallback key: ${FALLBACK_KEY ? '****' + FALLBACK_KEY.slice(-4) : 'NONE'}`)
 })
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`[FCC-Full-Proxy] Port ${FCC_PROXY_PORT} already in use!`)
-    console.error(`[FCC-Full-Proxy] Kill the existing process: fuser -k ${FCC_PROXY_PORT}/tcp`)
+    console.error(`[FCC-Proxy-v3] Port ${FCC_PROXY_PORT} already in use!`)
+    console.error(`[FCC-Proxy-v3] Kill the existing process: fuser -k ${FCC_PROXY_PORT}/tcp`)
     process.exit(1)
   }
-  console.error(`[FCC-Full-Proxy] Server error:`, err)
+  console.error(`[FCC-Proxy-v3] Server error:`, err)
   process.exit(1)
 })

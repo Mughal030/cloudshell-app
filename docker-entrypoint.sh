@@ -616,10 +616,8 @@ fcc-start() {
 
     echo "Starting free-claude-code proxy..."
 
-    # Ensure .env exists with NVIDIA key
-    _fcc_update_env PORT "8083"  # fcc-server runs on 8083 internally
+    # Update .env with current settings
     _fcc_update_env NVIDIA_NIM_API_KEY "${NVIDIA_NIM_API_KEY:-}"
-    _fcc_update_env MODEL "nvidia_nim/${ANTHROPIC_MODEL:-z-ai/glm-5.2}"
     _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
 
     # Read key from .env file if not in environment
@@ -628,34 +626,22 @@ fcc-start() {
         FCC_NVIDIA_KEY=$(grep '^NVIDIA_NIM_API_KEY=' "${HOME}/.fcc/.env" 2>/dev/null | head -1 | sed 's/^NVIDIA_NIM_API_KEY="//;s/"$//')
     fi
 
-    # Step 1: Start fcc-server on port 8083 (internal)
-    PORT=8083 NVIDIA_NIM_API_KEY="$FCC_NVIDIA_KEY" nohup fcc-server > /tmp/fcc-server.log 2>&1 &
-    local FCC_PID=$!
-    echo "$FCC_PID" > "${HOME}/.fcc/fcc-server.pid"
-    echo "  fcc-server started with PID $FCC_PID on port 8083 (internal)"
-
-    # Wait for fcc-server to be ready (max 15 seconds)
-    echo "  Waiting for fcc-server to start..."
-    local WAITED=0
-    while [ $WAITED -lt 15 ]; do
-        if curl -s http://localhost:8083/health >/dev/null 2>&1; then
-            echo "  ✅ fcc-server is running on port 8083"
-            break
-        fi
-        sleep 1
-        WAITED=$((WAITED + 1))
-    done
-
-    # Step 2: Start model-discovery proxy on port 8082 (public)
+    # Start the direct-to-NVIDIA proxy on port 8082
+    # (v3 proxy: no fcc-server needed — goes directly to NVIDIA NIM API)
     if [ -f /home/cloudshell/scripts/fcc-model-discovery-proxy.js ]; then
-        FCC_INTERNAL_PORT=8083 FCC_PROXY_PORT=8082 nohup node /home/cloudshell/scripts/fcc-model-discovery-proxy.js > /tmp/fcc-model-proxy.log 2>&1 &
+        NVIDIA_NIM_API_KEY="$FCC_NVIDIA_KEY" \
+        ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-claude-opus-4-5}" \
+        FCC_PROXY_PORT=8082 \
+        nohup node /home/cloudshell/scripts/fcc-model-discovery-proxy.js > /tmp/fcc-model-proxy.log 2>&1 &
         local PROXY_PID=$!
-        echo "  Model discovery proxy started with PID $PROXY_PID on port 8082"
-        sleep 1
-        if curl -s http://localhost:8082/v1/models >/dev/null 2>&1; then
-            echo "  ✅ Model discovery proxy running — NVIDIA models available in /model picker"
+        echo "$PROXY_PID" > "${HOME}/.fcc/proxy.pid"
+        echo "  Direct-to-NVIDIA proxy started with PID $PROXY_PID on port 8082"
+        sleep 2
+        if curl -s http://localhost:8082/health >/dev/null 2>&1; then
+            echo "  ✅ Proxy running — Claude-compatible models available in /model picker"
+            echo "  Default model: ${ANTHROPIC_MODEL:-claude-opus-4-5} → z-ai/glm-5.2"
         else
-            echo "  ⚠ Model discovery proxy may still be starting"
+            echo "  ⚠ Proxy may still be starting"
         fi
     else
         echo "  ⚠ fcc-model-discovery-proxy.js not found — /model picker may show Anthropic models only"
@@ -1163,7 +1149,7 @@ if [ ! -f "/home/cloudshell/.bashrc_env" ]; then
 # Claude Code proxy environment (auto-generated)
 export ANTHROPIC_BASE_URL="http://localhost:8082"
 export ANTHROPIC_AUTH_TOKEN="fcc-no-auth"
-export ANTHROPIC_MODEL="z-ai/glm-5.2"
+export ANTHROPIC_MODEL="claude-opus-4-5"
 export CLAUDE_CODE_USE_AUTH_TOKEN="true"
 export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="1"
 export CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000"
@@ -1177,7 +1163,7 @@ BASHEOF
 else
     # .bashrc_env already exists — ensure ANTHROPIC_MODEL is set
     if ! grep -q '^export ANTHROPIC_MODEL=' /home/cloudshell/.bashrc_env 2>/dev/null; then
-        echo 'export ANTHROPIC_MODEL="z-ai/glm-5.2"' >> /home/cloudshell/.bashrc_env
+        echo 'export ANTHROPIC_MODEL="claude-opus-4-5"' >> /home/cloudshell/.bashrc_env
         echo "[Entrypoint] Added ANTHROPIC_MODEL to existing ~/.bashrc_env"
     fi
 fi
