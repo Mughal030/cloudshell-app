@@ -1269,3 +1269,32 @@ Stage Summary:
 - Key flows: Settings Panel → POST /api/auth/keys → users.json + ~/.fcc/.env + ~/.bashrc_env + fcc-server restart
 - Claude Code should now work immediately after saving NVIDIA key (~5 seconds)
 - Pushed to both GitHub and HuggingFace
+---
+Task ID: 2
+Agent: main
+Task: Fix NVIDIA NIM API key propagation to fcc proxy (503 error)
+
+Work Log:
+- Examined full API key flow: Settings UI → keys/route.ts → ~/.fcc/.env → fcc-server process
+- Identified ROOT CAUSE: docker-entrypoint.sh starts fcc-server with only PORT=8082 env var, NOT NVIDIA_NIM_API_KEY
+  - pydantic-settings reads env vars with HIGHER priority than .env file
+  - So even though key was written to ~/.fcc/.env, the proxy process ignored it
+- Fixed docker-entrypoint.sh: source .bashrc_env + pass NVIDIA_NIM_API_KEY as env var at boot
+- Fixed fcc-start(): read key from ~/.fcc/.env fallback, pass as env var to nohup fcc-server
+- Fixed fcc-stop(): graceful→force kill, fuser, pkill, wait for port free
+- Fixed claude-test(): check proxy process /proc/PID/environ for key, auto-restart if missing
+- Fixed claude-set-nvidia-key(): auto-restart proxy after setting key
+- Fixed keys/route.ts: double-fork start script, gosu cloudshell→direct→inline fallback chain
+- Fixed keys/route.ts: update process.env for immediate terminal session access
+- Fixed keys/route.ts: verify proxy process has key via /proc/PID/environ after restart
+- Fixed keys/route.ts: non-blocking restart with setTimeout (was blocking API response 20+s)
+- Added __RESTART_PROXY__ special key for frontend-initiated proxy restart
+- Added proxyRunning + proxyHasKey to GET /api/auth/keys response
+- Added Claude Code Proxy status section in Settings panel (ACTIVE/NO KEY/DOWN)
+- Added Restart Proxy + Check Status buttons in Settings panel
+- Pushed to GitHub and Hugging Face
+
+Stage Summary:
+- NVIDIA NIM API key now properly propagated to fcc proxy process at boot and on save
+- Proxy restart is more robust with multiple kill methods and process verification
+- Settings panel shows real-time proxy status with restart capability
