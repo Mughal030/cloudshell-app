@@ -376,9 +376,8 @@ whereis-tool() {
 #
 # Commands:
 #   fcc-claude             - Launch Claude Code via proxy (RECOMMENDED)
-#   claude-models          - List all available NVIDIA models
-#   claude-set-model       - Change the default model (supports short names!)
 #   claude-set-nvidia-key  - Change your NVIDIA API key
+#   claude-set-model       - Change the model mapping
 #   claude-show            - Show current config
 #   claude-test            - Test the proxy + NVIDIA API
 #   fcc-start / fcc-stop   - Start/stop the proxy
@@ -388,8 +387,8 @@ whereis-tool() {
 claude-show() {
     echo "=== Claude Code Configuration (via free-claude-code proxy) ==="
     echo ""
-    echo "  Architecture (v4 — two-layer):"
-    echo "    Claude Code → :8082 (model proxy) → :8083 (fcc-server) → NVIDIA NIM"
+    echo "  Architecture:"
+    echo "    Claude Code → localhost:8082 (proxy) → NVIDIA NIM API"
     echo ""
     echo "  ANTHROPIC_BASE_URL    = ${ANTHROPIC_BASE_URL:-(not set)}"
     echo "  ANTHROPIC_AUTH_TOKEN   = ${ANTHROPIC_AUTH_TOKEN:-(not set)} (bypasses OAuth login)"
@@ -397,17 +396,11 @@ claude-show() {
     echo "  CLAUDE_CODE_USE_AUTH_TOKEN = ${CLAUDE_CODE_USE_AUTH_TOKEN:-(not set)}"
     echo "  NVIDIA_NIM_API_KEY    = ****${NVIDIA_NIM_API_KEY: -4}"
     echo ""
-    # Check model proxy on port 8082
+    # Check proxy status
     if curl -s http://localhost:8082/health >/dev/null 2>&1; then
-        echo "  Model proxy (8082): ✅ RUNNING"
+        echo "  Proxy (fcc-server): ✅ RUNNING on port 8082"
     else
-        echo "  Model proxy (8082): ❌ NOT RUNNING"
-    fi
-    # Check fcc-server on port 8083
-    if curl -s http://localhost:8083/health >/dev/null 2>&1; then
-        echo "  fcc-server (8083):   ✅ RUNNING (Anthropic↔NVIDIA translator)"
-    else
-        echo "  fcc-server (8083):   ❌ NOT RUNNING"
+        echo "  Proxy (fcc-server): ❌ NOT RUNNING (run: fcc-start)"
     fi
     echo ""
     if command -v claude &>/dev/null; then
@@ -570,7 +563,7 @@ claude-set-model() {
 
     export ANTHROPIC_MODEL="$MODEL_ID"
     _claude_update_env ANTHROPIC_MODEL "$MODEL_ID"
-    echo "✅ Model changed successfully!"
+    echo "Model changed successfully!"
     echo ""
     echo "  Claude Code shows: $MODEL_ID"
     echo "  Actually uses:     $NVIDIA_MODEL (on NVIDIA NIM)"
@@ -714,56 +707,16 @@ fcc-start() {
         FCC_NVIDIA_KEY="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"
     fi
 
-    # ─── Step 1: Start fcc-server on port 8083 ───────────────
-    # fcc-server is a proper Python Anthropic↔OpenAI/NVIDIA translator.
-    # It handles tool calls, thinking blocks, streaming, etc. correctly.
-    # This is what makes Claude Code actually work properly.
-    if command -v fcc-server &>/dev/null; then
-        # Update fcc-server's .env with current NVIDIA key
-        _fcc_update_env PORT "8083"
-        _fcc_update_env NVIDIA_NIM_API_KEY "$FCC_NVIDIA_KEY"
-        _fcc_update_env MODEL "nvidia_nim/z-ai/glm-5.2"
-        _fcc_update_env ANTHROPIC_AUTH_TOKEN "fcc-no-auth"
-
-        # Start fcc-server (unset PORT so pydantic-settings reads 8083 from .env)
-        NVIDIA_NIM_API_KEY="$FCC_NVIDIA_KEY" \
-        nohup env -u PORT fcc-server > /tmp/fcc-server.log 2>&1 &
-        local FCC_PID=$!
-        echo "$FCC_PID" > "${HOME}/.fcc/fcc-server.pid"
-        echo "  fcc-server started with PID $FCC_PID on port 8083 (Anthropic↔NVIDIA translator)"
-
-        # Wait for fcc-server to be ready (up to 15 seconds)
-        local FCC_WAIT=0
-        while [ $FCC_WAIT -lt 15 ]; do
-            if curl -s http://localhost:8083/health >/dev/null 2>&1; then
-                break
-            fi
-            sleep 1
-            FCC_WAIT=$((FCC_WAIT + 1))
-        done
-
-        if curl -s http://localhost:8083/health >/dev/null 2>&1; then
-            echo "  ✅ fcc-server is running on port 8083"
-        else
-            echo "  ⚠ fcc-server may still be starting (waited ${FCC_WAIT}s). Check: tail /tmp/fcc-server.log"
-        fi
-    else
-        echo "  ⚠ fcc-server not found! Install it first: setup-fcc-proxy"
-        echo "  Claude Code will NOT work without fcc-server."
-    fi
-
-    # ─── Step 2: Start model-discovery proxy on port 8082 ────
-    # This proxy adds /v1/models endpoint for Claude Code's model picker
-    # and forwards /v1/messages to fcc-server on port 8083.
+    # Start the direct-to-NVIDIA proxy on port 8082
+    # (v3 proxy: no fcc-server needed — goes directly to NVIDIA NIM API)
     if [ -f /home/cloudshell/scripts/fcc-model-discovery-proxy.cjs ]; then
         NVIDIA_NIM_API_KEY="$FCC_NVIDIA_KEY" \
         ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-claude-opus-4-5}" \
         FCC_PROXY_PORT=8082 \
-        FCC_SERVER_PORT=8083 \
         nohup node /home/cloudshell/scripts/fcc-model-discovery-proxy.cjs > /tmp/fcc-model-proxy.log 2>&1 &
         local PROXY_PID=$!
         echo "$PROXY_PID" > "${HOME}/.fcc/proxy.pid"
-        echo "  Model-discovery proxy started with PID $PROXY_PID on port 8082"
+        echo "  Direct-to-NVIDIA proxy started with PID $PROXY_PID on port 8082"
         sleep 2
         if curl -s http://localhost:8082/health >/dev/null 2>&1; then
             echo "  ✅ Proxy running — Claude-compatible models available in /model picker"
@@ -775,10 +728,10 @@ fcc-start() {
         echo "  ⚠ fcc-model-discovery-proxy.cjs not found — /model picker may show Anthropic models only"
     fi
 
-    # ─── Final check ─────────────────────────────────────────
+    # Final check
     if curl -s http://localhost:8082/health >/dev/null 2>&1; then
         echo "  ✅ Full proxy stack is running on http://localhost:8082"
-        echo "     Architecture: Claude Code → :8082 (model proxy) → :8083 (fcc-server) → NVIDIA NIM"
+        echo "  ✅ Admin UI at http://localhost:8083/admin (internal)"
         echo ""
         echo "  Now just type: fcc-claude"
         return 0
@@ -893,24 +846,9 @@ claude-test() {
         fi
     fi
 
-    # Step 2: Check fcc-server on port 8083
+    # Step 2: Check NVIDIA key (check both shell env AND .env file)
     echo ""
-    echo "  Step 2: Checking fcc-server (Anthropic↔NVIDIA translator)..."
-    if curl -s http://localhost:8083/health >/dev/null 2>&1; then
-        echo "  ✅ fcc-server is RUNNING on port 8083"
-    else
-        echo "  ❌ fcc-server is NOT running on port 8083!"
-        echo "     Starting it..."
-        fcc-start
-        if ! curl -s http://localhost:8083/health >/dev/null 2>&1; then
-            echo "  ❌ fcc-server failed to start. Check: tail /tmp/fcc-server.log"
-            return 1
-        fi
-    fi
-
-    # Step 3: Check NVIDIA key (check both shell env AND .env file)
-    echo ""
-    echo "  Step 3: Checking NVIDIA API key..."
+    echo "  Step 2: Checking NVIDIA API key..."
     local TEST_NVIDIA_KEY="${NVIDIA_NIM_API_KEY:-}"
     if [ -z "$TEST_NVIDIA_KEY" ] && [ -f "${HOME}/.fcc/.env" ]; then
         TEST_NVIDIA_KEY=$(grep '^NVIDIA_NIM_API_KEY=' "${HOME}/.fcc/.env" 2>/dev/null | head -1 | sed 's/^NVIDIA_NIM_API_KEY="//;s/"$//')
@@ -922,17 +860,43 @@ claude-test() {
         return 1
     fi
     echo "  ✅ NVIDIA key: ****${TEST_NVIDIA_KEY: -4}"
+    # Also verify the running proxy process has the key
+    local PROXY_PID=""
+    if [ -f "${HOME}/.fcc/fcc-server.pid" ]; then
+        PROXY_PID=$(cat "${HOME}/.fcc/fcc-server.pid" 2>/dev/null | tr -d '[:space:]')
+    fi
+    if [ -z "$PROXY_PID" ]; then
+        PROXY_PID=$(lsof -ti:8083 2>/dev/null | head -1 || true)
+    fi
+    if [ -n "$PROXY_PID" ] && [ -d "/proc/$PROXY_PID" ]; then
+        local PROXY_KEY_IN_ENV
+        PROXY_KEY_IN_ENV=$(tr '\0' '\n' < "/proc/$PROXY_PID/environ" 2>/dev/null | grep '^NVIDIA_NIM_API_KEY=' | sed 's/^NVIDIA_NIM_API_KEY=//' || true)
+        if [ -n "$PROXY_KEY_IN_ENV" ]; then
+            echo "  ✅ Proxy process (PID $PROXY_PID) has NVIDIA key: ****${PROXY_KEY_IN_ENV: -4}"
+        else
+            echo "  ⚠️ Proxy process (PID $PROXY_PID) does NOT have NVIDIA_NIM_API_KEY in its environment!"
+            echo "     This means the proxy was started WITHOUT the key. Restarting proxy..."
+            fcc-stop
+            sleep 1
+            # Re-export the key for fcc-start
+            export NVIDIA_NIM_API_KEY="$TEST_NVIDIA_KEY"
+            fcc-start
+            echo ""
+            echo "  Proxy restarted with key. Re-testing..."
+            sleep 2
+        fi
+    fi
 
-    # Step 4: Test the proxy's /health endpoint
+    # Step 3: Test the proxy's /health endpoint
     echo ""
-    echo "  Step 4: Testing proxy health endpoint..."
+    echo "  Step 3: Testing proxy health endpoint..."
     local HEALTH
     HEALTH=$(curl -s http://localhost:8082/health 2>&1 || echo "failed")
     echo "  Health response: $HEALTH"
 
-    # Step 5: Send a test message through the full stack (Anthropic format)
+    # Step 4: Send a test message through the proxy (Anthropic format)
     echo ""
-    echo "  Step 5: Sending test message through proxy → fcc-server → NVIDIA NIM..."
+    echo "  Step 4: Sending test message through proxy..."
     local RESPONSE
     RESPONSE=$(curl -s -w "\n%{http_code}" \
         "http://localhost:8082/v1/messages" \
@@ -940,13 +904,13 @@ claude-test() {
         -H "x-api-key: fcc-no-auth" \
         -H "anthropic-version: 2023-06-01" \
         -d "{
-            \"model\": \"${ANTHROPIC_MODEL:-claude-opus-4-5}\",
+            \"model\": \"${ANTHROPIC_MODEL:-z-ai/glm-5.2}\",
             \"messages\": [{\"role\": \"user\", \"content\": \"Say hello in one word\"}],
             \"max_tokens\": 32,
             \"stream\": false
         }" \
         --connect-timeout 10 \
-        --max-time 120 2>&1)
+        --max-time 60 2>&1)
 
     local HTTP_CODE
     HTTP_CODE=$(echo "$RESPONSE" | tail -1)
@@ -955,7 +919,7 @@ claude-test() {
 
     if [ "$HTTP_CODE" = "200" ]; then
         echo ""
-        echo "  ✅ Full stack SUCCESS! (HTTP $HTTP_CODE)"
+        echo "  ✅ Proxy + NVIDIA API SUCCESS! (HTTP $HTTP_CODE)"
         # Extract the response
         local CONTENT
         CONTENT=$(echo "$BODY" | python3 -c "
@@ -973,11 +937,11 @@ except Exception as e:
 " 2>/dev/null || echo "(Could not parse response)")
         echo "  AI Response: $CONTENT"
         echo ""
-        echo "  🎉 Your Claude Code is ready! Just type: fcc-claude"
+        echo "  🎉 Your Claude Code is ready! Just type: claude"
     elif [ "$HTTP_CODE" = "000" ]; then
         echo ""
         echo "  ❌ Could not reach proxy on localhost:8082"
-        echo "     Make sure both fcc-server and model proxy are running: fcc-start"
+        echo "     Make sure fcc-server is running: fcc-start"
     else
         echo ""
         echo "  ❌ Proxy returned HTTP $HTTP_CODE"
@@ -986,8 +950,8 @@ except Exception as e:
         echo "  Common fixes:"
         echo "    - Update NVIDIA key: claude-set-nvidia-key \"nvapi-...\""
         echo "    - Restart proxy: fcc-stop && fcc-start"
-        echo "    - Check fcc-server logs: tail -f /tmp/fcc-server.log"
-        echo "    - Check model proxy logs: tail -f /tmp/fcc-model-proxy.log"
+        echo "    - Check logs: tail -f /tmp/fcc-server.log"
+        echo "    - Open admin UI: http://localhost:8082/admin"
     fi
 }
 
