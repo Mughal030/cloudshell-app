@@ -79,10 +79,14 @@ RUN chmod +x /home/cloudshell/scripts/fcc-model-discovery-proxy.cjs && \
     chown cloudshell:cloudshell /home/cloudshell/scripts/fcc-model-discovery-proxy.cjs
 
 # ─── Claude Code default environment (via free-claude-code proxy) ───
-# Architecture:
-#   Claude Code → localhost:8082 (model-discovery proxy) → NVIDIA NIM API
+# Architecture (v4 — two-layer for reliability):
+#   Claude Code → localhost:8082 (model-discovery proxy)
+#                    ├── GET /v1/models → served locally (model picker)
+#                    └── POST /v1/messages → localhost:8083 (fcc-server)
+#                                               → NVIDIA NIM API
 # The model-discovery proxy adds /v1/models endpoint for Claude Code's model picker.
-# The fcc-server translates Anthropic API requests to NVIDIA NIM format.
+# The fcc-server (Python) handles proper Anthropic↔NVIDIA translation including
+# tool calls, thinking blocks, and streaming — this is critical for correct behavior.
 #
 # KEY: Use "fcc-claude" (not "claude") to launch Claude Code.
 # fcc-claude auto-sets all env vars and skips the login prompt.
