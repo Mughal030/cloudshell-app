@@ -175,48 +175,137 @@ function translateAnthropicToNvidia(anthropicBody) {
   const messages = []
 
   // Convert Anthropic system prompt → NVIDIA system message
+  let systemContent = ''
   if (anthropicBody.system) {
-    const systemContent = typeof anthropicBody.system === 'string'
+    systemContent = typeof anthropicBody.system === 'string'
       ? anthropicBody.system
       : Array.isArray(anthropicBody.system)
         ? anthropicBody.system.map(b => b.text || '').join('\n')
         : ''
-    if (systemContent) {
-      messages.push({ role: 'system', content: systemContent })
+  }
+
+  // Add guidance for the model to prevent tool call loops and format issues
+  const BEHAVIOR_GUIDE = [
+    '\n\nIMPORTANT BEHAVIOR RULES:',
+    '- When you receive a tool result, DO NOT call the same tool again with the same arguments.',
+    '- After executing a command and getting results, summarize the results to the user instead of re-running.',
+    '- If a tool call has already been made and returned results, move on to the next step.',
+    '- Do NOT repeat the same action multiple times.',
+    '- When done with a task, provide a final summary to the user.',
+    '- Use plain text responses, not XML tags or <tool_call> syntax.',
+  ].join('\n')
+
+  if (systemContent) {
+    messages.push({ role: 'system', content: systemContent + BEHAVIOR_GUIDE })
+  } else {
+    messages.push({ role: 'system', content: BEHAVIOR_GUIDE.trim() })
+  }
+
+  // Convert Anthropic messages → NVIDIA/OpenAI messages
+  // KEY FIX: Properly handle tool_use and tool_result blocks
+  // to prevent the model from looping on repeated tool calls
+  if (Array.isArray(anthropicBody.messages)) {
+    for (const msg of anthropicBody.messages) {
+      if (msg.role === 'user') {
+        // User message: extract text, handle tool_result blocks
+        let textParts = []
+        let toolResults = []
+
+        if (typeof msg.content === 'string') {
+          textParts.push(msg.content)
+        } else if (Array.isArray(msg.content)) {
+          for (const block of msg.content) {
+            if (block.type === 'text') {
+              textParts.push(block.text || '')
+            } else if (block.type === 'tool_result') {
+              // Convert Anthropic tool_result → OpenAI tool message
+              let resultContent = ''
+              if (typeof block.content === 'string') {
+                resultContent = block.content
+              } else if (Array.isArray(block.content)) {
+                resultContent = block.content
+                  .filter(c => c.type === 'text')
+                  .map(c => c.text || '')
+                  .join('\n')
+              }
+              toolResults.push({
+                tool_call_id: block.tool_use_id || `call_${Date.now()}`,
+                content: resultContent || '(no output)',
+              })
+            }
+          }
+        }
+
+        // Add any text content as a user message
+        if (textParts.join('\n').trim()) {
+          messages.push({ role: 'user', content: textParts.join('\n') })
+        }
+
+        // Add tool results as tool messages (OpenAI format)
+        for (const result of toolResults) {
+          messages.push({ role: 'tool', tool_call_id: result.tool_call_id, content: result.content })
+        }
+
+      } else if (msg.role === 'assistant') {
+        // Assistant message: handle text + tool_use blocks
+        let textParts = []
+        let toolCalls = []
+
+        if (typeof msg.content === 'string') {
+          textParts.push(msg.content)
+        } else if (Array.isArray(msg.content)) {
+          for (const block of msg.content) {
+            if (block.type === 'text') {
+              textParts.push(block.text || '')
+            } else if (block.type === 'tool_use') {
+              // Convert Anthropic tool_use → OpenAI function call format
+              let funcArgs = '{}'
+              if (block.input) {
+                try {
+                  funcArgs = typeof block.input === 'string' ? block.input : JSON.stringify(block.input)
+                } catch { funcArgs = '{}' }
+              }
+              toolCalls.push({
+                id: block.id || `call_${Date.now()}_${toolCalls.length}`,
+                type: 'function',
+                function: {
+                  name: block.name || 'unknown',
+                  arguments: funcArgs,
+                },
+              })
+            }
+            // Skip thinking blocks — they cause confusion for non-Claude models
+          }
+        }
+
+        // Build the assistant message
+        const assistantMsg = { role: 'assistant' }
+        if (textParts.join('\n').trim()) {
+          assistantMsg.content = textParts.join('\n')
+        } else {
+          assistantMsg.content = null // OpenAI allows null content when there are tool_calls
+        }
+        if (toolCalls.length > 0) {
+          assistantMsg.tool_calls = toolCalls
+        }
+        messages.push(assistantMsg)
+      }
     }
   }
 
-  // Convert Anthropic messages → NVIDIA messages
-  if (Array.isArray(anthropicBody.messages)) {
-    for (const msg of anthropicBody.messages) {
-      if (msg.role === 'user' || msg.role === 'assistant') {
-        // Handle both simple string content and complex content blocks
-        let content = ''
-        if (typeof msg.content === 'string') {
-          content = msg.content
-        } else if (Array.isArray(msg.content)) {
-          // Extract text from content blocks, skip images/tools/thinking
-          content = msg.content
-            .filter(b => b.type === 'text' || (b.type === 'tool_result' && b.content))
-            .map(b => {
-              if (b.type === 'text') return b.text || ''
-              if (b.type === 'tool_result') {
-                // Flatten tool_result content into text
-                if (typeof b.content === 'string') return b.content
-                if (Array.isArray(b.content)) {
-                  return b.content
-                    .filter(c => c.type === 'text')
-                    .map(c => c.text || '')
-                    .join('\n')
-                }
-              }
-              return ''
-            })
-            .join('\n')
-        }
-        if (content) {
-          messages.push({ role: msg.role, content })
-        }
+  // Build tools list if provided (OpenAI function calling format)
+  const tools = []
+  if (Array.isArray(anthropicBody.tools)) {
+    for (const tool of anthropicBody.tools) {
+      if (tool.name && tool.input_schema) {
+        tools.push({
+          type: 'function',
+          function: {
+            name: tool.name,
+            description: tool.description || '',
+            parameters: tool.input_schema,
+          },
+        })
       }
     }
   }
@@ -224,10 +313,17 @@ function translateAnthropicToNvidia(anthropicBody) {
   const nvidiaBody = {
     model: nvidiaModel,
     messages,
-    temperature: anthropicBody.temperature ?? 1,
-    top_p: anthropicBody.top_p ?? 1,
+    temperature: anthropicBody.temperature ?? 0.7, // Lower temperature to reduce hallucination
+    top_p: anthropicBody.top_p ?? 0.9,
     max_tokens: Math.min(anthropicBody.max_tokens || 16384, 16384),
     stream: anthropicBody.stream ?? false,
+  }
+
+  // Add tools if provided
+  if (tools.length > 0) {
+    nvidiaBody.tools = tools
+    // Tell the model it can use tools but should not loop
+    nvidiaBody.tool_choice = 'auto'
   }
 
   // Add seed for reproducibility if specified
@@ -245,15 +341,55 @@ function translateNvidiaToAnthropic(nvidiaBody, model, stream) {
   }
 
   const choice = nvidiaBody.choices?.[0]
-  const content = choice?.message?.content || ''
+  const message = choice?.message || {}
+  const content = []
+
+  // Extract text content
+  if (message.content) {
+    content.push({ type: 'text', text: message.content })
+  }
+
+  // Convert OpenAI tool_calls → Anthropic tool_use format
+  if (Array.isArray(message.tool_calls)) {
+    for (const tc of message.tool_calls) {
+      let toolInput = {}
+      try {
+        toolInput = typeof tc.function?.arguments === 'string'
+          ? JSON.parse(tc.function.arguments)
+          : (tc.function?.arguments || {})
+      } catch {
+        toolInput = { raw_arguments: tc.function?.arguments || '' }
+      }
+
+      content.push({
+        type: 'tool_use',
+        id: tc.id || `toolu_${Date.now()}`,
+        name: tc.function?.name || 'unknown',
+        input: toolInput,
+      })
+    }
+  }
+
+  // If no content at all, add empty text block
+  if (content.length === 0) {
+    content.push({ type: 'text', text: '' })
+  }
+
+  // Determine stop_reason
+  let stopReason = 'end_turn'
+  if (choice?.finish_reason === 'tool_calls' || choice?.finish_reason === 'function_call') {
+    stopReason = 'tool_use'
+  } else if (choice?.finish_reason === 'stop') {
+    stopReason = 'end_turn'
+  }
 
   return {
     id: nvidiaBody.id || `msg_${Date.now()}`,
     type: 'message',
     role: 'assistant',
-    content: [{ type: 'text', text: content }],
+    content: content,
     model: model,
-    stop_reason: choice?.finish_reason === 'stop' ? 'end_turn' : (choice?.finish_reason || 'end_turn'),
+    stop_reason: stopReason,
     stop_sequence: null,
     usage: {
       input_tokens: nvidiaBody.usage?.prompt_tokens || 0,
@@ -321,6 +457,12 @@ function callNvidiaApi(nvidiaBody, apiKey, stream, callback) {
 function translateStream(nvidiaRes, res, model) {
   let buffer = ''
   const msgId = `msg_${Date.now()}`
+  let contentBlockIndex = 0
+  let currentToolCallId = null
+  let currentToolCallName = null
+  let toolCallArguments = ''
+  let inToolCall = false
+  let started = false
 
   // Send Anthropic stream start event
   res.write(`event: message_start\ndata: ${JSON.stringify({
@@ -337,12 +479,32 @@ function translateStream(nvidiaRes, res, model) {
     },
   })}\n\n`)
 
-  // Send content block start
-  res.write(`event: content_block_start\ndata: ${JSON.stringify({
-    type: 'content_block_start',
-    index: 0,
-    content_block: { type: 'text', text: '' },
-  })}\n\n`)
+  function sendContentBlockStart(type, extra) {
+    const block = { type, ...extra }
+    res.write(`event: content_block_start\ndata: ${JSON.stringify({
+      type: 'content_block_start',
+      index: contentBlockIndex,
+      content_block: block,
+    })}\n\n`)
+    started = true
+  }
+
+  function sendContentBlockStop() {
+    res.write(`event: content_block_stop\ndata: ${JSON.stringify({
+      type: 'content_block_stop',
+      index: contentBlockIndex,
+    })}\n\n`)
+    contentBlockIndex++
+    started = false
+  }
+
+  function sendTextDelta(text) {
+    res.write(`event: content_block_delta\ndata: ${JSON.stringify({
+      type: 'content_block_delta',
+      index: contentBlockIndex,
+      delta: { type: 'text_delta', text },
+    })}\n\n`)
+  }
 
   nvidiaRes.on('data', (chunk) => {
     buffer += chunk.toString()
@@ -353,14 +515,35 @@ function translateStream(nvidiaRes, res, model) {
       if (!line.startsWith('data: ')) continue
       const data = line.slice(6).trim()
       if (data === '[DONE]') {
-        res.write(`event: content_block_stop\ndata: ${JSON.stringify({
-          type: 'content_block_stop',
-          index: 0,
-        })}\n\n`)
+        // If we're in a tool call, finalize it
+        if (inToolCall) {
+          // Send the accumulated tool call arguments as input_json_delta
+          // Parse and re-send as proper Anthropic tool format
+          try {
+            const parsedArgs = JSON.parse(toolCallArguments)
+            res.write(`event: content_block_delta\ndata: ${JSON.stringify({
+              type: 'content_block_delta',
+              index: contentBlockIndex,
+              delta: { type: 'input_json_delta', partial_json: JSON.stringify(parsedArgs) },
+            })}\n\n`)
+          } catch {
+            res.write(`event: content_block_delta\ndata: ${JSON.stringify({
+              type: 'content_block_delta',
+              index: contentBlockIndex,
+              delta: { type: 'input_json_delta', partial_json: '{}' },
+            })}\n\n`)
+          }
+          sendContentBlockStop()
+          inToolCall = false
+        }
+        // Close any open content block
+        if (started) {
+          sendContentBlockStop()
+        }
 
         res.write(`event: message_delta\ndata: ${JSON.stringify({
           type: 'message_delta',
-          delta: { stop_reason: 'end_turn', stop_sequence: null },
+          delta: { stop_reason: inToolCall ? 'tool_use' : 'end_turn', stop_sequence: null },
           usage: { output_tokens: 0 },
         })}\n\n`)
 
@@ -373,12 +556,79 @@ function translateStream(nvidiaRes, res, model) {
       try {
         const parsed = JSON.parse(data)
         const delta = parsed.choices?.[0]?.delta
-        if (delta?.content) {
-          res.write(`event: content_block_delta\ndata: ${JSON.stringify({
-            type: 'content_block_delta',
-            index: 0,
-            delta: { type: 'text_delta', text: delta.content },
-          })}\n\n`)
+        const finishReason = parsed.choices?.[0]?.finish_reason
+
+        if (!delta) continue
+
+        // Handle text content
+        if (delta.content) {
+          if (inToolCall) {
+            // Close tool call block first
+            try {
+              const parsedArgs = JSON.parse(toolCallArguments)
+              res.write(`event: content_block_delta\ndata: ${JSON.stringify({
+                type: 'content_block_delta',
+                index: contentBlockIndex,
+                delta: { type: 'input_json_delta', partial_json: JSON.stringify(parsedArgs) },
+              })}\n\n`)
+            } catch {}
+            sendContentBlockStop()
+            inToolCall = false
+          }
+          if (!started) {
+            sendContentBlockStart('text', { text: '' })
+          }
+          sendTextDelta(delta.content)
+        }
+
+        // Handle tool calls in streaming
+        if (Array.isArray(delta.tool_calls)) {
+          for (const tc of delta.tool_calls) {
+            // New tool call starting
+            if (tc.id || tc.function?.name) {
+              // Close any open content block
+              if (started) {
+                sendContentBlockStop()
+              }
+
+              currentToolCallId = tc.id || `toolu_${Date.now()}`
+              currentToolCallName = tc.function?.name || 'unknown'
+              toolCallArguments = ''
+              inToolCall = true
+
+              // Start a tool_use content block
+              sendContentBlockStart('tool_use', {
+                id: currentToolCallId,
+                name: currentToolCallName,
+                input: {},
+              })
+            }
+
+            // Accumulate tool call arguments
+            if (tc.function?.arguments) {
+              toolCallArguments += tc.function.arguments
+            }
+          }
+        }
+
+        // Handle finish_reason
+        if (finishReason === 'tool_calls' || finishReason === 'function_call') {
+          if (inToolCall) {
+            try {
+              const parsedArgs = JSON.parse(toolCallArguments)
+              res.write(`event: content_block_delta\ndata: ${JSON.stringify({
+                type: 'content_block_delta',
+                index: contentBlockIndex,
+                delta: { type: 'input_json_delta', partial_json: JSON.stringify(parsedArgs) },
+              })}\n\n`)
+            } catch {}
+            sendContentBlockStop()
+            inToolCall = false
+          }
+          if (started) {
+            sendContentBlockStop()
+          }
+          // Will send message_delta with stop_reason=tool_use at [DONE]
         }
       } catch {
         // Ignore malformed SSE lines
