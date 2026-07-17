@@ -71,9 +71,10 @@ COPY scripts/test-nvidia-api.py /home/cloudshell/workspace/scripts/test-nvidia-a
 RUN chmod +x /home/cloudshell/workspace/scripts/test-nvidia-api.py && \
     chown cloudshell:cloudshell /home/cloudshell/workspace/scripts/test-nvidia-api.py
 
-# ─── Model Discovery Proxy ───────────────────────────────────
-# Lightweight Node.js proxy that adds /v1/models endpoint for Claude Code's
-# model picker. Sits between Claude Code (port 8082) and fcc-server (port 8083).
+# ─── Model Discovery Proxy v5 ───────────────────────────────────
+# Full Anthropic↔NVIDIA API translator with proper tool_use handling,
+# streaming SSE translation, message validation, keepalive, and retry logic.
+# Sits between Claude Code (port 8082) and NVIDIA NIM API (direct).
 COPY scripts/fcc-model-discovery-proxy.cjs /home/cloudshell/scripts/fcc-model-discovery-proxy.cjs
 RUN chmod +x /home/cloudshell/scripts/fcc-model-discovery-proxy.cjs && \
     chown cloudshell:cloudshell /home/cloudshell/scripts/fcc-model-discovery-proxy.cjs
@@ -107,7 +108,8 @@ ENV ANTHROPIC_BASE_URL="http://localhost:8082" \
     ANTHROPIC_DEFAULT_SONNET_MODEL="claude-sonnet-4-5" \
     ANTHROPIC_DEFAULT_HAIKU_MODEL="claude-sonnet-4-5-mini" \
     CLAUDE_CODE_SUBAGENT_MODEL="claude-sonnet-4-5" \
-    CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING="1"
+    CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING="1" \
+    CLAUDE_CODE_MAX_OUTPUT_TOKENS="32768"
 
 # ─── Environment Variables ───────────────────────────────────────
 # IMPORTANT: PORT=8082 is for fcc-server proxy. The Next.js web server

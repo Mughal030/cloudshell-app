@@ -708,7 +708,8 @@ fcc-start() {
     fi
 
     # Start the direct-to-NVIDIA proxy on port 8082
-    # (v3 proxy: no fcc-server needed — goes directly to NVIDIA NIM API)
+    # (v5 proxy: no fcc-server needed — goes directly to NVIDIA NIM API)
+    # v5 fixes: proper streaming tool_use, message validation, keepalive, retry, frequency_penalty
     if [ -f /home/cloudshell/scripts/fcc-model-discovery-proxy.cjs ]; then
         NVIDIA_NIM_API_KEY="$FCC_NVIDIA_KEY" \
         ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-claude-opus-4-5}" \
@@ -1234,6 +1235,7 @@ export ANTHROPIC_MODEL="claude-opus-4-5"
 export CLAUDE_CODE_USE_AUTH_TOKEN="true"
 export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="1"
 export CLAUDE_CODE_AUTO_COMPACT_WINDOW="190000"
+export CLAUDE_CODE_MAX_OUTPUT_TOKENS="32768"
 # NVIDIA NIM API key — used by the proxy as fallback when no per-user key is set
 # Overridden per-user by the server when creating terminal sessions.
 export NVIDIA_NIM_API_KEY="${NVIDIA_NIM_API_KEY:-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}"
@@ -1397,7 +1399,8 @@ done
 chown cloudshell:cloudshell /home/cloudshell/.bashrc_env 2>/dev/null || true
 
 # Start the direct-to-NVIDIA proxy on port 8082
-# (v3 proxy: no fcc-server needed — goes directly to NVIDIA NIM API)
+# (v5 proxy: no fcc-server needed — goes directly to NVIDIA NIM API)
+# v5 fixes: proper streaming tool_use, message validation, keepalive, retry, frequency_penalty
 if [ -f /home/cloudshell/scripts/fcc-model-discovery-proxy.cjs ]; then
     # Start the full proxy on port 8082
     # Pass the RESOLVED NVIDIA_NIM_API_KEY as fallback key for users without personal keys
