@@ -9,6 +9,7 @@ import { execSync, exec } from 'child_process'
 import * as archiver from 'archiver'
 import * as Busboy from 'busboy'
 import { verifyTokenBasic, getUserById, getUserWorkspaceDir, ensureToolSymlinks, getUserApiKeys } from './src/lib/auth.ts'
+import { s3UploadWorkspaceFile, s3DownloadWorkspaceFile, s3DeleteWorkspaceFile, s3RenameWorkspaceFile, s3UploadStream, workspacePathToS3Key } from './src/lib/s3-storage'
 
 // ─── Global Error Handlers ───────────────────────────────────────
 process.on('uncaughtException', (err) => {
@@ -811,9 +812,18 @@ app.prepare().then(() => {
           const safeName = filename.replace(/[/\\\\]/g, '_')
           const savePath = join(targetDir, safeName)
           const writeStream = createWriteStream(savePath)
+          // Collect buffer for S3 upload (need the full content to upload to B2)
+          const chunks: Buffer[] = []
+          file.on('data', (chunk: Buffer) => chunks.push(chunk))
           file.pipe(writeStream)
           writeStream.on('finish', () => {
             savedFiles.push(safeName)
+            // Persist uploaded file to B2 asynchronously
+            const fileBuffer = Buffer.concat(chunks)
+            const mimeType = info.mimeType || 'application/octet-stream'
+            s3UploadWorkspaceFile(savePath, fileBuffer, workspaceDir, mimeType).catch(err =>
+              console.error('[S3] Failed to persist uploaded file:', err)
+            )
           })
           writeStream.on('error', (err: any) => {
             console.error('[Upload] Write error for', safeName, err)
@@ -1034,6 +1044,10 @@ app.prepare().then(() => {
         socket.emit('file:written', { path: data.path, error: null })
         // Broadcast change so file manager auto-refreshes
         socket.emit('files:changed', { path: data.path, workspace: userWorkspace })
+        // Persist to B2 asynchronously
+        s3UploadWorkspaceFile(resolvedPath, data.content, userWorkspace, 'text/plain').catch(err =>
+          console.error('[S3] Failed to persist file:write:', err)
+        )
       } catch (err) {
         socket.emit('file:written', { path: data.path, error: String(err) })
       }
@@ -1122,6 +1136,10 @@ app.prepare().then(() => {
         }
         socket.emit('file:deleted', { path: data.path, error: null })
         socket.emit('files:changed', { path: data.path, workspace: userWorkspace })
+        // Remove from B2 asynchronously
+        s3DeleteWorkspaceFile(resolvedPath, userWorkspace).catch(err =>
+          console.error('[S3] Failed to delete file from B2:', err)
+        )
       } catch (err) {
         socket.emit('file:deleted', { path: data.path, error: String(err) })
       }
@@ -1139,6 +1157,10 @@ app.prepare().then(() => {
         renameSync(resolvedOld, resolvedNew)
         socket.emit('file:renamed', { path: data.oldPath, error: null })
         socket.emit('files:changed', { path: data.newPath, workspace: userWorkspace })
+        // Rename in B2 asynchronously
+        s3RenameWorkspaceFile(resolvedOld, resolvedNew, userWorkspace).catch(err =>
+          console.error('[S3] Failed to rename file in B2:', err)
+        )
       } catch (err) {
         socket.emit('file:renamed', { path: data.oldPath, error: String(err) })
       }

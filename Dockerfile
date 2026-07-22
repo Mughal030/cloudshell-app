@@ -114,6 +114,7 @@ ENV ANTHROPIC_BASE_URL="http://localhost:8082" \
 # ─── Environment Variables ───────────────────────────────────────
 # IMPORTANT: PORT=8082 is for fcc-server proxy. The Next.js web server
 # uses APP_PORT=7860 instead, to avoid conflicting with fcc-server.
+# B2_* vars are read from HF Spaces Secrets (not hardcoded here).
 ENV PORT=8082 \
     APP_PORT=7860 \
     NODE_ENV=production \

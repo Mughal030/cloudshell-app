@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, lstatSync, symlinkSync } from 'fs'
 import { join } from 'path'
 import { randomBytes, timingSafeEqual } from 'crypto'
+import { s3SaveUsers, s3LoadUsers, s3AppendAudit, s3InitSync } from './s3-storage'
 
 // ─── Configuration ────────────────────────────────────────────────
 // JWT secret MUST be set via env in production — fall back to dev key only locally.
@@ -73,6 +74,30 @@ function ensureUsersDir() {
   }
 }
 
+// ─── S3 sync flag: on first load, pull from B2 if available ────
+let _s3Synced = false
+
+async function syncFromS3OnStartup(): Promise<void> {
+  if (_s3Synced) return
+  _s3Synced = true
+  try {
+    ensureUsersDir()
+    const localData = existsSync(USERS_FILE) ? readFileSync(USERS_FILE, 'utf-8') : null
+    const syncedData = await s3InitSync(localData)
+    if (syncedData && syncedData !== localData) {
+      // B2 has data that differs from local — write it to local disk too
+      // so subsequent reads are fast (local-first, B2-persisted)
+      writeFileSync(USERS_FILE, syncedData, 'utf-8')
+      console.log('[S3] Synced users.json from B2 to local disk')
+    }
+  } catch (err) {
+    console.error('[S3] Startup sync failed (will use local data):', err)
+  }
+}
+
+// Kick off the async sync immediately on module load
+syncFromS3OnStartup().catch(() => {})
+
 function loadUsers(): User[] {
   ensureUsersDir()
   if (!existsSync(USERS_FILE)) {
@@ -132,8 +157,11 @@ function loadUsers(): User[] {
 function saveUsers(users: User[]) {
   ensureUsersDir()
   const tmpPath = USERS_FILE + '.tmp.' + process.pid
-  writeFileSync(tmpPath, JSON.stringify(users, null, 2), 'utf-8')
+  const data = JSON.stringify(users, null, 2)
+  writeFileSync(tmpPath, data, 'utf-8')
   renameSync(tmpPath, USERS_FILE)
+  // Persist to B2 asynchronously — don't block the response
+  s3SaveUsers(data).catch(err => console.error('[S3] Failed to persist users.json:', err))
 }
 
 function ensureWorkspace(workspaceDir: string) {
@@ -254,8 +282,10 @@ function appendAudit(event: AuditEvent, username: string, ip: string, meta?: Rec
       ip,
       ...meta,
     }) + '\n'
-    // Append-only audit log — use fs.appendFileSync-equivalent
+    // Append to local audit log (fast, synchronous)
     writeFileSync(AUDIT_FILE, entry, { flag: 'a' })
+    // Also persist to B2 asynchronously
+    s3AppendAudit(entry).catch(err => console.error('[S3] Failed to persist audit entry:', err))
   } catch (e) {
     // Audit logging must never block auth flow
     console.error('[audit] failed to write:', e)
