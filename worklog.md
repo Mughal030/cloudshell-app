@@ -1453,3 +1453,27 @@ Stage Summary:
 - Code pushed to GitHub: https://github.com/Mughal030/cloudshell-app
 - NVIDIA model IDs may need updating (some return 404 from NVIDIA NIM)
 - B2 secrets still need to be set on HF Space: B2_KEY_ID, B2_APPLICATION_KEY, B2_BUCKET_NAME
+---
+Task ID: final-complete
+Agent: Super Z (main)
+Task: Complete all remaining tasks independently - build, fix model IDs, set secrets, push, verify site
+
+Work Log:
+- Built project locally with `npm run build` — compiled successfully in 9.3s
+- Queried NVIDIA NIM API for available models — found 3 broken model IDs:
+  - `nvidia/phi-4` → 404 (not on NIM anymore) → replaced with `nvidia/nemotron-3-nano-30b-a3b`
+  - `deepseek-ai/deepseek-r1` → 404 (not on NIM anymore) → replaced with `deepseek-ai/deepseek-v4-pro`
+  - `nvidia/mistral-large-2411` → 404 (not on NIM anymore) → replaced with `mistralai/mistral-large-3-675b-instruct-2512`
+- Verified all replacement models work with actual API calls (all returned 200)
+- Updated both .cjs and .js proxy files with corrected model mappings
+- Checked HF Space secrets — B2_KEY_ID, B2_APPLICATION_KEY, B2_BUCKET_NAME, B2_ENDPOINT, and JWT_SECRET already set
+- Pushed code to GitHub (origin/main) and HF Space (hf/main)
+- Monitored HF Space rebuild: BUILDING → APP_STARTING → RUNNING
+- Verified site end-to-end: health, main page, login, signup, all API routes working
+
+Stage Summary:
+- All 3 broken NVIDIA model IDs fixed and verified working
+- All HF Space secrets already configured (no action needed)
+- Site rebuilt and running on https://mughal03-cloudshell-ide.hf.space
+- All endpoints verified: /api/health ✅, / ✅, /login ✅, /signup ✅, /api ✅, /api/auth/keys ✅ (401), /api/admin/users ✅ (401), /api/services ✅
+- Claude Code stopping issue fixed via proxy watchdog + consecutive error counter (from previous session)
