@@ -9,7 +9,7 @@ import { execSync, exec } from 'child_process'
 import * as archiver from 'archiver'
 import * as Busboy from 'busboy'
 import { verifyTokenBasic, getUserById, getUserWorkspaceDir, ensureToolSymlinks, getUserApiKeys } from './src/lib/auth.ts'
-import { s3UploadWorkspaceFile, s3DownloadWorkspaceFile, s3DeleteWorkspaceFile, s3RenameWorkspaceFile, s3UploadStream, workspacePathToS3Key, startPeriodicDbBackup } from './src/lib/s3-storage'
+import { s3UploadWorkspaceFile, s3DownloadWorkspaceFile, s3DeleteWorkspaceFile, s3RenameWorkspaceFile, s3UploadStream, workspacePathToS3Key, startPeriodicDbBackup } from './src/lib/s3-storage.ts'
 
 // ─── Global Error Handlers ───────────────────────────────────────
 process.on('uncaughtException', (err) => {
@@ -45,23 +45,36 @@ process.on('exit', (code) => {
 // ─── Proxy Watchdog ─────────────────────────────────────────────
 // Ensures the FCC model-discovery proxy on port 8082 stays running.
 // Checks every 30 seconds and auto-restarts if the proxy is down.
+// Uses async exec() to avoid blocking the event loop.
 const PROXY_PORT = 8082
 let proxyCheckInterval: NodeJS.Timeout | null = null
+let lastProxyCheckOk = false
 
-function ensureProxyRunning(): void {
+async function ensureProxyRunning(): Promise<void> {
   try {
-    const health = execSync(`curl -s --max-time 3 http://localhost:${PROXY_PORT}/health`, { encoding: 'utf-8', timeout: 5000 })
-    if (health.includes('healthy')) {
+    const result = await new Promise<string>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('timeout')), 4000)
+      exec(`curl -s --max-time 3 http://localhost:${PROXY_PORT}/health`, { timeout: 5000 }, (err, stdout) => {
+        clearTimeout(timeout)
+        if (err) reject(err)
+        else resolve(stdout)
+      })
+    })
+    if (result.includes('healthy')) {
+      lastProxyCheckOk = true
       return // Proxy is running fine
     }
   } catch {
     // Proxy is not responding — restart it
-    console.log('[Server] Proxy health check failed — restarting proxy')
   }
-  startProxy()
+  if (!lastProxyCheckOk) {
+    console.log('[Server] Proxy health check failed — attempting restart')
+  }
+  lastProxyCheckOk = false
+  await startProxy()
 }
 
-function startProxy(): void {
+async function startProxy(): Promise<void> {
   const APP_HOME_LOCAL = process.env.APP_HOME || process.env.HOME || '/home/z'
   const proxyScriptDocker = '/home/cloudshell/scripts/fcc-model-discovery-proxy.js'
   const proxyScriptLocal = join(process.cwd(), 'scripts', 'fcc-model-discovery-proxy.cjs')
@@ -72,20 +85,30 @@ function startProxy(): void {
     return
   }
 
-  // Kill any existing proxy
-  try { execSync('pkill -f fcc-model-discovery-proxy 2>/dev/null', { timeout: 3000 }) } catch {}
-  try { execSync(`fuser -k ${PROXY_PORT}/tcp 2>/dev/null`, { timeout: 3000 }) } catch {}
-  try { execSync('sleep 0.5', { timeout: 2000 }) } catch {}
+  // Kill existing proxy on port (use fuser instead of pkill to avoid killing other processes)
+  try {
+    await new Promise<void>((resolve) => {
+      exec(`fuser -k ${PROXY_PORT}/tcp 2>/dev/null; sleep 0.5`, { timeout: 5000 }, () => resolve())
+    })
+  } catch {}
 
   const keyEnv = process.env.NVIDIA_NIM_API_KEY ? `NVIDIA_NIM_API_KEY="${process.env.NVIDIA_NIM_API_KEY}" ` : ''
   const modelEnv = `ANTHROPIC_MODEL="${process.env.ANTHROPIC_MODEL || 'claude-opus-4-5'}" `
 
   try {
-    execSync(
-      `cd ${APP_HOME_LOCAL} && ${keyEnv}${modelEnv}FCC_PROXY_PORT=${PROXY_PORT} nohup node ${proxyPath} > /tmp/fcc-model-proxy.log 2>&1 &`,
-      { timeout: 5000, shell: '/bin/bash' }
-    )
-    console.log('[Server] Proxy restarted successfully')
+    await new Promise<void>((resolve, reject) => {
+      exec(
+        `cd ${APP_HOME_LOCAL} && ${keyEnv}${modelEnv}FCC_PROXY_PORT=${PROXY_PORT} nohup node ${proxyPath} > /tmp/fcc-model-proxy.log 2>&1 &`,
+        { timeout: 5000, shell: '/bin/bash' },
+        (err) => {
+          if (err) reject(err)
+          else resolve()
+        }
+      )
+    })
+    console.log('[Server] Proxy restart initiated')
+    // Wait a bit for proxy to start before next health check
+    await new Promise(r => setTimeout(r, 3000))
   } catch (err) {
     console.error('[Server] Proxy restart failed:', err)
   }
@@ -94,12 +117,12 @@ function startProxy(): void {
 function startProxyWatchdog(): void {
   // Initial check after 5 seconds (give proxy time to start from entrypoint)
   setTimeout(() => {
-    ensureProxyRunning()
+    ensureProxyRunning().catch(err => console.error('[Server] Initial proxy check error:', err))
   }, 5000)
 
-  // Periodic check every 30 seconds
+  // Periodic check every 30 seconds (async, non-blocking)
   proxyCheckInterval = setInterval(() => {
-    ensureProxyRunning()
+    ensureProxyRunning().catch(err => console.error('[Server] Proxy watchdog error:', err))
   }, 30 * 1000)
 
   console.log('[Server] Proxy watchdog started (check interval: 30s)')

@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, lstatSync, symlinkSync } from 'fs'
 import { join } from 'path'
 import { randomBytes, timingSafeEqual } from 'crypto'
-import { s3SaveUsers, s3LoadUsers, s3AppendAudit, s3InitSync } from './s3-storage'
+import { s3SaveUsers, s3LoadUsers, s3AppendAudit, s3InitSync } from './s3-storage.ts'
 
 // ─── Configuration ────────────────────────────────────────────────
 // JWT secret MUST be set via env in production — fall back to dev key only locally.
