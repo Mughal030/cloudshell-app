@@ -551,7 +551,7 @@ function callNvidiaApi(nvidiaBody, apiKey, stream, callback, retryCount = 0) {
 }
 
 // ─── Stream NVIDIA SSE → Anthropic SSE ────────────────────────
-function translateStream(nvidiaRes, res, model) {
+function translateStream(nvidiaRes, res, model, clientDisconnected) {
   let buffer = ''
   const msgId = `msg_${Date.now()}`
   let contentBlockIndex = 0
@@ -582,13 +582,14 @@ function translateStream(nvidiaRes, res, model) {
 
   // Send keepalive pings to prevent client disconnect
   const keepaliveInterval = setInterval(() => {
-    if (!res.writableEnded && !streamEnded) {
+    if (!res.writableEnded && !streamEnded && !clientDisconnected) {
       res.write(': keepalive\n\n')
       lastKeepalive = Date.now()
     }
   }, 15000) // Every 15 seconds
 
   function sendContentBlockStart(type, extra) {
+    if (clientDisconnected) return
     if (hasOpenBlock) {
       // Close previous block first
       sendContentBlockStop()
@@ -603,7 +604,7 @@ function translateStream(nvidiaRes, res, model) {
   }
 
   function sendContentBlockStop() {
-    if (!hasOpenBlock) return  // Don't send duplicate stops
+    if (!hasOpenBlock || clientDisconnected) return  // Don't send duplicate stops
     res.write(`event: content_block_stop\ndata: ${JSON.stringify({
       type: 'content_block_stop',
       index: contentBlockIndex,
@@ -613,6 +614,7 @@ function translateStream(nvidiaRes, res, model) {
   }
 
   function sendTextDelta(text) {
+    if (clientDisconnected) return
     res.write(`event: content_block_delta\ndata: ${JSON.stringify({
       type: 'content_block_delta',
       index: contentBlockIndex,
@@ -621,6 +623,7 @@ function translateStream(nvidiaRes, res, model) {
   }
 
   function sendInputJsonDelta(partialJson) {
+    if (clientDisconnected) return
     res.write(`event: content_block_delta\ndata: ${JSON.stringify({
       type: 'content_block_delta',
       index: contentBlockIndex,
@@ -642,7 +645,7 @@ function translateStream(nvidiaRes, res, model) {
   }
 
   function endStream(stopReason) {
-    if (streamEnded) return
+    if (streamEnded || clientDisconnected) return
     streamEnded = true
     clearInterval(keepaliveInterval)
 
@@ -917,6 +920,14 @@ async function handleRequest(req, res) {
         return
       }
 
+      // Handle client disconnect (Claude Code may close connection mid-stream)
+      // This prevents the proxy from hanging when the client abandons the request.
+      let clientDisconnected = false
+      req.on('close', () => {
+        clientDisconnected = true
+        console.log('[FCC-Proxy] Client disconnected mid-request')
+      })
+
       const requestedModel = anthropicBody.model || DEFAULT_MODEL
       const nvidiaModel = resolveNvidiaModel(requestedModel)
       const isStream = anthropicBody.stream ?? false
@@ -930,8 +941,13 @@ async function handleRequest(req, res) {
       // Translate Anthropic format → NVIDIA format
       const nvidiaBody = translateAnthropicToNvidia(anthropicBody)
 
-      // Call NVIDIA API
+      // Call NVIDIA API — pass clientDisconnected flag to avoid writing to closed connections
       callNvidiaApi(nvidiaBody, userKey, isStream, (err, nvidiaData, statusCode) => {
+        // If client disconnected before we got a response, skip sending anything
+        if (clientDisconnected) {
+          console.log('[FCC-Proxy] Client already disconnected — skipping response')
+          return
+        }
         if (err) {
           console.error(`[FCC-Proxy] NVIDIA API error (${statusCode}):`, JSON.stringify(err).slice(200))
           const errStatus = statusCode || 502
@@ -971,7 +987,7 @@ async function handleRequest(req, res) {
             'Access-Control-Allow-Origin': '*',
             'X-Accel-Buffering': 'no', // Prevent nginx buffering
           })
-          translateStream(nvidiaData, res, requestedModel)
+          translateStream(nvidiaData, res, requestedModel, clientDisconnected)
         } else {
           const anthropicResponse = translateNvidiaToAnthropic(nvidiaData, requestedModel)
           res.writeHead(statusCode || 200, {

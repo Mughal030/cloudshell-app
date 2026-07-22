@@ -9,7 +9,7 @@ import { execSync, exec } from 'child_process'
 import * as archiver from 'archiver'
 import * as Busboy from 'busboy'
 import { verifyTokenBasic, getUserById, getUserWorkspaceDir, ensureToolSymlinks, getUserApiKeys } from './src/lib/auth.ts'
-import { s3UploadWorkspaceFile, s3DownloadWorkspaceFile, s3DeleteWorkspaceFile, s3RenameWorkspaceFile, s3UploadStream, workspacePathToS3Key, startPeriodicDbBackup, s3TestConnection } from './src/lib/s3-storage.ts'
+import { s3UploadWorkspaceFile, s3DownloadWorkspaceFile, s3DeleteWorkspaceFile, s3RenameWorkspaceFile, s3UploadStream, s3Put, workspacePathToS3Key, startPeriodicDbBackup, s3TestConnection, s3List } from './src/lib/s3-storage.ts'
 
 // ─── Global Error Handlers ───────────────────────────────────────
 process.on('uncaughtException', (err) => {
@@ -712,11 +712,18 @@ app.prepare().then(() => {
     }
 
     // B2 connectivity diagnostic endpoint — check if B2 storage is working
+    // Returns detailed status including env var presence, bucket connectivity, and object count
     if (url === '/api/b2-status') {
       try {
         const result = await s3TestConnection()
+        const envStatus = {
+          B2_KEY_ID: process.env.B2_KEY_ID ? '✓ set' : '✗ MISSING',
+          B2_APPLICATION_KEY: process.env.B2_APPLICATION_KEY ? '✓ set' : '✗ MISSING',
+          B2_BUCKET_NAME: process.env.B2_BUCKET_NAME || '(default: cloudshell-app-storage)',
+          B2_ENDPOINT: process.env.B2_ENDPOINT || '(default: s3.us-east-005.backblazeb2.com)',
+        }
         res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify(result))
+        res.end(JSON.stringify({ ...result, envVars: envStatus, timestamp: new Date().toISOString() }))
       } catch (err: any) {
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ ok: false, error: err.message }))
@@ -1034,21 +1041,68 @@ app.prepare().then(() => {
     // Send workspace info immediately so the file manager can display the absolute path
     socket.emit('workspace:info', { workspace: userWorkspace, defaultWorkspace: DEFAULT_WORKSPACE_DIR })
 
-    // ─── File Watcher: Broadcast files:changed when workspace changes ───
-    // This catches files created/modified/deleted by TERMINAL commands (wget, curl, npm install, etc.)
-    // so the sidebar file manager auto-refreshes without waiting for the 4s polling interval.
+    // ─── File Watcher: Broadcast files:changed + sync to B2 ───
+    // This catches files created/modified/deleted by TERMINAL commands
+    // (wget, curl, npm install, Claude Code file writes, etc.) and:
+    //   1. Notifies the sidebar file manager to auto-refresh
+    //   2. Uploads changed/created files to Backblaze B2 for persistence
+    //
+    // CRITICAL FIX: Previously the watcher only broadcast UI notifications
+    // and NEVER uploaded to B2 — that's why the B2 bucket showed 0 files
+    // after creating files via the terminal (Claude Code writes go through PTY).
     let workspaceWatcher: any = null
     let watcherDebounce: ReturnType<typeof setTimeout> | null = null
+    // Track files that changed during the debounce window for batch B2 upload
+    const changedFiles = new Map<string, string>() // path → eventType ('change' | 'rename')
+
     try {
       if (existsSync(userWorkspace)) {
         workspaceWatcher = watch(userWorkspace, { recursive: true }, (eventType, filename) => {
+          if (!filename) return
+          // Record this file change for B2 sync
+          changedFiles.set(filename, eventType)
           // Debounce — many events fire in rapid succession for a single operation
           if (watcherDebounce) clearTimeout(watcherDebounce)
           watcherDebounce = setTimeout(() => {
             try {
               socket.emit('files:changed', { path: filename || '', workspace: userWorkspace, eventType })
             } catch {}
-          }, 300)
+
+            // ── B2 Sync: Upload all changed files to B2 ──
+            const filesToSync = new Map(changedFiles)
+            changedFiles.clear()
+            for (const [filePath, evType] of filesToSync) {
+              const fullPath = join(userWorkspace, filePath)
+              try {
+                // Skip directories, hidden files (except important ones), and very large files
+                if (!existsSync(fullPath)) {
+                  // File was deleted — remove from B2
+                  if (evType === 'rename') {
+                    s3DeleteWorkspaceFile(fullPath, userWorkspace).catch(err =>
+                      console.error(`[S3] Watcher: Failed to delete ${filePath} from B2:`, err.message)
+                    )
+                  }
+                  continue
+                }
+                const fileStat = statSync(fullPath)
+                if (fileStat.isDirectory()) continue
+                // Skip hidden/dot files except .bashrc, .env (config files worth persisting)
+                if (filePath.startsWith('.') && !filePath.match(/^\.bashrc|^\.env|^\.profile|^\.bash_profile/)) continue
+                // Skip files over 50MB (B2 upload would be too slow)
+                if (fileStat.size > 50 * 1024 * 1024) {
+                  console.log(`[S3] Watcher: Skipping large file (${Math.round(fileStat.size / 1024 / 1024)}MB): ${filePath}`)
+                  continue
+                }
+                // Read file content and upload to B2
+                const content = readFileSync(fullPath)
+                s3UploadWorkspaceFile(fullPath, content, userWorkspace).catch(err =>
+                  console.error(`[S3] Watcher: Failed to upload ${filePath} to B2:`, err.message)
+                )
+              } catch (fileErr: any) {
+                console.error(`[S3] Watcher: Error processing ${filePath}:`, fileErr.message)
+              }
+            }
+          }, 500) // 500ms debounce — slightly longer than before to batch more changes
         })
         // Clean up watcher on disconnect
         socket.on('disconnect', () => {
@@ -1060,6 +1114,7 @@ app.prepare().then(() => {
             clearTimeout(watcherDebounce)
             watcherDebounce = null
           }
+          changedFiles.clear()
         })
       }
     } catch (watchErr) {
@@ -1213,7 +1268,7 @@ app.prepare().then(() => {
       }
     })
 
-    // Folder: Create (scoped to user workspace)
+    // Folder: Create (scoped to user workspace) — also creates B2 directory marker
     socket.on('folder:create', (data: { path: string }) => {
       const resolvedPath = resolveWorkspacePath(data.path, userWorkspace)
       if (!resolvedPath) {
@@ -1228,6 +1283,10 @@ app.prepare().then(() => {
         mkdirSync(resolvedPath, { recursive: true })
         socket.emit('folder:created', { path: data.path, error: null })
         socket.emit('files:changed', { path: data.path, workspace: userWorkspace })
+        // Create a .dir_marker in B2 so empty directories survive container restarts
+        s3UploadWorkspaceFile(join(resolvedPath, '.dir_marker'), '', userWorkspace, 'text/plain').catch(err =>
+          console.error('[S3] Failed to create folder marker in B2:', err)
+        )
       } catch (err) {
         socket.emit('folder:created', { path: data.path, error: String(err) })
       }
@@ -1362,6 +1421,19 @@ app.prepare().then(() => {
     // ── Start periodic SQLite backup to B2 ──
     const dbPath = process.env.DATABASE_URL?.replace('file:', '') || join(process.cwd(), 'db', 'custom.db')
     startPeriodicDbBackup(dbPath)
+
+    // ── Verify B2 connectivity on startup ──
+    console.log('[Server] Testing B2 connectivity...')
+    s3TestConnection().then(result => {
+      if (result.ok) {
+        console.log(`[Server] ✓ B2 storage working — bucket has ${result.bucketObjects || 0} objects`)
+      } else {
+        console.error(`[Server] ✗ B2 storage NOT working — ${result.error}`)
+        console.error('[Server]   Files will be saved locally only and lost on container restart!')
+      }
+    }).catch(err => {
+      console.error('[Server] ✗ B2 connectivity test failed:', err.message)
+    })
   })
 
   mainServer.on('error', (err: any) => {
