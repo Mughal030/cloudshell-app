@@ -702,7 +702,7 @@ app.prepare().then(() => {
   updateServiceStatus()
   setInterval(updateServiceStatus, 60000)  // 60s — was 15s (too aggressive, blocks event loop)
 
-  const mainServer = createServer((req, res) => {
+  const mainServer = createServer(async (req, res) => {
     const url = req.url || '/'
 
     if (url === '/api/health') {
