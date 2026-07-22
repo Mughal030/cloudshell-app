@@ -860,7 +860,7 @@ app.prepare().then(() => {
     }
 
     // ─── File Upload API ─────────────────────────────────────────────
-    if (url === '/api/files/upload' && req.method === 'POST') {
+    if (url.startsWith('/api/files/upload') && req.method === 'POST') {
       try {
         // Authenticate via Authorization header
         const authHeader = req.headers.authorization || ''
