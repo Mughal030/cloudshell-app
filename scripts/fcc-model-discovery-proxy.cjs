@@ -1000,16 +1000,36 @@ async function handleRequest(req, res) {
 }
 
 // ─── Start the proxy server ───────────────────────────────────
+let consecutiveErrors = 0
+const MAX_CONSECUTIVE_ERRORS = 50
+
 process.on('uncaughtException', (err) => {
-  console.error('[FCC-Proxy] Uncaught exception (non-fatal):', err.message)
+  consecutiveErrors++
+  console.error(`[FCC-Proxy] Uncaught exception (#${consecutiveErrors}):`, err.message)
+  // If too many errors accumulate, exit so the watchdog can restart us cleanly
+  if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+    console.error('[FCC-Proxy] Too many consecutive errors — exiting for clean restart')
+    process.exit(1)
+  }
+  // Reset error counter on successful request (see handleRequest success below)
 })
 process.on('unhandledRejection', (reason) => {
-  console.error('[FCC-Proxy] Unhandled rejection (non-fatal):', reason)
+  console.error('[FCC-Proxy] Unhandled rejection:', reason)
+  // Non-fatal — continue serving
 })
+
+// Reset error counter on each successful request
+const originalHandleRequest = handleRequest
+handleRequest = async function(req, res) {
+  const result = await originalHandleRequest(req, res)
+  if (consecutiveErrors > 0) consecutiveErrors = 0 // Reset on success
+  return result
+}
 
 const server = http.createServer((req, res) => {
   handleRequest(req, res).catch(err => {
     console.error('[FCC-Proxy] Unhandled error:', err)
+    consecutiveErrors++
     if (!res.headersSent) {
       res.writeHead(500, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ type: 'error', error: { type: 'api_error', message: 'Internal error' } }))
@@ -1029,14 +1049,19 @@ server.listen(FCC_PROXY_PORT, '0.0.0.0', () => {
   console.log(`[FCC-Proxy-v5] Per-user key isolation: ENABLED`)
   console.log(`[FCC-Proxy-v5] Endpoints: /v1/models, /v1/messages, /health`)
   console.log(`[FCC-Proxy-v5] Fallback key: ${FALLBACK_KEY ? '****' + FALLBACK_KEY.slice(-4) : 'NONE'}`)
+  console.log(`[FCC-Proxy-v5] Auto-restart: enabled (exits after ${MAX_CONSECUTIVE_ERRORS} consecutive errors for watchdog restart)`)
 })
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`[FCC-Proxy-v5] Port ${FCC_PROXY_PORT} already in use!`)
-    console.error(`[FCC-Proxy-v5] Kill the existing process: fuser -k ${FCC_PROXY_PORT}/tcp`)
-    process.exit(1)
+    console.error(`[FCC-Proxy-v5] Port ${FCC_PROXY_PORT} already in use — will retry after 2s`)
+    // Instead of exiting immediately, wait and retry (watchdog will restart us anyway)
+    setTimeout(() => {
+      server.close()
+      server.listen(FCC_PROXY_PORT, '0.0.0.0')
+    }, 2000)
+    return
   }
   console.error(`[FCC-Proxy-v5] Server error:`, err)
-  process.exit(1)
+  // Don't exit — the watchdog will handle restart if needed
 })

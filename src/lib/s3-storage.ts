@@ -281,23 +281,164 @@ export async function s3UploadStream(
   await s3Put(key, buffer, contentType)
 }
 
+// ─── FCC Config Operations ──────────────────────────────────────
+// These sync the FCC proxy config file (~/.fcc/.env) to B2
+
+const FCC_ENV_KEY = 'config/fcc-env'
+
+/** Save FCC .env config to B2 */
+export async function s3SaveFccEnv(content: string): Promise<void> {
+  await s3Put(FCC_ENV_KEY, content, 'text/plain')
+}
+
+/** Load FCC .env config from B2 */
+export async function s3LoadFccEnv(): Promise<string | null> {
+  return s3GetString(FCC_ENV_KEY)
+}
+
+// ─── Bashrc Env Operations ──────────────────────────────────────
+// These sync the shell environment file (~/.bashrc_env) to B2
+
+const BASHRC_ENV_KEY = 'config/bashrc-env'
+
+/** Save bashrc_env to B2 */
+export async function s3SaveBashrcEnv(content: string): Promise<void> {
+  await s3Put(BASHRC_ENV_KEY, content, 'text/plain')
+}
+
+/** Load bashrc_env from B2 */
+export async function s3LoadBashrcEnv(): Promise<string | null> {
+  return s3GetString(BASHRC_ENV_KEY)
+}
+
+// ─── SQLite Database Backup ──────────────────────────────────────
+// Periodically backup the SQLite database to B2 for disaster recovery
+// SQLite cannot be replaced by B2 (it needs local filesystem access),
+// but we can backup it to prevent data loss on container restart.
+
+const DB_BACKUP_KEY = 'backup/custom.db'
+const DB_BACKUP_TIMESTAMP_KEY = 'backup/custom.db.timestamp'
+
+/** Backup SQLite database to B2 */
+export async function s3BackupDatabase(dbPath: string): Promise<void> {
+  if (!isS3Configured()) return
+  try {
+    const { readFileSync } = await import('fs')
+    if (!readFileSync) return // ESM guard
+    const dbBuffer = readFileSync(dbPath)
+    await s3Put(DB_BACKUP_KEY, dbBuffer, 'application/x-sqlite3')
+    const timestamp = new Date().toISOString()
+    await s3Put(DB_BACKUP_TIMESTAMP_KEY, timestamp, 'text/plain')
+    console.log(`[S3] Database backup uploaded: ${dbPath} (${dbBuffer.length} bytes) at ${timestamp}`)
+  } catch (err: any) {
+    console.error('[S3] Database backup failed:', err.message)
+  }
+}
+
+/** Restore SQLite database from B2 backup */
+export async function s3RestoreDatabase(dbPath: string): Promise<boolean> {
+  if (!isS3Configured()) return false
+  try {
+    const dbBuffer = await s3GetBuffer(DB_BACKUP_KEY)
+    if (!dbBuffer) {
+      console.log('[S3] No database backup found in B2')
+      return false
+    }
+    const { writeFileSync, mkdirSync } = await import('fs')
+    const { dirname } = await import('path')
+    // Ensure parent directory exists
+    const dir = dirname(dbPath)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(dbPath, dbBuffer)
+    const timestamp = await s3GetString(DB_BACKUP_TIMESTAMP_KEY)
+    console.log(`[S3] Database restored from B2 backup (${dbBuffer.length} bytes, backup time: ${timestamp || 'unknown'})`)
+    return true
+  } catch (err: any) {
+    console.error('[S3] Database restore failed:', err.message)
+    return false
+  }
+}
+
 // ─── Initialization: Sync B2 data on startup ─────────────────────
 /** 
- * On startup, try to load users.json from B2. If it exists,
- * merge it with any local data (B2 takes priority — it's the 
- * persistent source of truth).
+ * On startup, sync all critical data from B2 to local disk.
+ * B2 is the persistent source of truth; local disk is ephemeral.
+ * 
+ * Sync order:
+ *   1. users.json (auth data) — B2 takes priority
+ *   2. FCC .env (proxy config) — restore if missing locally
+ *   3. bashrc_env (shell config) — restore if missing locally
+ *   4. SQLite database — restore from backup if missing locally
  */
 export async function s3InitSync(localUsersJson: string | null): Promise<string | null> {
+  console.log('[S3] Starting B2 initialization sync...')
+  
+  // ── 1. Users.json sync ──
   const b2Users = await s3LoadUsers()
   if (b2Users) {
     console.log('[S3] Found existing users.json in B2 — using cloud data')
-    return b2Users
-  }
-  // No B2 data — upload local data as initial sync
-  if (localUsersJson) {
+  } else if (localUsersJson) {
     console.log('[S3] No B2 data found — uploading local users.json as initial sync')
     await s3SaveUsers(localUsersJson)
-    return localUsersJson
   }
-  return null
+  const usersData = b2Users || localUsersJson
+
+  // ── 2. FCC .env sync ──
+  const b2FccEnv = await s3LoadFccEnv()
+  if (b2FccEnv) {
+    const { writeFileSync, mkdirSync } = await import('fs')
+    const { join } = await import('path')
+    const appHome = process.env.APP_HOME || process.env.HOME || '/home/cloudshell'
+    const fccDir = join(appHome, '.fcc')
+    mkdirSync(fccDir, { recursive: true })
+    writeFileSync(join(fccDir, '.env'), b2FccEnv, 'utf-8')
+    console.log('[S3] FCC .env restored from B2')
+  }
+
+  // ── 3. Bashrc_env sync ──
+  const b2BashrcEnv = await s3LoadBashrcEnv()
+  if (b2BashrcEnv) {
+    const { writeFileSync } = await import('fs')
+    const { join } = await import('path')
+    const appHome = process.env.APP_HOME || process.env.HOME || '/home/cloudshell'
+    writeFileSync(join(appHome, '.bashrc_env'), b2BashrcEnv, 'utf-8')
+    console.log('[S3] bashrc_env restored from B2')
+  }
+
+  // ── 4. SQLite database restore ──
+  const dbPath = process.env.DATABASE_URL?.replace('file:', '') || '/home/z/my-project/db/custom.db'
+  const { existsSync } = await import('fs')
+  if (!existsSync(dbPath)) {
+    const restored = await s3RestoreDatabase(dbPath)
+    if (restored) {
+      console.log('[S3] Database restored from B2 backup')
+    }
+  }
+
+  // ── 5. Workspace restore ──
+  // Download workspace files from B2 for users who have cloud data
+  const workspaceList = await s3List('workspaces/', 500)
+  if (workspaceList.length > 0) {
+    console.log(`[S3] Found ${workspaceList.length} workspace files in B2 — they'll be downloaded on demand`)
+  }
+
+  console.log('[S3] B2 initialization sync complete')
+  return usersData
+}
+
+// ─── Periodic Database Backup ────────────────────────────────────
+/** Schedule periodic SQLite database backups to B2 (every 30 minutes) */
+export function startPeriodicDbBackup(dbPath: string, intervalMs: number = 30 * 60 * 1000): void {
+  if (!isS3Configured()) {
+    console.warn('[S3] Not configured — periodic database backup disabled')
+    return
+  }
+  console.log(`[S3] Periodic database backup started (interval: ${intervalMs / 1000}s, db: ${dbPath})`)
+  setInterval(async () => {
+    try {
+      await s3BackupDatabase(dbPath)
+    } catch (err: any) {
+      console.error('[S3] Periodic database backup failed:', err.message)
+    }
+  }, intervalMs)
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyTokenBasic, setUserApiKey, setUserPreferredProvider, getUserApiKeys, getUserById } from '@/lib/auth'
+import { s3SaveFccEnv, s3SaveBashrcEnv } from '@/lib/s3-storage'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { execSync } from 'child_process'
@@ -175,6 +176,11 @@ export async function POST(request: NextRequest) {
 
         // Update ~/.fcc/.env
         updateFccEnv('NVIDIA_NIM_API_KEY', apiKey || '')
+        // Sync FCC .env to B2 for persistence
+        try {
+          const fccContent = readFileSync(FCC_ENV_PATH, 'utf-8')
+          s3SaveFccEnv(fccContent).catch(err => console.error('[S3] FCC env sync failed:', err))
+        } catch {}
 
         // Update ~/.bashrc_env so new terminal sessions get the key
         try {
@@ -186,6 +192,8 @@ export async function POST(request: NextRequest) {
               lines.push(`export NVIDIA_NIM_API_KEY="${apiKey}"`)
             }
             writeFileSync(bashrcEnvPath, lines.join('\n'), 'utf-8')
+            // Sync bashrc_env to B2 for persistence
+            s3SaveBashrcEnv(lines.join('\n')).catch(err => console.error('[S3] bashrc_env sync failed:', err))
           }
         } catch {}
 
@@ -244,6 +252,11 @@ export async function DELETE(request: NextRequest) {
     if (provider === 'nvidia') {
       console.log(`[API Keys] NVIDIA key removed for user ${decoded.username}`)
       updateFccEnv('NVIDIA_NIM_API_KEY', '')
+      // Sync empty FCC .env to B2
+      try {
+        const fccContent = readFileSync(FCC_ENV_PATH, 'utf-8')
+        s3SaveFccEnv(fccContent).catch(err => console.error('[S3] FCC env sync failed:', err))
+      } catch {}
       // Remove from ~/.bashrc_env
       try {
         const bashrcEnvPath = join(APP_HOME, '.bashrc_env')
@@ -251,6 +264,8 @@ export async function DELETE(request: NextRequest) {
           let bashrcContent = readFileSync(bashrcEnvPath, 'utf-8')
           const lines = bashrcContent.split('\n').filter(line => !line.startsWith('export NVIDIA_NIM_API_KEY='))
           writeFileSync(bashrcEnvPath, lines.join('\n'), 'utf-8')
+          // Sync updated bashrc_env to B2
+          s3SaveBashrcEnv(lines.join('\n')).catch(err => console.error('[S3] bashrc_env sync failed:', err))
         }
       } catch {}
     }

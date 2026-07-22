@@ -9,11 +9,16 @@ import { execSync, exec } from 'child_process'
 import * as archiver from 'archiver'
 import * as Busboy from 'busboy'
 import { verifyTokenBasic, getUserById, getUserWorkspaceDir, ensureToolSymlinks, getUserApiKeys } from './src/lib/auth.ts'
-import { s3UploadWorkspaceFile, s3DownloadWorkspaceFile, s3DeleteWorkspaceFile, s3RenameWorkspaceFile, s3UploadStream, workspacePathToS3Key } from './src/lib/s3-storage'
+import { s3UploadWorkspaceFile, s3DownloadWorkspaceFile, s3DeleteWorkspaceFile, s3RenameWorkspaceFile, s3UploadStream, workspacePathToS3Key, startPeriodicDbBackup } from './src/lib/s3-storage'
 
 // ─── Global Error Handlers ───────────────────────────────────────
 process.on('uncaughtException', (err) => {
   console.error('[Server] Uncaught Exception:', err)
+  // If the proxy died, try to restart it
+  if (err.message?.includes('ECONNREFUSED') || err.message?.includes('socket hang up')) {
+    console.log('[Server] Connection-related error detected — proxy may be down, attempting restart')
+    ensureProxyRunning()
+  }
 })
 
 process.on('unhandledRejection', (reason) => {
@@ -21,8 +26,10 @@ process.on('unhandledRejection', (reason) => {
 })
 
 // ─── Signal Handlers ──────────────────────────────────────────────
+// On HF Spaces, SIGTERM means the container is shutting down.
+// We keep alive to avoid premature termination, but log the signal.
 process.on('SIGTERM', () => {
-  console.log('[Server] Received SIGTERM - ignoring (keeping alive)')
+  console.log('[Server] Received SIGTERM - keeping alive (HF Spaces lifecycle)')
 })
 process.on('SIGINT', () => {
   console.log('[Server] Received SIGINT - shutting down')
@@ -34,6 +41,69 @@ process.on('SIGHUP', () => {
 process.on('exit', (code) => {
   console.log(`[Server] Process exiting with code: ${code}`)
 })
+
+// ─── Proxy Watchdog ─────────────────────────────────────────────
+// Ensures the FCC model-discovery proxy on port 8082 stays running.
+// Checks every 30 seconds and auto-restarts if the proxy is down.
+const PROXY_PORT = 8082
+let proxyCheckInterval: NodeJS.Timeout | null = null
+
+function ensureProxyRunning(): void {
+  try {
+    const health = execSync(`curl -s --max-time 3 http://localhost:${PROXY_PORT}/health`, { encoding: 'utf-8', timeout: 5000 })
+    if (health.includes('healthy')) {
+      return // Proxy is running fine
+    }
+  } catch {
+    // Proxy is not responding — restart it
+    console.log('[Server] Proxy health check failed — restarting proxy')
+  }
+  startProxy()
+}
+
+function startProxy(): void {
+  const APP_HOME_LOCAL = process.env.APP_HOME || process.env.HOME || '/home/z'
+  const proxyScriptDocker = '/home/cloudshell/scripts/fcc-model-discovery-proxy.js'
+  const proxyScriptLocal = join(process.cwd(), 'scripts', 'fcc-model-discovery-proxy.cjs')
+  const proxyPath = existsSync(proxyScriptDocker) ? proxyScriptDocker : (existsSync(proxyScriptLocal) ? proxyScriptLocal : '')
+
+  if (!proxyPath) {
+    console.warn('[Server] No proxy script found — proxy watchdog disabled')
+    return
+  }
+
+  // Kill any existing proxy
+  try { execSync('pkill -f fcc-model-discovery-proxy 2>/dev/null', { timeout: 3000 }) } catch {}
+  try { execSync(`fuser -k ${PROXY_PORT}/tcp 2>/dev/null`, { timeout: 3000 }) } catch {}
+  try { execSync('sleep 0.5', { timeout: 2000 }) } catch {}
+
+  const keyEnv = process.env.NVIDIA_NIM_API_KEY ? `NVIDIA_NIM_API_KEY="${process.env.NVIDIA_NIM_API_KEY}" ` : ''
+  const modelEnv = `ANTHROPIC_MODEL="${process.env.ANTHROPIC_MODEL || 'claude-opus-4-5'}" `
+
+  try {
+    execSync(
+      `cd ${APP_HOME_LOCAL} && ${keyEnv}${modelEnv}FCC_PROXY_PORT=${PROXY_PORT} nohup node ${proxyPath} > /tmp/fcc-model-proxy.log 2>&1 &`,
+      { timeout: 5000, shell: '/bin/bash' }
+    )
+    console.log('[Server] Proxy restarted successfully')
+  } catch (err) {
+    console.error('[Server] Proxy restart failed:', err)
+  }
+}
+
+function startProxyWatchdog(): void {
+  // Initial check after 5 seconds (give proxy time to start from entrypoint)
+  setTimeout(() => {
+    ensureProxyRunning()
+  }, 5000)
+
+  // Periodic check every 30 seconds
+  proxyCheckInterval = setInterval(() => {
+    ensureProxyRunning()
+  }, 30 * 1000)
+
+  console.log('[Server] Proxy watchdog started (check interval: 30s)')
+}
 
 // ─── Configuration ───────────────────────────────────────────────
 const PORT = parseInt(process.env.APP_PORT || process.env.PORT || '3000', 10)
@@ -1238,6 +1308,13 @@ app.prepare().then(() => {
     console.log(`[Server]   Default Workspace: ${DEFAULT_WORKSPACE_DIR}`)
     console.log(`[Server]   User Workspaces: ${WORKSPACE_BASE}`)
     console.log(`[Server]   HOME=${process.env.HOME} APP_HOME=${process.env.APP_HOME} USERS_DIR=${process.env.USERS_DIR || '(default)'} cwd=${process.cwd()}`)
+
+    // ── Start proxy watchdog ──
+    startProxyWatchdog()
+
+    // ── Start periodic SQLite backup to B2 ──
+    const dbPath = process.env.DATABASE_URL?.replace('file:', '') || join(process.cwd(), 'db', 'custom.db')
+    startPeriodicDbBackup(dbPath)
   })
 
   mainServer.on('error', (err: any) => {
