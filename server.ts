@@ -9,7 +9,7 @@ import { execSync, exec } from 'child_process'
 import * as archiver from 'archiver'
 import * as Busboy from 'busboy'
 import { verifyTokenBasic, getUserById, getUserWorkspaceDir, ensureToolSymlinks, getUserApiKeys } from './src/lib/auth.ts'
-import { s3UploadWorkspaceFile, s3DownloadWorkspaceFile, s3DeleteWorkspaceFile, s3RenameWorkspaceFile, s3UploadStream, workspacePathToS3Key, startPeriodicDbBackup } from './src/lib/s3-storage.ts'
+import { s3UploadWorkspaceFile, s3DownloadWorkspaceFile, s3DeleteWorkspaceFile, s3RenameWorkspaceFile, s3UploadStream, workspacePathToS3Key, startPeriodicDbBackup, s3TestConnection } from './src/lib/s3-storage.ts'
 
 // ─── Global Error Handlers ───────────────────────────────────────
 process.on('uncaughtException', (err) => {
@@ -711,6 +711,19 @@ app.prepare().then(() => {
       return
     }
 
+    // B2 connectivity diagnostic endpoint — check if B2 storage is working
+    if (url === '/api/b2-status') {
+      try {
+        const result = await s3TestConnection()
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify(result))
+      } catch (err: any) {
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: err.message }))
+      }
+      return
+    }
+
     if (url === '/api/services') {
       // Don't call updateServiceStatus() here — it would block the event loop
       // with execSync. The background interval keeps status fresh enough.
@@ -1100,7 +1113,7 @@ app.prepare().then(() => {
     })
 
     // File: Read (scoped to user workspace)
-    socket.on('file:read', (data: { path: string }) => {
+    socket.on('file:read', async (data: { path: string }) => {
       const resolvedPath = resolveWorkspacePath(data.path, userWorkspace)
       if (!resolvedPath) {
         socket.emit('file:content', { path: data.path, content: null, error: 'Path traversal not allowed' })
@@ -1108,7 +1121,18 @@ app.prepare().then(() => {
       }
       try {
         if (!existsSync(resolvedPath)) {
-          socket.emit('file:content', { path: data.path, content: null, error: 'File not found' })
+          // Local file missing — try to download from B2 (ephemeral container recovery)
+          const b2Content = await s3DownloadWorkspaceFile(resolvedPath, userWorkspace)
+          if (b2Content !== null) {
+            // Save to local disk for future fast reads, then return content
+            const parentDir = resolve(resolvedPath, '..')
+            if (!existsSync(parentDir)) mkdirSync(parentDir, { recursive: true })
+            writeFileSync(resolvedPath, b2Content, 'utf-8')
+            console.log(`[S3] Restored missing file from B2: ${resolvedPath}`)
+            socket.emit('file:content', { path: data.path, content: b2Content, error: null })
+            return
+          }
+          socket.emit('file:content', { path: data.path, content: null, error: 'File not found (neither local nor in B2)' })
           return
         }
         const stat = statSync(resolvedPath)

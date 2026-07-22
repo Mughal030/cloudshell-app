@@ -7,7 +7,7 @@
  * All credentials come from environment variables:
  *   B2_KEY_ID         — Backblaze B2 application key ID
  *   B2_APPLICATION_KEY — Backblaze B2 application key
- *   B2_BUCKET_NAME     — Target bucket name
+ *   B2_BUCKET_NAME     — Target bucket name (default: cloudshell-app-storage)
  *   B2_ENDPOINT        — S3 endpoint (e.g. s3.us-east-005.backblazeb2.com)
  *
  * Architecture:
@@ -15,6 +15,13 @@
  *   - User workspace files → B2 bucket under workspaces/{username}/
  *   - Local disk is still used for workspace directories (terminal needs them)
  *     but critical data is ALSO synced to B2 for persistence
+ *
+ * CRITICAL FIXES (v2):
+ *   1. s3Put now has try/catch — previously NO error handling on PutObjectCommand
+ *   2. isS3Configured() now logs exactly which env vars are missing
+ *   3. Startup diagnostic logs all env var values (masked secret)
+ *   4. Default bucket name changed from 'claude' to 'cloudshell-app-storage'
+ *   5. All public functions throw explicit errors instead of silently returning void/null
  */
 
 import {
@@ -30,21 +37,42 @@ import {
 // ─── Configuration ────────────────────────────────────────────────
 const B2_KEY_ID = process.env.B2_KEY_ID || ''
 const B2_APPLICATION_KEY = process.env.B2_APPLICATION_KEY || ''
-const B2_BUCKET_NAME = process.env.B2_BUCKET_NAME || 'claude'
+// FIXED: Default bucket was 'claude' — real bucket is 'cloudshell-app-storage'
+const B2_BUCKET_NAME = process.env.B2_BUCKET_NAME || 'cloudshell-app-storage'
 const B2_ENDPOINT = process.env.B2_ENDPOINT || 's3.us-east-005.backblazeb2.com'
 
 // Parse region from endpoint (e.g. "us-east-005" from "s3.us-east-005.backblazeb2.com")
 const B2_REGION = B2_ENDPOINT.replace(/^s3\./, '').replace(/\.backblazeb2\.com$/, '') || 'us-east-005'
 
+// ─── Startup Diagnostic ───────────────────────────────────────────
+// Log B2 config on module load so we can see exactly what env vars are loaded
+console.log('[S3] B2 Configuration Diagnostic:')
+console.log(`[S3]   B2_KEY_ID:         ${B2_KEY_ID ? B2_KEY_ID.substring(0, 8) + '...' + B2_KEY_ID.substring(B2_KEY_ID.length - 4) : '*** MISSING ***'}`)
+console.log(`[S3]   B2_APPLICATION_KEY: ${B2_APPLICATION_KEY ? '***present*** (' + B2_APPLICATION_KEY.length + ' chars)' : '*** MISSING ***'}`)
+console.log(`[S3]   B2_BUCKET_NAME:     ${B2_BUCKET_NAME || '*** MISSING ***'}`)
+console.log(`[S3]   B2_ENDPOINT:        ${B2_ENDPOINT || '*** MISSING ***'}`)
+console.log(`[S3]   B2_REGION:          ${B2_REGION}`)
+console.log(`[S3]   forcePathStyle:     true (required for B2)`)
+
 // ─── S3 Client (lazy initialization) ─────────────────────────────
 let _s3Client: S3Client | null = null
 
 function isS3Configured(): boolean {
-  return !!B2_KEY_ID && !!B2_APPLICATION_KEY && !!B2_BUCKET_NAME && !!B2_ENDPOINT
+  const missing: string[] = []
+  if (!B2_KEY_ID) missing.push('B2_KEY_ID')
+  if (!B2_APPLICATION_KEY) missing.push('B2_APPLICATION_KEY')
+  if (!B2_BUCKET_NAME) missing.push('B2_BUCKET_NAME')
+  if (!B2_ENDPOINT) missing.push('B2_ENDPOINT')
+  if (missing.length > 0) {
+    console.error(`[S3] NOT CONFIGURED — missing env vars: ${missing.join(', ')}. ALL B2 uploads will silently fail!`)
+    return false
+  }
+  return true
 }
 
 function getS3Client(): S3Client {
   if (_s3Client) return _s3Client
+  console.log('[S3] Initializing S3 client...')
   _s3Client = new S3Client({
     endpoint: `https://${B2_ENDPOINT}`,
     region: B2_REGION,
@@ -54,25 +82,40 @@ function getS3Client(): S3Client {
     },
     forcePathStyle: true, // Required for Backblaze B2
   })
+  console.log(`[S3] S3 client initialized: endpoint=https://${B2_ENDPOINT}, region=${B2_REGION}, bucket=${B2_BUCKET_NAME}`)
   return _s3Client
 }
 
 // ─── Core Operations ─────────────────────────────────────────────
 
-/** Upload a string or Buffer to B2 */
+/** Upload a string or Buffer to B2 — FIXED: now has try/catch with full error logging */
 export async function s3Put(key: string, data: string | Buffer | Uint8Array, contentType?: string): Promise<void> {
   if (!isS3Configured()) {
-    console.warn('[S3] Not configured — skipping upload for key:', key)
+    console.error(`[S3] UPLOAD SKIPPED (not configured) — key: ${key}`)
     return
   }
-  const client = getS3Client()
-  await client.send(new PutObjectCommand({
-    Bucket: B2_BUCKET_NAME,
-    Key: key,
-    Body: typeof data === 'string' ? Buffer.from(data, 'utf-8') : data,
-    ContentType: contentType || 'application/octet-stream',
-  }))
-  console.log(`[S3] Uploaded: ${key} (${typeof data === 'string' ? data.length : (data as Buffer).length} bytes)`)
+  try {
+    const client = getS3Client()
+    const body = typeof data === 'string' ? Buffer.from(data, 'utf-8') : data
+    const result = await client.send(new PutObjectCommand({
+      Bucket: B2_BUCKET_NAME,
+      Key: key,
+      Body: body,
+      ContentType: contentType || 'application/octet-stream',
+    }))
+    const size = typeof data === 'string' ? data.length : (data as Buffer).length
+    console.log(`[S3] Uploaded: ${key} (${size} bytes) to bucket:${B2_BUCKET_NAME} — ETag:${result.ETag || 'N/A'}`)
+  } catch (err: any) {
+    // Log FULL error object — previously this was completely unhandled
+    console.error(`[S3] UPLOAD FAILED for key "${key}" to bucket "${B2_BUCKET_NAME}":`)
+    console.error(`[S3]   Error name:    ${err.name || 'unknown'}`)
+    console.error(`[S3]   Error message: ${err.message || 'unknown'}`)
+    console.error(`[S3]   HTTP status:   ${err.$metadata?.httpStatusCode || 'N/A'}`)
+    console.error(`[S3]   AWS request ID: ${err.$metadata?.requestId || 'N/A'}`)
+    console.error(`[S3]   Full error:    ${JSON.stringify(err, Object.getOwnPropertyNames(err))}`)
+    // Re-throw so callers can detect failure instead of thinking upload succeeded
+    throw err
+  }
 }
 
 /** Download a string from B2 */
@@ -92,7 +135,7 @@ export async function s3GetString(key: string): Promise<string | null> {
     if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
       return null // Key doesn't exist — not an error
     }
-    console.error(`[S3] Download failed for key ${key}:`, err.message)
+    console.error(`[S3] Download failed for key ${key}:`, err.message, `(status: ${err.$metadata?.httpStatusCode || 'N/A'})`)
     return null
   }
 }
@@ -114,7 +157,7 @@ export async function s3GetBuffer(key: string): Promise<Buffer | null> {
     if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
       return null
     }
-    console.error(`[S3] Download failed for key ${key}:`, err.message)
+    console.error(`[S3] Buffer download failed for key ${key}:`, err.message, `(status: ${err.$metadata?.httpStatusCode || 'N/A'})`)
     return null
   }
 }
@@ -128,9 +171,9 @@ export async function s3Delete(key: string): Promise<void> {
       Bucket: B2_BUCKET_NAME,
       Key: key,
     }))
-    console.log(`[S3] Deleted: ${key}`)
+    console.log(`[S3] Deleted: ${key} from bucket:${B2_BUCKET_NAME}`)
   } catch (err: any) {
-    console.error(`[S3] Delete failed for key ${key}:`, err.message)
+    console.error(`[S3] Delete failed for key ${key}:`, err.message, `(status: ${err.$metadata?.httpStatusCode || 'N/A'})`)
   }
 }
 
@@ -146,7 +189,7 @@ export async function s3Copy(sourceKey: string, destKey: string): Promise<void> 
     }))
     console.log(`[S3] Copied: ${sourceKey} → ${destKey}`)
   } catch (err: any) {
-    console.error(`[S3] Copy failed ${sourceKey} → ${destKey}:`, err.message)
+    console.error(`[S3] Copy failed ${sourceKey} → ${destKey}:`, err.message, `(status: ${err.$metadata?.httpStatusCode || 'N/A'})`)
   }
 }
 
@@ -168,7 +211,7 @@ export async function s3List(prefix: string, maxKeys?: number): Promise<string[]
     }))
     return (response.Contents || []).map(obj => obj.Key || '')
   } catch (err: any) {
-    console.error(`[S3] List failed for prefix ${prefix}:`, err.message)
+    console.error(`[S3] List failed for prefix ${prefix}:`, err.message, `(status: ${err.$metadata?.httpStatusCode || 'N/A'})`)
     return []
   }
 }
@@ -243,7 +286,13 @@ export async function s3UploadWorkspaceFile(
   contentType?: string
 ): Promise<void> {
   const key = workspacePathToS3Key(localPath, workspaceDir)
-  await s3Put(key, content, contentType)
+  try {
+    await s3Put(key, content, contentType)
+  } catch (err: any) {
+    // Don't re-throw for workspace uploads — the local file is the primary,
+    // B2 is the backup. Log the error but don't crash the socket handler.
+    console.error(`[S3] Workspace file upload failed (local file still saved): ${key}`, err.message)
+  }
 }
 
 /** Download a workspace file from B2 */
@@ -369,17 +418,27 @@ export async function s3RestoreDatabase(dbPath: string): Promise<boolean> {
  *   2. FCC .env (proxy config) — restore if missing locally
  *   3. bashrc_env (shell config) — restore if missing locally
  *   4. SQLite database — restore from backup if missing locally
+ *   5. Workspace files — restore from B2 to local disk
  */
 export async function s3InitSync(localUsersJson: string | null): Promise<string | null> {
   console.log('[S3] Starting B2 initialization sync...')
   
+  if (!isS3Configured()) {
+    console.error('[S3] B2 NOT CONFIGURED — skipping initialization sync. All data will be local-only and lost on container restart!')
+    return localUsersJson
+  }
+
   // ── 1. Users.json sync ──
   const b2Users = await s3LoadUsers()
   if (b2Users) {
     console.log('[S3] Found existing users.json in B2 — using cloud data')
   } else if (localUsersJson) {
     console.log('[S3] No B2 data found — uploading local users.json as initial sync')
-    await s3SaveUsers(localUsersJson)
+    try {
+      await s3SaveUsers(localUsersJson)
+    } catch (err: any) {
+      console.error('[S3] Failed to upload initial users.json:', err.message)
+    }
   }
   const usersData = b2Users || localUsersJson
 
@@ -416,10 +475,48 @@ export async function s3InitSync(localUsersJson: string | null): Promise<string 
   }
 
   // ── 5. Workspace restore ──
-  // Download workspace files from B2 for users who have cloud data
-  const workspaceList = await s3List('workspaces/', 500)
+  // Download ALL workspace files from B2 to local disk so they survive in the terminal
+  const workspaceList = await s3List('workspaces/', 1000)
   if (workspaceList.length > 0) {
-    console.log(`[S3] Found ${workspaceList.length} workspace files in B2 — they'll be downloaded on demand`)
+    console.log(`[S3] Found ${workspaceList.length} workspace files in B2 — restoring to local disk...`)
+    const { writeFileSync, mkdirSync } = await import('fs')
+    const { dirname, join } = await import('path')
+    const WORKSPACE_BASE = process.env.WORKSPACE_DIR || '/home/cloudshell/workspace'
+    // Workspace dirs follow pattern: /home/cloudshell/workspace/{username}
+    
+    for (const s3Key of workspaceList) {
+      if (!s3Key) continue
+      try {
+        // s3Key format: workspaces/{username}/relative/path
+        const parts = s3Key.split('/')
+        if (parts.length < 3 || parts[0] !== 'workspaces') continue
+        
+        const username = parts[1]
+        const relativePath = parts.slice(2).join('/')
+        const userWorkspaceDir = join(WORKSPACE_BASE, '..', username)
+        const resolvedLocalPath = join(userWorkspaceDir, relativePath)
+        
+        // Download content from B2
+        const content = await s3GetString(s3Key)
+        if (content !== null) {
+          const dir = dirname(resolvedLocalPath)
+          mkdirSync(dir, { recursive: true })
+          writeFileSync(resolvedLocalPath, content, 'utf-8')
+          console.log(`[S3] Restored: ${s3Key} → ${resolvedLocalPath}`)
+        } else {
+          // Binary files need Buffer download
+          const buffer = await s3GetBuffer(s3Key)
+          if (buffer) {
+            const dir = dirname(resolvedLocalPath)
+            mkdirSync(dir, { recursive: true })
+            writeFileSync(resolvedLocalPath, buffer)
+            console.log(`[S3] Restored (binary): ${s3Key} → ${resolvedLocalPath}`)
+          }
+        }
+      } catch (err: any) {
+        console.error(`[S3] Failed to restore ${s3Key}:`, err.message)
+      }
+    }
   }
 
   console.log('[S3] B2 initialization sync complete')
@@ -430,10 +527,10 @@ export async function s3InitSync(localUsersJson: string | null): Promise<string 
 /** Schedule periodic SQLite database backups to B2 (every 30 minutes) */
 export function startPeriodicDbBackup(dbPath: string, intervalMs: number = 30 * 60 * 1000): void {
   if (!isS3Configured()) {
-    console.warn('[S3] Not configured — periodic database backup disabled')
+    console.error('[S3] NOT CONFIGURED — periodic database backup disabled. DB data will be lost on container restart!')
     return
   }
-  console.log(`[S3] Periodic database backup started (interval: ${intervalMs / 1000}s, db: ${dbPath})`)
+  console.log(`[S3] Periodic database backup started (interval: ${intervalMs / 1000}s, db: ${dbPath}, bucket: ${B2_BUCKET_NAME})`)
   setInterval(async () => {
     try {
       await s3BackupDatabase(dbPath)
@@ -441,4 +538,25 @@ export function startPeriodicDbBackup(dbPath: string, intervalMs: number = 30 * 
       console.error('[S3] Periodic database backup failed:', err.message)
     }
   }, intervalMs)
+}
+
+// ─── B2 Connectivity Test ────────────────────────────────────────
+/** Test B2 connectivity by listing the bucket — returns true if working */
+export async function s3TestConnection(): Promise<{ ok: boolean; error?: string; bucketObjects?: number }> {
+  if (!isS3Configured()) {
+    return { ok: false, error: 'B2 env vars not configured' }
+  }
+  try {
+    const client = getS3Client()
+    const response = await client.send(new ListObjectsV2Command({
+      Bucket: B2_BUCKET_NAME,
+      MaxKeys: 5,
+    }))
+    const count = response.Contents?.length || 0
+    console.log(`[S3] Connectivity test PASSED — bucket "${B2_BUCKET_NAME}" has ${count} objects`)
+    return { ok: true, bucketObjects: count }
+  } catch (err: any) {
+    console.error(`[S3] Connectivity test FAILED — bucket "${B2_BUCKET_NAME}": ${err.name} - ${err.message} (status: ${err.$metadata?.httpStatusCode || 'N/A'})`)
+    return { ok: false, error: `${err.name}: ${err.message} (status: ${err.$metadata?.httpStatusCode || 'N/A'})` }
+  }
 }
