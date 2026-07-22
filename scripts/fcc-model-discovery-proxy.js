@@ -12,11 +12,11 @@
  * Model ID Mapping:
  *   claude-opus-4-5        → z-ai/glm-5.2           (most capable, Opus-tier)
  *   claude-sonnet-4-5      → nvidia/llama-3.3-nemotron-super-49b-v1  (balanced)
- *   claude-haiku-4-5       → nvidia/phi-4            (fast)
+ *   claude-sonnet-4-5-mini → nvidia/nemotron-3-nano-30b-a3b       (fast)
  *   claude-sonnet-4        → nvidia/llama-3.1-nemotron-70b-instruct  (legacy)
  *   claude-opus-4          → nvidia/nemotron-3-super-120b-a12b       (legacy)
- *   claude-haiku-3-5       → nvidia/mistral-large-2411              (legacy)
- *   claude-deepseek-r1     → deepseek-ai/deepseek-r1               (reasoning)
+ *   anthropic-mistral-large → mistralai/mistral-large-3-675b-instruct-2512 (latest)
+ *   claude-deepseek-r1     → deepseek-ai/deepseek-v4-pro               (reasoning)
  *
  * Capability Detection:
  *   - "opus-4-5" → 64K tokens, extended thinking, opus plan mode
@@ -69,11 +69,11 @@ const CLAUDE_MODELS = [
   },
   {
     id: 'claude-sonnet-4-5-mini',
-    display_name: 'Phi-4 (Sonnet Mini)',
-    nvidiaModel: 'nvidia/phi-4',
-    description: 'Fast and efficient — good for quick tasks',
-    context_window: 4096,
-    max_tokens: 4096,
+    display_name: 'Nemotron Nano 30B (Sonnet Mini)',
+    nvidiaModel: 'nvidia/nemotron-3-nano-30b-a3b',
+    description: 'Fast and efficient — good for quick tasks (reasoning-enabled)',
+    context_window: 8192,
+    max_tokens: 8192,
     created_at: '2025-01-01',
   },
   {
@@ -96,20 +96,20 @@ const CLAUDE_MODELS = [
   },
   {
     id: 'claude-deepseek-r1',
-    display_name: 'DeepSeek R1 (Reasoning)',
-    nvidiaModel: 'deepseek-ai/deepseek-r1',
-    description: 'DeepSeek reasoning model — best for math and logic',
-    context_window: 4096,
-    max_tokens: 4096,
+    display_name: 'DeepSeek V4 Pro (Reasoning)',
+    nvidiaModel: 'deepseek-ai/deepseek-v4-pro',
+    description: 'DeepSeek V4 Pro — best for math, logic, and reasoning',
+    context_window: 16384,
+    max_tokens: 16384,
     created_at: '2025-01-01',
   },
   {
     id: 'anthropic-mistral-large',
-    display_name: 'Mistral Large 2411',
-    nvidiaModel: 'nvidia/mistral-large-2411',
-    description: 'Mistral Large via NVIDIA NIM',
-    context_window: 4096,
-    max_tokens: 4096,
+    display_name: 'Mistral Large 3 675B',
+    nvidiaModel: 'mistralai/mistral-large-3-675b-instruct-2512',
+    description: 'Mistral Large 3 675B — most capable Mistral model on NIM',
+    context_window: 16384,
+    max_tokens: 16384,
     created_at: '2025-01-01',
   },
 ]
@@ -127,9 +127,9 @@ MODEL_MAP['z-ai/glm-5.2'] = 'z-ai/glm-5.2'
 MODEL_MAP['nvidia/nemotron-3-super-120b-a12b'] = 'nvidia/nemotron-3-super-120b-a12b'
 MODEL_MAP['nvidia/llama-3.3-nemotron-super-49b-v1'] = 'nvidia/llama-3.3-nemotron-super-49b-v1'
 MODEL_MAP['nvidia/llama-3.1-nemotron-70b-instruct'] = 'nvidia/llama-3.1-nemotron-70b-instruct'
-MODEL_MAP['nvidia/mistral-large-2411'] = 'nvidia/mistral-large-2411'
-MODEL_MAP['deepseek-ai/deepseek-r1'] = 'deepseek-ai/deepseek-r1'
-MODEL_MAP['nvidia/phi-4'] = 'nvidia/phi-4'
+MODEL_MAP['mistralai/mistral-large-3-675b-instruct-2512'] = 'mistralai/mistral-large-3-675b-instruct-2512'
+MODEL_MAP['deepseek-ai/deepseek-v4-pro'] = 'deepseek-ai/deepseek-v4-pro'
+MODEL_MAP['nvidia/nemotron-3-nano-30b-a3b'] = 'nvidia/nemotron-3-nano-30b-a3b'
 
 // Default model resolution: if DEFAULT_MODEL is a Claude ID, map it; if it's
 // a raw NVIDIA ID, use it directly; otherwise fall back to GLM 5.2
